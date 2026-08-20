@@ -1,7 +1,11 @@
+import { solveAndSubmit } from "../captcha.js";
+
 const BASE_URL = "https://tvboom.vip";
 
 const VALIDATION_LINK_RE =
   /https?:\/\/tvboom\.vip\/index\.php\?do=register(?:&|&amp;)doaction=validating(?:&|&amp;)id=[a-zA-Z0-9_|=~%-]+/i;
+
+// ─── Selectors ────────────────────────────────────────────────────────────────
 
 const SELECTORS = {
   rulesAccept: [
@@ -32,8 +36,7 @@ const SELECTORS = {
     'input[type="password"]:nth-of-type(2)',
   ],
   submit: [
-    'button:has-text("Регистрация")',
-    'input[value="Регистрация"]',
+    'button[name="submit"][type="submit"]',
     'button[type="submit"]',
     'input[type="submit"]',
   ],
@@ -103,40 +106,7 @@ async function fillFirst(page, selectors, value) {
   return false;
 }
 
-async function handleCaptcha(page) {
-  const frame = page
-    .frames()
-    .find((f) => f.url().includes("google.com/recaptcha/api2/anchor"));
-  if (!frame) return;
-  const checkbox = await frame
-    .waitForSelector("#recaptcha-anchor", { timeout: 3_000 })
-    .catch(() => null);
-  if (!checkbox) return;
-
-  await checkbox.click();
-  // Wait for the checkmark — if Google is satisfied this is all that happens
-  await frame
-    .waitForSelector('#recaptcha-anchor[aria-checked="true"]', {
-      timeout: 5_000,
-    })
-    .catch(() => {});
-
-  // If Google opens the image-challenge popup (bframe), wait for it to close
-  // before returning — it sits on top of the submit button and blocks clicks
-  await page
-    .waitForFunction(
-      () =>
-        !Array.from(document.querySelectorAll("iframe")).some((f) =>
-          f.src.includes("bframe"),
-        ),
-      { timeout: 120_000, polling: 500 },
-    )
-    .catch(() => {});
-}
-
 async function clickValidationLink(emailPage, url) {
-  // Search every frame in the email page for an anchor whose href matches the URL.
-  // Tmaily may render email bodies inside an <iframe>.
   const targets = [emailPage, ...emailPage.frames()];
   for (const target of targets) {
     try {
@@ -173,7 +143,14 @@ const TvBoomRegistration = {
     description: "TVBoom 24-hour IPTV trial registration & activation",
   },
 
-  async execute({ page, emailPage, provider, email, log = () => {} }) {
+  async execute({
+    page,
+    emailPage,
+    provider,
+    email,
+    inboxSeenIds = new Set(),
+    log = () => {},
+  }) {
     const { username, password } = generateCredentials();
 
     // 1. Registration form
@@ -187,10 +164,13 @@ const TvBoomRegistration = {
     await fillFirst(page, SELECTORS.email, email);
     await fillFirst(page, SELECTORS.password, password);
     await fillFirst(page, SELECTORS.passwordRepeat, password);
-    await handleCaptcha(page);
 
-    const submitted = await clickFirst(page, SELECTORS.submit);
-    if (!submitted) await page.keyboard.press("Enter");
+    // Solve CAPTCHA then immediately click submit
+    await solveAndSubmit(page, {
+      submitSelectors: SELECTORS.submit,
+      log,
+      tag: "TVBoom",
+    });
     await page.waitForLoadState("domcontentloaded").catch(() => {});
 
     // 2. Confirmation email — open it and click the validation link inside
@@ -200,6 +180,9 @@ const TvBoomRegistration = {
     const validationUrl = await provider.waitForEmailAndExtractLink(emailPage, {
       filterText: "tvboom",
       pattern: VALIDATION_LINK_RE,
+      // Forward the run-wide seen-IDs set so emails from any previously
+      // processed service are already excluded from this poll.
+      seenIds: inboxSeenIds,
       timeout: 60_000,
     });
     if (!validationUrl)
@@ -207,14 +190,10 @@ const TvBoomRegistration = {
         "Validation link not found in TVBoom confirmation email.",
       );
 
-    // The email is now open in emailPage. Find the validation anchor and click it
-    // so the browser follows the link naturally (handles redirects, cookies, etc.)
     log("[TVBoom] Clicking validation link inside email...");
     const cleanUrl = validationUrl.replace(/&amp;/g, "&");
-
     const clicked = await clickValidationLink(emailPage, cleanUrl);
 
-    // Whether we clicked an anchor or fell back to direct navigation, land on the validation page
     if (clicked) {
       await page.bringToFront().catch(() => {});
       await page.waitForLoadState("domcontentloaded").catch(() => {});

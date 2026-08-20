@@ -128,6 +128,12 @@ export async function runTask(
     emit(emitter, "email_created", { email, provider: provider.meta.name });
     log(emitter, `Temporary email ready: ${email}`);
 
+    // One Set for the entire run — every service forwards it to inbox polls so
+    // emails opened by an earlier service are never re-processed by a later one.
+    // The Set is passed by reference, so IDs accumulate across all services
+    // automatically without any extra coordination between them.
+    const inboxSeenIds = new Set();
+
     for (const service of services) {
       if (signal.aborted) break;
 
@@ -148,6 +154,7 @@ export async function runTask(
             emailPage,
             provider,
             email,
+            inboxSeenIds,
             log: (msg, level = "info") => log(emitter, msg, level),
           });
         } else {
@@ -164,6 +171,7 @@ export async function runTask(
             .waitForEmailAndExtractPlaylists(emailPage, {
               filterText:
                 service.meta.id === "rutv" ? "ru-tv" : service.meta.name,
+              seenIds: inboxSeenIds,
               timeout: 60_000,
             })
             .catch((e) => {

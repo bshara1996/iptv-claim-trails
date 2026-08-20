@@ -13,19 +13,20 @@
  */
 
 import TmailyProvider from "./providers/tmaily.js";
+import DisposeLolProvider from "./providers/disposelol.js";
 
-import RuTvRegistration from "./services/rutv.js";
-import TvBoomRegistration from "./services/tvboom.js";
 import Y6TvRegistration from "./services/y6tv.js";
+import TvBoomRegistration from "./services/tvboom.js";
 import VeleStoreRegistration from "./services/velestore.js";
+import OneIptv4kRegistration from "./services/oneiptv4k.js";
 
-export const emailProviders = [TmailyProvider];
+export const emailProviders = [TmailyProvider, DisposeLolProvider];
 
 export const registrationServices = [
-  RuTvRegistration,
-  TvBoomRegistration,
   Y6TvRegistration,
+  TvBoomRegistration,
   VeleStoreRegistration,
+  OneIptv4kRegistration,
 ];
 
 export function getProvider(id) {

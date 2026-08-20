@@ -1,18 +1,129 @@
-import { createRegistrationService } from "./rutv.js";
+import logger from "../../logger.js";
+import { waitForPlaylistEmail } from "../providers/inboxPoller.js";
+import { solveAndSubmit } from "../captcha.js";
 
-const base = createRegistrationService({
-  id: "y6tv",
-  name: "Y6TV",
-  url: "https://rg.y6tv.me/regfm.php?devTypeID=100",
-  filterText: "y6tv",
-  description: "Y6TV IPTV free trial registration",
-});
+// ─── Selectors ────────────────────────────────────────────────────────────────
+
+const EMAIL_SELECTORS = [
+  'input[name="email"]',
+  'input[placeholder="E-Mail"]',
+  'input[placeholder*="mail" i]',
+  'input[type="email"]',
+  'input[type="text"]',
+];
+
+const SUBMIT_SELECTORS = [
+  "#regBtn",
+  'input[name="regBtn"]',
+  'input[value="Зарегистрировать"]',
+  "input.regFormBtn",
+  'button[type="submit"]',
+  'input[type="submit"]',
+];
+
+const ERROR_SELECTORS = [
+  ".error",
+  ".alert-error",
+  ".alert-danger",
+  ".registration-error",
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+async function findVisible(page, selectors) {
+  for (const sel of selectors) {
+    try {
+      const el = await page.$(sel);
+      if (el && (await el.isVisible())) return el;
+    } catch (_) {}
+  }
+  return null;
+}
+
+async function submitForm(page, email, log) {
+  await page
+    .goto("https://rg.y6tv.me/regfm.php?devTypeID=100", {
+      waitUntil: "domcontentloaded",
+      timeout: 10_000,
+    })
+    .catch(() =>
+      logger.warn("[Y6TV] Page load timeout — proceeding with current DOM."),
+    );
+
+  await page
+    .waitForSelector(EMAIL_SELECTORS[0], { timeout: 5_000 })
+    .catch(() => {});
+
+  const emailField = await findVisible(page, EMAIL_SELECTORS);
+  if (!emailField)
+    throw new Error("Email field not found on the Y6TV registration page.");
+
+  await emailField.click().catch(() => {});
+  await emailField.fill(email);
+  logger.info(`[Y6TV] Email filled: ${email}`);
+
+  // Solve CAPTCHA then immediately click submit
+  log("[Y6TV] Submitting form...");
+  const navPromise = page
+    .waitForNavigation({ waitUntil: "load", timeout: 15_000 })
+    .catch(() => {});
+
+  await solveAndSubmit(page, {
+    submitSelectors: SUBMIT_SELECTORS,
+    log,
+    tag: "Y6TV",
+  });
+
+  await navPromise;
+
+  const errorText = await page.evaluate(
+    (sels) =>
+      sels.reduce(
+        (found, s) =>
+          found ?? document.querySelector(s)?.innerText?.trim() ?? null,
+        null,
+      ),
+    ERROR_SELECTORS,
+  );
+  if (errorText) throw new Error(`Registration rejected: ${errorText}`);
+
+  logger.info("[Y6TV] Registration submitted successfully.");
+}
+
+// ─── Service ──────────────────────────────────────────────────────────────────
 
 export default {
-  ...base,
+  meta: {
+    id: "y6tv",
+    name: "Y6TV",
+    url: "https://rg.y6tv.me/regfm.php?devTypeID=100",
+    description: "Y6TV IPTV free trial registration",
+  },
 
-  async execute(ctx) {
-    const result = await base.execute(ctx);
+  async execute({
+    page,
+    emailPage,
+    email,
+    inboxSeenIds = new Set(),
+    log = () => {},
+  }) {
+    log("[Y6TV] Submitting registration form...");
+    await submitForm(page, email, log);
+
+    log("[Y6TV] Waiting for confirmation email with playlist links...");
+    await emailPage.bringToFront().catch(() => {});
+
+    const playlists = await waitForPlaylistEmail(emailPage, {
+      filterText: "y6tv",
+      // Forward the run-wide seen-IDs set so emails from any previously
+      // processed service are already excluded from this poll.
+      seenIds: inboxSeenIds,
+      timeout: 120_000,
+    });
+
+    if (playlists.allM3uLinks.length === 0) {
+      log("[Y6TV] No M3U links found in confirmation email.", "warn");
+    }
 
     const expiresAt = new Date(Date.now() + 3 * 864e5).toLocaleString("en-US", {
       month: "short",
@@ -23,6 +134,17 @@ export default {
       hour12: true,
     });
 
-    return { ...result, duration: "3 Days", expiresAt };
+    return {
+      email,
+      tvPlaylist: playlists.tvPlaylist,
+      vodPlaylist: playlists.vodPlaylist,
+      allM3uLinks: playlists.allM3uLinks,
+      duration: "3 Days",
+      expiresAt,
+      status: "success",
+      note: playlists.tvPlaylist
+        ? "M3U playlist links extracted from confirmation email."
+        : "Registered — no playlist links found in confirmation email.",
+    };
   },
 };
