@@ -1,14 +1,21 @@
+/**
+ * Dispose.lol disposable email provider.
+ *
+ * Opens dispose.lol, waits for a temporary email address to be generated,
+ * then exposes inbox polling via the shared inboxPoller helpers.
+ * Swapping providers only requires updating the import in registry.js.
+ */
 import logger from "../../logger.js";
 import { waitForValidationLink, waitForPlaylistEmail } from "./inboxPoller.js";
 
-// ─── Config ───────────────────────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────────────────────
 
 const CONFIG = {
   url: "https://dispose.lol/",
 
   selectors: {
     // The generated address lives in a <p> inside this aria-live container.
-    // The same container shows "Loading" while the address is being generated.
+    // The same container shows "Loading" while the address is still being generated.
     addressContainer: '[aria-live="polite"] p',
 
     // Sentinel text visible while the address is still loading
@@ -22,14 +29,16 @@ const CONFIG = {
   },
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Basic email format check to filter out false positives
 function isValidEmail(str) {
   return (
     typeof str === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(str.trim())
   );
 }
 
+// Reads the address from the aria-live container, falling back to a body regex scan
 async function readEmailFromPage(page) {
   try {
     const el = await page.$(CONFIG.selectors.addressContainer);
@@ -42,7 +51,7 @@ async function readEmailFromPage(page) {
       return text;
   } catch (_) {}
 
-  // Fallback: regex scan of body text
+  // Last resort — scan the entire page body for an email-shaped string
   try {
     const body = await page.evaluate(() => document.body?.innerText ?? "");
     const m = body.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
@@ -52,7 +61,7 @@ async function readEmailFromPage(page) {
   return null;
 }
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
+// ── Provider ──────────────────────────────────────────────────────────────────
 
 const DisposeLolProvider = {
   meta: {
@@ -69,7 +78,7 @@ const DisposeLolProvider = {
       timeout: CONFIG.timeouts.pageLoad,
     });
 
-    // Wait for the address container to appear and show a non-loading value
+    // Wait for the container to show a non-loading value before polling
     logger.info("[DisposeLol] Waiting for email address to be generated...");
     await page
       .waitForFunction(
@@ -85,6 +94,7 @@ const DisposeLolProvider = {
       )
       .catch(() => {});
 
+    // Poll until the address is readable — DOM may still settle after waitForFunction resolves
     const deadline = Date.now() + CONFIG.timeouts.addressPoll;
     while (Date.now() < deadline) {
       const email = await readEmailFromPage(page);
@@ -97,8 +107,7 @@ const DisposeLolProvider = {
     throw new Error("[DisposeLol] Timed out waiting for email address.");
   },
 
-  // Delegates to inboxPoller — the INBOX_SELECTORS in inboxPoller.js include
-  // dispose.lol-specific selectors for message rows, refresh, and back buttons.
+  // Delegates inbox polling to inboxPoller — no provider-specific logic needed
   waitForEmailAndExtractLink: waitForValidationLink,
   waitForEmailAndExtractPlaylists: waitForPlaylistEmail,
 };

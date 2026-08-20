@@ -1,5 +1,15 @@
+/**
+ * Shared Playwright browser manager.
+ *
+ * One Chromium instance is shared across all tasks.
+ * Each task gets its own isolated context (cookies, storage, etc.).
+ * Concurrency is capped at MAX_CONCURRENT_BROWSERS (default: 5).
+ * Switching headless mode mid-run closes all contexts and relaunches the browser.
+ */
 import { chromium } from "playwright";
 import logger from "./logger.js";
+
+// ── State ─────────────────────────────────────────────────────────────────────
 
 let browser = null;
 let currentBrowserHeadless = null;
@@ -8,12 +18,15 @@ const openContexts = new Set();
 
 const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_BROWSERS || "5", 10);
 
+// ── Browser lifecycle ─────────────────────────────────────────────────────────
+
 async function getBrowser(headlessMode) {
   const isHeadless =
     typeof headlessMode === "boolean"
       ? headlessMode
       : process.env.HEADLESS === "true";
 
+  // Relaunch if headless mode changed — requires a fresh browser instance
   if (
     browser &&
     browser.isConnected() &&
@@ -48,6 +61,7 @@ async function getBrowser(headlessMode) {
     });
     currentBrowserHeadless = isHeadless;
 
+    // Reset state on unexpected disconnect so the next call relaunches cleanly
     browser.on("disconnected", () => {
       logger.warn("Browser disconnected — resetting session counter.");
       browser = null;
@@ -58,6 +72,8 @@ async function getBrowser(headlessMode) {
   }
   return browser;
 }
+
+// ── Context management ────────────────────────────────────────────────────────
 
 export async function createContext({ headless } = {}) {
   const isHeadless =
@@ -124,6 +140,8 @@ export async function forceCloseAllContexts() {
   activeSessions = 0;
   logger.info("[Browser] All sessions cleared. Ready for new tasks.");
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 export function getActiveSessions() {
   return activeSessions;

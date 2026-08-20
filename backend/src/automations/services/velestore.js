@@ -1,10 +1,17 @@
-import { solveAndSubmit } from "../captcha.js";
+/**
+ * VeleStore free trial registration service.
+ *
+ * Generates random credentials, fills the registration form, solves the reCAPTCHA,
+ * navigates to the user cabinet, activates the 6-hour trial, then builds the
+ * playlist URL directly from the credentials (no inbox polling needed).
+ */
+import { solveAndSubmit } from "../utils/captcha.js";
+import { generateUsername, generatePassword } from "../utils/fakeData.js";
 
 const BASE_URL = "https://velestore.su";
 const TAG = "VeleStore";
-const CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
-// ─── Selectors ────────────────────────────────────────────────────────────────
+// ── Selectors ─────────────────────────────────────────────────────────────────
 
 const SELECTORS = {
   name: "#name",
@@ -23,14 +30,9 @@ const SELECTORS = {
   errorBlock: ".inform-1",
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const rand = (n) =>
-  Array.from(
-    { length: n },
-    () => CHARS[Math.floor(Math.random() * CHARS.length)],
-  ).join("");
-
+// Fills all registration form fields with the provided credentials
 async function fillForm(page, { login, password, email }, log) {
   await page
     .waitForSelector(SELECTORS.name, { timeout: 8_000 })
@@ -47,18 +49,18 @@ async function fillForm(page, { login, password, email }, log) {
   }
 }
 
+// Solves the CAPTCHA, submits the form, and throws on server-side validation errors
 async function submitForm(page, log) {
+  // Start waiting for navigation before the submit click so we don't miss it
   const nav = page
     .waitForNavigation({ waitUntil: "domcontentloaded", timeout: 25_000 })
     .catch(() => {});
 
-  // Solve CAPTCHA then immediately click submit
   await solveAndSubmit(page, {
     submitSelectors: SELECTORS.submit,
     log,
     tag: TAG,
   });
-
   await nav;
 
   const errorText = await page
@@ -67,6 +69,7 @@ async function submitForm(page, log) {
       SELECTORS.errorBlock,
     )
     .catch(() => null);
+
   if (
     errorText &&
     /код безопасности|captcha|ошибка регистрации/i.test(errorText)
@@ -78,10 +81,12 @@ async function submitForm(page, log) {
   log(`[${TAG}] Registration submitted. URL: ${page.url()}`);
 }
 
+// Clicks "go to cabinet" then activates the 6-hour trial button
 async function goToCabinetAndActivate(page, log) {
   const cabinetBtn = await page
     .waitForSelector(SELECTORS.cabinet, { timeout: 10_000 })
     .catch(() => null);
+
   if (!cabinetBtn) {
     log(`[${TAG}] «ПЕРЕЙТИ В КАБИНЕТ» not found — continuing.`, "warn");
     return;
@@ -98,12 +103,17 @@ async function goToCabinetAndActivate(page, log) {
   const trialBtn = await page
     .waitForSelector(SELECTORS.trialBtn, { timeout: 10_000 })
     .catch(() => null);
+
   if (trialBtn) {
     await trialBtn.click();
     await page.waitForTimeout(2_000);
-  } else log(`[${TAG}] «Получить тест на 6 часов» button not found.`, "warn");
+  } else {
+    log(`[${TAG}] «Получить тест на 6 часов» button not found.`, "warn");
+  }
 }
 
+// Reads the expiry date from the cabinet page and computes the remaining duration.
+// Falls back to a +6h estimate if the date element is missing or unparseable.
 async function extractExpiry(page, log) {
   const raw = await page
     .evaluate(() => {
@@ -127,13 +137,18 @@ async function extractExpiry(page, log) {
   const match = raw?.match(/^(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})$/);
   if (match) {
     const [, dd, mm, yyyy, hh, min] = match;
-    const ms = new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:00`) - Date.now();
-    const total = Math.max(0, Math.round(ms / 60_000));
-    const h = Math.floor(total / 60),
-      m = total % 60,
-      d = Math.floor(h / 24),
+    const totalMins = Math.max(
+      0,
+      Math.round(
+        (new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:00`) - Date.now()) / 60_000,
+      ),
+    );
+    const h = Math.floor(totalMins / 60),
+      m = totalMins % 60;
+    const d = Math.floor(h / 24),
       hr = h % 24;
     const p = (n, w) => `${n} ${w}${n !== 1 ? "s" : ""}`;
+    // Format as "X Day(s) Y Hour(s)", "X Hour(s) Y Min(s)", etc. based on magnitude
     const duration =
       h >= 24
         ? hr > 0
@@ -143,7 +158,7 @@ async function extractExpiry(page, log) {
           ? m > 0
             ? `${p(h, "Hour")} ${p(m, "Min")}`
             : p(h, "Hour")
-          : p(total, "Min");
+          : p(totalMins, "Min");
     log(`[${TAG}] Calculated duration: ${duration}`);
     return { expiresAt: raw, duration };
   }
@@ -159,11 +174,11 @@ async function extractExpiry(page, log) {
         minute: "2-digit",
         hour12: true,
       }),
-    duration: "6 Hours",
+    duration: "24 Hours",
   };
 }
 
-// ─── Service ──────────────────────────────────────────────────────────────────
+// ── Service ───────────────────────────────────────────────────────────────────
 
 const VeleStoreRegistration = {
   meta: {
@@ -174,8 +189,8 @@ const VeleStoreRegistration = {
   },
 
   async execute({ page, email, log = () => {} }) {
-    const login = `user${rand(8)}`;
-    const password = `P${rand(5)}${Math.floor(Math.random() * 90 + 10)}`;
+    const login = `user${generateUsername()}`;
+    const password = generatePassword();
     log(`[${TAG}] Generated credentials — login: ${login}`);
 
     // 1. Open registration page
@@ -208,7 +223,6 @@ const VeleStoreRegistration = {
     return {
       username: login,
       password,
-      email,
       tvPlaylist,
       vodPlaylist: null,
       allM3uLinks: [tvPlaylist],

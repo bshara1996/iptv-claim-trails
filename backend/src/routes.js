@@ -1,3 +1,13 @@
+/**
+ * Automation API routes — mounted at /api/automation.
+ *
+ * Endpoints:
+ *   GET  /info              – lists available providers and services
+ *   POST /start             – creates and starts an automation task
+ *   POST /stop/:taskId      – cancels a running task
+ *   GET  /stream/:taskId    – streams live task events via SSE
+ *   GET  /results/:taskId   – returns final status and results
+ */
 import { Router } from "express";
 import {
   emailProviders,
@@ -13,8 +23,9 @@ import logger from "./logger.js";
 
 const router = Router();
 
-// ─── GET /api/automation/info ─────────────────────────────────────────────────
-// Returns all available providers and services for the UI to display.
+// ── Info ─────────────────────────────────────────────────────────────────────
+// Returns available providers and services so the UI can populate its selectors.
+
 router.get("/info", (_req, res) => {
   res.json({
     providers: emailProviders.map((p) => p.meta),
@@ -22,9 +33,10 @@ router.get("/info", (_req, res) => {
   });
 });
 
-// ─── POST /api/automation/start ───────────────────────────────────────────────
+// ── Start task ───────────────────────────────────────────────────────────────
 // Body: { providerId: string, serviceIds: string[], headless?: boolean }
-// Returns: { taskId: string }
+// Creates a task and fires it off asynchronously — the client tracks progress via SSE.
+
 router.post("/start", async (req, res) => {
   const { providerId, serviceIds, headless } = req.body;
 
@@ -37,6 +49,7 @@ router.post("/start", async (req, res) => {
   const { taskId } = createTask();
   logger.info(`[Route] Starting task ${taskId} (headless=${headless})`);
 
+  // Run without awaiting so the taskId can be returned immediately
   runTask(taskId, providerId, serviceIds, { headless }).catch((err) =>
     logger.error(`[Route] Unhandled task error: ${err.message}`),
   );
@@ -44,23 +57,28 @@ router.post("/start", async (req, res) => {
   res.json({ taskId });
 });
 
-// ─── POST /api/automation/stop/:taskId ───────────────────────────────────────
+// ── Stop task ────────────────────────────────────────────────────────────────
+
 router.post("/stop/:taskId", async (req, res) => {
   await cancelTask(req.params.taskId);
   res.json({ ok: true });
 });
 
-// ─── GET /api/automation/stream/:taskId  (SSE) ───────────────────────────────
+// ── Stream (SSE) ─────────────────────────────────────────────────────────────
+// Streams live task events to the client using Server-Sent Events.
+
 router.get("/stream/:taskId", (req, res) => {
   const task = getTask(req.params.taskId);
   if (!task) return res.status(404).json({ error: "Task not found" });
 
+  // SSE requires these headers; X-Accel-Buffering disables Nginx proxy buffering
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
+  // Keep the connection alive through idle periods
   const keepAlive = setInterval(() => res.write(": ping\n\n"), 20000);
 
   const sendEvent = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`);
@@ -74,6 +92,7 @@ router.get("/stream/:taskId", (req, res) => {
   task.emitter.on("event", sendEvent);
   task.emitter.once("done", onDone);
 
+  // Clean up listeners if the client disconnects before the task finishes
   req.on("close", () => {
     clearInterval(keepAlive);
     task.emitter.off("event", sendEvent);
@@ -81,7 +100,8 @@ router.get("/stream/:taskId", (req, res) => {
   });
 });
 
-// ─── GET /api/automation/results/:taskId ─────────────────────────────────────
+// ── Results ──────────────────────────────────────────────────────────────────
+
 router.get("/results/:taskId", (req, res) => {
   const task = getTask(req.params.taskId);
   if (!task) return res.status(404).json({ error: "Task not found" });

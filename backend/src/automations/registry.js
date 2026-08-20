@@ -1,15 +1,8 @@
 /**
- * registry.js
- *
  * Central registry of all email providers and registration services.
  *
- * To add a new email provider:
- *   1. Create src/automations/providers/<name>.js
- *   2. Import it here and add it to emailProviders[]
- *
- * To add a new registration service:
- *   1. Create src/automations/services/<name>.js
- *   2. Import it here and add it to registrationServices[]
+ * To add a provider: create providers/<name>.js, import it, add it to emailProviders[].
+ * To add a service:  create services/<name>.js,  import it, add it to registrationServices[].
  */
 
 import TmailyProvider from "./providers/tmaily.js";

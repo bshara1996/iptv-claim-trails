@@ -1,3 +1,12 @@
+/**
+ * Shared inbox poller — opens unseen emails and extracts what the caller needs.
+ *
+ * Exports:
+ *   waitForValidationLink(page, opts)        – extracts an account validation link
+ *   waitForPlaylistEmail(page, opts)         – extracts M3U playlist URLs
+ *   waitForVerificationCodeEmail(page, opts) – extracts a numeric verification code
+ */
+
 import logger from "../../logger.js";
 
 // ─── Selectors ────────────────────────────────────────────────────────────────
@@ -8,19 +17,15 @@ export const INBOX_SELECTORS = {
     // ── dispose.lol ──────────────────────────────────────────────────────────
     // Each inbox row is a <button aria-label="View {subject}"> rendered
     // client-side inside section[aria-labelledby="inbox-heading"].
-    // The selector below matches every such row regardless of subject text.
     'section[aria-labelledby="inbox-heading"] button[aria-label^="View "]',
 
     // ── tmaily.com ────────────────────────────────────────────────────────────
-    // tmaily renders its inbox as a list of divs/items inside #email-list.
     // Rows carry no consistent data-* attribute so we match by container + class.
     "#email-list .email-item",
     "#email-list > div:not(.empty-state)",
     ".email-list .email-item",
 
-    // ── Generic / other providers ─────────────────────────────────────────────
-    // Broad fallback selectors that cover common inbox layouts across providers
-    // that were not explicitly mapped above.
+    // ── Generic fallbacks ─────────────────────────────────────────────────────
     "#inbox .message",
     ".inbox-item",
     ".mail-item",
@@ -34,17 +39,14 @@ export const INBOX_SELECTORS = {
 
   refreshBtn: [
     // ── dispose.lol ──────────────────────────────────────────────────────────
-    // The refresh button sits next to <h2 id="inbox-heading"> as an immediate
-    // sibling. Its visible text is "Refresh" (or "Read-only" when the mailbox
-    // is locked), so we target it by position rather than text.
+    // Sits next to <h2 id="inbox-heading"> — targeted by position, not text.
     "#inbox-heading + button",
 
     // ── tmaily.com ────────────────────────────────────────────────────────────
-    // tmaily exposes a dedicated refresh button with a stable id and class.
     "#refresh-btn",
     ".refresh-btn",
 
-    // ── Generic / other providers ─────────────────────────────────────────────
+    // ── Generic fallbacks ─────────────────────────────────────────────────────
     "[data-refresh]",
     '[aria-label*="refresh" i]',
     'button:has-text("Refresh")',
@@ -52,17 +54,15 @@ export const INBOX_SELECTORS = {
 
   backToInbox: [
     // ── dispose.lol ──────────────────────────────────────────────────────────
-    // Opening a message flips a card in-place — no page navigation occurs.
-    // The close button inside the message detail panel carries this aria-label.
+    // Opening a message flips a card in-place — close button carries this label.
     'button[aria-label="Close message detail"]',
 
     // ── tmaily.com ────────────────────────────────────────────────────────────
-    // tmaily renders a standard "Back to Inbox" anchor after opening a message.
     'a:has-text("Back to Inbox")',
     "#back-to-inbox",
     ".back-to-inbox",
 
-    // ── Generic / other providers ─────────────────────────────────────────────
+    // ── Generic fallbacks ─────────────────────────────────────────────────────
     'button:has-text("Back")',
     'a:has-text("Back")',
     'button:has-text("Inbox")',
@@ -82,7 +82,6 @@ const DURATION_UNITS = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// Returns the first visible element matching any selector in the comma-separated string.
 async function findVisible(page, selector) {
   for (const sel of selector.split(", ")) {
     try {
@@ -93,22 +92,11 @@ async function findVisible(page, selector) {
   return null;
 }
 
-// Opens a row, reads text from all frames (including iframes), then navigates back.
+// Clicks a row, reads content across all frames, then navigates back to inbox
 async function openAndRead(page, row) {
   await row.scrollIntoViewIfNeeded().catch(() => {});
   await row.click().catch(() => {});
-
-  // dispose.lol opens an in-place panel — wait for its close button to appear
-  // so the content is fully rendered before we read it. For providers that do
-  // a real page navigation the selector won't match and we fall back to a
-  // generous fixed delay.
-  const panelReady = await page
-    .waitForSelector('button[aria-label="Close message detail"]', {
-      state: "visible",
-      timeout: 5_000,
-    })
-    .catch(() => null);
-  if (!panelReady) await page.waitForTimeout(2_500);
+  await page.waitForTimeout(1_200);
 
   const body = (
     await Promise.all(
@@ -125,21 +113,17 @@ async function openAndRead(page, row) {
   ).join("\n");
 
   const back = await findVisible(page, INBOX_SELECTORS.backToInbox);
-  if (back) {
-    await back.click();
-    await page.waitForTimeout(600);
-  } else {
+  if (back) await back.click();
+  else
     await page
       .goBack({ waitUntil: "domcontentloaded", timeout: 10_000 })
       .catch(() => {});
-    await page.waitForTimeout(600);
-  }
+  await page.waitForTimeout(600);
 
   return body;
 }
 
-// ─── Content parsers ──────────────────────────────────────────────────────────
-
+// Collects all URLs from href attributes and bare links in the email content
 function extractLinks(content) {
   const hrefs = [...content.matchAll(/href=["']([^"']+)["']/gi)].map(
     (m) => m[1],
@@ -150,6 +134,7 @@ function extractLinks(content) {
   return [...new Set([...hrefs, ...bare])];
 }
 
+// Parses a duration string and computes an expiry timestamp
 function extractDuration(content) {
   const m = content.match(
     /(\d+)\s*(дней|день|дня|месяцев|месяца|месяц|часов|часа|час|days?|months?|hours?)/i,
@@ -175,22 +160,14 @@ function extractDuration(content) {
 }
 
 // ─── Core poll loop ───────────────────────────────────────────────────────────
-// Refreshes the inbox on each iteration and calls onRow(rowText, row) for every
-// unseen message. Returns the first non-null value returned by onRow.
+// Refreshes the inbox and calls onRow(rowText, row) for every unseen message.
+// Returns the first non-null value from onRow, or null on timeout.
 //
-// seenIds is the deduplication key. It is passed in by the caller and mutated
-// here — every email ID encountered is added to it. Passing the same Set across
-// multiple poll() calls (or across multiple services sharing one inbox) means
-// an email that was already opened will never be opened again, regardless of
-// how many services have run before this one.
+// seenIds is mutated here — every encountered email ID is added to it.
+// Passing the same Set across services ensures an already-opened email is
+// never re-processed, regardless of how many services have run before.
 //
-// The ID for each row is resolved in this priority order:
-//   1. data-id attribute   — present on most temp-mail providers
-//   2. data-email-id       — alternative attribute used by some providers
-//   3. data-message-id     — another common alternative
-//   4. first 80 chars of the row's visible text — provider-agnostic fallback
-// This makes the deduplication logic work with any temp-mail provider without
-// requiring provider-specific code here.
+// Row ID priority: data-id → data-email-id → data-message-id → first 80 chars of text
 
 async function poll(
   page,
@@ -281,6 +258,13 @@ export async function waitForPlaylistEmail(
     `[InboxPoller] Polling inbox for playlist email${filterText ? ` matching "${filterText}"` : ""}...`,
   );
 
+  const empty = {
+    tvPlaylist: null,
+    vodPlaylist: null,
+    allM3uLinks: [],
+    duration: null,
+    expiresAt: null,
+  };
   const result = await poll(
     page,
     { filterText, seenIds, timeout },
@@ -291,7 +275,9 @@ export async function waitForPlaylistEmail(
           [
             ...body.matchAll(/https?:\/\/[^\s"'<>]+\.m3u8?[^\s"'<>]*/gi),
             ...body.matchAll(/https?:\/\/[^\s"'<>]*[?&]type=m3u8?[^\s"'<>]*/gi),
-          ].map((m) => m[0]),
+            // Strip trailing HTML entities (e.g. &lt;/div&gt;) without breaking
+            // query-string ampersands like &username=x&password=y&type=m3u8
+          ].map((m) => m[0].replace(/&(?:lt|gt|amp|quot|apos);.*/i, "")),
         ),
       ];
 
@@ -308,6 +294,7 @@ export async function waitForPlaylistEmail(
         unique[1] ??
         null;
       const { duration, expiresAt } = extractDuration(body);
+
       logger.info(
         `[InboxPoller] TV: ${tv}, VOD: ${vod ?? "none"}, total: ${unique.length}`,
       );
@@ -325,65 +312,33 @@ export async function waitForPlaylistEmail(
     },
   );
 
-  if (!result) {
+  if (!result)
     logger.warn("[InboxPoller] Timed out waiting for playlist email.");
-    return {
-      tvPlaylist: null,
-      vodPlaylist: null,
-      allM3uLinks: [],
-      duration: null,
-      expiresAt: null,
-    };
-  }
-  return result;
-}
-
-// Extracts the most likely OTP from a text string.
-// Strategy:
-//   1. Prefer a digit run that is explicitly preceded by code-context keywords.
-//   2. Fall back to the shortest standalone digit run (4–8 digits) that is NOT
-//      surrounded by other digits — avoids matching years, phone numbers, etc.
-function extractCode(text) {
-  // Primary: digit run with an explicit code-context prefix.
-  const withContext = [
-    ...text.matchAll(
-      /(?:code|otp|pin|verification|confirm)[^a-z0-9]*?(\d{4,8})(?!\d)/gi,
-    ),
-  ];
-  if (withContext.length) {
-    // If multiple matches, prefer the shortest (OTPs are usually 4–6 digits).
-    return withContext.reduce((best, m) =>
-      m[1].length < best[1].length ? m : best,
-    )[1];
-  }
-
-  // Fallback: any standalone 4–8 digit sequence not adjacent to more digits.
-  const standalone = [...text.matchAll(/(?<!\d)(\d{4,8})(?!\d)/g)];
-  if (!standalone.length) return null;
-  // Prefer shorter sequences (OTPs) over longer ones (e.g. phone numbers).
-  return standalone.reduce((best, m) =>
-    m[1].length < best[1].length ? m : best,
-  )[1];
+  return result ?? empty;
 }
 
 export async function waitForVerificationCodeEmail(
   page,
-  { filterText = "", seenIds = new Set(), timeout = 120_000 } = {},
+  {
+    seenIds = new Set(),
+    codeRe = /(?:code[:\s#-]*|your\s+(?:verification\s+)?code\s+(?:is\s+)?)?(\d{4,8})(?!\d)/i,
+    timeout = 120_000,
+  } = {},
 ) {
   logger.info("[InboxPoller] Polling inbox for verification code...");
 
-  return poll(page, { filterText, seenIds, timeout }, async (rowText, row) => {
-    // Check the row preview first — avoids opening the email unnecessarily.
-    const fromPreview = extractCode(rowText);
-    if (fromPreview) {
-      logger.info(`[InboxPoller] Code found in preview: ${fromPreview}`);
-      return fromPreview;
+  return poll(page, { seenIds, timeout }, async (rowText, row) => {
+    // Check row preview first — avoids opening the email unnecessarily
+    const fromPreview = codeRe.exec(rowText);
+    if (fromPreview?.[1]) {
+      logger.info(`[InboxPoller] Code found in preview: ${fromPreview[1]}`);
+      return fromPreview[1];
     }
 
-    const fromBody = extractCode(await openAndRead(page, row));
-    if (fromBody) {
-      logger.info(`[InboxPoller] Code found in body: ${fromBody}`);
-      return fromBody;
+    const fromBody = codeRe.exec(await openAndRead(page, row));
+    if (fromBody?.[1]) {
+      logger.info(`[InboxPoller] Code found in body: ${fromBody[1]}`);
+      return fromBody[1];
     }
 
     logger.info("[InboxPoller] No code in this email — skipping.");

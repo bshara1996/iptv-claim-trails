@@ -1,11 +1,21 @@
-import { solveAndSubmit } from "../captcha.js";
+/**
+ * TVBoom free trial registration service.
+ *
+ * Generates random credentials, fills the registration form, solves the reCAPTCHA,
+ * clicks the validation link from the confirmation email, then activates the
+ * 24-hour trial from the user cabinet.
+ * Playlist URL is built directly from the credentials (no inbox M3U extraction needed).
+ */
+import { solveAndSubmit } from "../utils/captcha.js";
+import { generateUsername, generatePassword } from "../utils/fakeData.js";
 
 const BASE_URL = "https://tvboom.vip";
 
+// Matches the account validation link sent in the TVBoom confirmation email
 const VALIDATION_LINK_RE =
   /https?:\/\/tvboom\.vip\/index\.php\?do=register(?:&|&amp;)doaction=validating(?:&|&amp;)id=[a-zA-Z0-9_|=~%-]+/i;
 
-// ─── Selectors ────────────────────────────────────────────────────────────────
+// ── Selectors ─────────────────────────────────────────────────────────────────
 
 const SELECTORS = {
   rulesAccept: [
@@ -58,25 +68,9 @@ const SELECTORS = {
   ],
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-function randomChars(chars, n) {
-  return Array.from(
-    { length: n },
-    () => chars[Math.floor(Math.random() * chars.length)],
-  ).join("");
-}
-
-function generateCredentials() {
-  const username =
-    randomChars("abcdefghijklmnopqrstuvwxyz", 4) +
-    Math.floor(1000 + Math.random() * 9000);
-  const password =
-    randomChars("abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ", 6) +
-    randomChars("23456789", 4);
-  return { username, password };
-}
-
+// Returns the first visible element matching any selector, or null
 async function findVisible(page, selectors) {
   for (const sel of selectors) {
     try {
@@ -87,6 +81,7 @@ async function findVisible(page, selectors) {
   return null;
 }
 
+// Clicks the first visible element matching any selector
 async function clickFirst(page, selectors) {
   const el = await findVisible(page, selectors);
   if (el) {
@@ -96,6 +91,7 @@ async function clickFirst(page, selectors) {
   return false;
 }
 
+// Fills the first visible element matching any selector with the given value
 async function fillFirst(page, selectors, value) {
   const el = await findVisible(page, selectors);
   if (el) {
@@ -106,6 +102,8 @@ async function fillFirst(page, selectors, value) {
   return false;
 }
 
+// Searches the email page (including frames) for the validation anchor and clicks it.
+// Searching frames is needed because some providers render email content inside an iframe.
 async function clickValidationLink(emailPage, url) {
   const targets = [emailPage, ...emailPage.frames()];
   for (const target of targets) {
@@ -128,12 +126,13 @@ async function navigateTo(page, url) {
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15_000 });
 }
 
+// Clicks the first matching element then waits for the page to settle
 async function clickAndWait(page, selectors) {
   await clickFirst(page, selectors);
   await page.waitForLoadState("domcontentloaded").catch(() => {});
 }
 
-// ─── Service ──────────────────────────────────────────────────────────────────
+// ── Service ───────────────────────────────────────────────────────────────────
 
 const TvBoomRegistration = {
   meta: {
@@ -151,9 +150,9 @@ const TvBoomRegistration = {
     inboxSeenIds = new Set(),
     log = () => {},
   }) {
-    const { username, password } = generateCredentials();
-
-    // 1. Registration form
+    const username = generateUsername();
+    const password = generatePassword();
+    // 1. Fill and submit the registration form
     log(`[TVBoom] Registering as "${username}"...`);
     await navigateTo(page, `${BASE_URL}/register`).catch(() =>
       navigateTo(page, `${BASE_URL}/index.php?do=register`).catch(() => {}),
@@ -165,7 +164,6 @@ const TvBoomRegistration = {
     await fillFirst(page, SELECTORS.password, password);
     await fillFirst(page, SELECTORS.passwordRepeat, password);
 
-    // Solve CAPTCHA then immediately click submit
     await solveAndSubmit(page, {
       submitSelectors: SELECTORS.submit,
       log,
@@ -173,15 +171,14 @@ const TvBoomRegistration = {
     });
     await page.waitForLoadState("domcontentloaded").catch(() => {});
 
-    // 2. Confirmation email — open it and click the validation link inside
+    // 2. Open confirmation email and click the validation link inside
     log("[TVBoom] Waiting for confirmation email...");
     await emailPage.bringToFront().catch(() => {});
 
     const validationUrl = await provider.waitForEmailAndExtractLink(emailPage, {
       filterText: "tvboom",
       pattern: VALIDATION_LINK_RE,
-      // Forward the run-wide seen-IDs set so emails from any previously
-      // processed service are already excluded from this poll.
+      // Pass the run-wide seen-IDs set so emails from earlier services are excluded
       seenIds: inboxSeenIds,
       timeout: 60_000,
     });
@@ -198,6 +195,7 @@ const TvBoomRegistration = {
       await page.bringToFront().catch(() => {});
       await page.waitForLoadState("domcontentloaded").catch(() => {});
     } else {
+      // Anchor not found in DOM — fall back to direct navigation
       log(
         "[TVBoom] Anchor not found — navigating directly to validation URL...",
       );
@@ -206,7 +204,7 @@ const TvBoomRegistration = {
     }
     log("[TVBoom] ✅ Account confirmed.");
 
-    // 3. Activate 24h trial
+    // 3. Activate 24-hour trial from the cabinet
     await clickAndWait(page, SELECTORS.continueReg);
     await clickAndWait(page, SELECTORS.cabinet);
     await clickFirst(page, SELECTORS.activateTest);
@@ -230,7 +228,6 @@ const TvBoomRegistration = {
     return {
       username,
       password,
-      email,
       tvPlaylist,
       vodPlaylist: null,
       duration: "24 Hours",

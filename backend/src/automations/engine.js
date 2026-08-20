@@ -1,3 +1,16 @@
+/**
+ * Automation engine — task lifecycle and service execution.
+ *
+ * Each task runs independently: it gets its own browser context, email address,
+ * and result set. Tasks communicate progress to the frontend via an EventEmitter
+ * that the SSE route listens to.
+ *
+ * Exports:
+ *   createTask()                            – registers a new task, returns taskId
+ *   getTask(taskId)                         – retrieves a task by id
+ *   cancelTask(taskId)                      – aborts a running task
+ *   runTask(taskId, providerId, serviceIds) – executes the automation
+ */
 import { v4 as uuidv4 } from "uuid";
 import { EventEmitter } from "events";
 import {
@@ -8,19 +21,23 @@ import {
 import { getProvider, getService } from "./registry.js";
 import logger from "../logger.js";
 
+// ── State ─────────────────────────────────────────────────────────────────────
+
 const tasks = new Map();
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function emit(emitter, type, data = {}) {
   emitter.emit("event", { type, data, timestamp: new Date().toISOString() });
 }
 
+// Forwards a message to both the SSE stream and the server logger
 function log(emitter, message, level = "info") {
   emit(emitter, "log", { message, level });
   (logger[level] ?? logger.info).call(logger, message);
 }
 
+// Normalises a raw service result into a consistent shape for storage and the UI
 function buildRecord(service, email, src) {
   return {
     serviceId: service.meta.id,
@@ -51,7 +68,47 @@ function logPlaylists(emitter, record) {
   else log(emitter, "ℹ️ VOD Playlist: none");
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
+function legacyNote(playlists, fallback) {
+  if (!playlists.tvPlaylist)
+    return fallback ?? "Registered — check inbox for playlist links.";
+  if (playlists.duration)
+    return `${playlists.duration}${playlists.expiresAt ? ` (Expires: ${playlists.expiresAt})` : ""}`;
+  return "IPTV playlists collected successfully!";
+}
+
+// Legacy path: service only submits the form; engine polls inbox for playlists
+async function runLegacyService(
+  service,
+  regPage,
+  emailPage,
+  provider,
+  email,
+  inboxSeenIds,
+  emitter,
+) {
+  const result = await service.register(regPage, email);
+
+  log(
+    emitter,
+    `📬 Checking inbox for ${service.meta.name} confirmation & playlists...`,
+  );
+  await emailPage.bringToFront().catch(() => {});
+
+  const playlists = await provider
+    .waitForEmailAndExtractPlaylists(emailPage, {
+      filterText: service.meta.name,
+      seenIds: inboxSeenIds,
+      timeout: 60_000,
+    })
+    .catch((e) => {
+      log(emitter, `Notice: ${e.message}`, "warn");
+      return {};
+    });
+
+  return { ...result, ...playlists, note: legacyNote(playlists, result.note) };
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
 
 export function createTask() {
   const taskId = uuidv4();
@@ -79,6 +136,8 @@ export async function cancelTask(taskId) {
   task.status = "cancelling";
   await forceCloseAllContexts();
 }
+
+// ── Task runner ───────────────────────────────────────────────────────────────
 
 export async function runTask(
   taskId,
@@ -128,10 +187,8 @@ export async function runTask(
     emit(emitter, "email_created", { email, provider: provider.meta.name });
     log(emitter, `Temporary email ready: ${email}`);
 
-    // One Set for the entire run — every service forwards it to inbox polls so
-    // emails opened by an earlier service are never re-processed by a later one.
-    // The Set is passed by reference, so IDs accumulate across all services
-    // automatically without any extra coordination between them.
+    // Shared across all services so emails seen by an earlier service
+    // are never re-processed by a later one. IDs accumulate by reference.
     const inboxSeenIds = new Set();
 
     for (const service of services) {
@@ -146,49 +203,26 @@ export async function runTask(
       const regPage = await context.newPage();
 
       try {
-        let result;
-
-        if (typeof service.execute === "function") {
-          result = await service.execute({
-            page: regPage,
-            emailPage,
-            provider,
-            email,
-            inboxSeenIds,
-            log: (msg, level = "info") => log(emitter, msg, level),
-          });
-        } else {
-          result = await service.register(regPage, email);
-
-          // register() only submits the form — poll inbox for M3U links
-          log(
-            emitter,
-            `📬 Checking inbox for ${service.meta.name} confirmation & playlists...`,
-          );
-          await emailPage.bringToFront().catch(() => {});
-
-          const playlists = await provider
-            .waitForEmailAndExtractPlaylists(emailPage, {
-              filterText:
-                service.meta.id === "rutv" ? "ru-tv" : service.meta.name,
-              seenIds: inboxSeenIds,
-              timeout: 60_000,
-            })
-            .catch((e) => {
-              log(emitter, `Notice: ${e.message}`, "warn");
-              return {};
-            });
-
-          result = {
-            ...result,
-            ...playlists,
-            note: playlists.tvPlaylist
-              ? playlists.duration
-                ? `${playlists.duration}${playlists.expiresAt ? ` (Expires: ${playlists.expiresAt})` : ""}`
-                : "IPTV playlists collected successfully!"
-              : (result.note ?? "Registered — check inbox for playlist links."),
-          };
-        }
+        // Full-control path: service handles the entire flow including inbox polling
+        const result =
+          typeof service.execute === "function"
+            ? await service.execute({
+                page: regPage,
+                emailPage,
+                provider,
+                email,
+                inboxSeenIds,
+                log: (msg, level = "info") => log(emitter, msg, level),
+              })
+            : await runLegacyService(
+                service,
+                regPage,
+                emailPage,
+                provider,
+                email,
+                inboxSeenIds,
+                emitter,
+              );
 
         const record = buildRecord(service, email, result);
         task.results.push(record);

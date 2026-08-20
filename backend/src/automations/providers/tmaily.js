@@ -1,12 +1,20 @@
+/**
+ * TMaily disposable email provider.
+ *
+ * Opens tmaily.com, waits for a temporary email address to be generated,
+ * then exposes inbox polling via the shared inboxPoller helpers.
+ * Swapping providers only requires updating the import in registry.js.
+ */
 import logger from "../../logger.js";
 import { waitForValidationLink, waitForPlaylistEmail } from "./inboxPoller.js";
 
-// ─── Config ───────────────────────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────────────────────
 
 const CONFIG = {
   url: "https://tmaily.com/",
 
   selectors: {
+    // Ordered from most specific to most generic — first match wins
     emailCandidates: [
       "#email-address",
       "#email",
@@ -26,6 +34,7 @@ const CONFIG = {
       '[id*="email"]',
     ],
 
+    // Visible while the page is still generating the address
     generatingMarker: ':text("generating")',
   },
 
@@ -35,14 +44,17 @@ const CONFIG = {
   },
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Basic email format check to filter out false positives from broad selectors
 function isValidEmail(str) {
   return (
     typeof str === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(str.trim())
   );
 }
 
+// Tries each candidate selector in order, reading the value as text, input value,
+// or data-email attribute. Falls back to a regex scan of the full page body.
 async function readEmailFromPage(page) {
   for (const sel of CONFIG.selectors.emailCandidates) {
     try {
@@ -56,6 +68,7 @@ async function readEmailFromPage(page) {
       if (isValidEmail(text)) return text;
     } catch (_) {}
   }
+  // Last resort — scan the entire page body for an email-shaped string
   try {
     const body = await page.evaluate(() => document.body?.innerText ?? "");
     const m = body.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
@@ -64,7 +77,7 @@ async function readEmailFromPage(page) {
   return null;
 }
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
+// ── Provider ──────────────────────────────────────────────────────────────────
 
 const TmailyProvider = {
   meta: {
@@ -81,6 +94,7 @@ const TmailyProvider = {
       timeout: CONFIG.timeouts.pageLoad,
     });
 
+    // Wait for the "generating" indicator to disappear before reading the address
     logger.info("[Tmaily] Waiting for email address to be generated...");
     await page
       .waitForSelector(CONFIG.selectors.generatingMarker, {
@@ -93,6 +107,7 @@ const TmailyProvider = {
         ),
       );
 
+    // Poll until the address is readable — the DOM may update slightly after the marker hides
     const deadline = Date.now() + 10_000;
     while (Date.now() < deadline) {
       const email = await readEmailFromPage(page);
@@ -105,7 +120,7 @@ const TmailyProvider = {
     throw new Error("[Tmaily] Timed out waiting for email address.");
   },
 
-  // Delegates to inboxPoller — swap the mail provider by updating inboxPoller.js only.
+  // Delegates inbox polling to inboxPoller — no provider-specific logic needed
   waitForEmailAndExtractLink: waitForValidationLink,
   waitForEmailAndExtractPlaylists: waitForPlaylistEmail,
 };

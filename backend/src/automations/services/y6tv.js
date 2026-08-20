@@ -1,8 +1,15 @@
+/**
+ * Y6TV free trial registration service.
+ *
+ * Fills the registration form, solves the reCAPTCHA, then polls the inbox
+ * for a confirmation email containing the M3U playlist links.
+ * Trial duration is 3 days.
+ */
 import logger from "../../logger.js";
 import { waitForPlaylistEmail } from "../providers/inboxPoller.js";
-import { solveAndSubmit } from "../captcha.js";
+import { solveAndSubmit } from "../utils/captcha.js";
 
-// ─── Selectors ────────────────────────────────────────────────────────────────
+// ── Selectors ─────────────────────────────────────────────────────────────────
 
 const EMAIL_SELECTORS = [
   'input[name="email"]',
@@ -28,8 +35,9 @@ const ERROR_SELECTORS = [
   ".registration-error",
 ];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Returns the first visible element matching any selector, or null
 async function findVisible(page, selectors) {
   for (const sel of selectors) {
     try {
@@ -40,6 +48,8 @@ async function findVisible(page, selectors) {
   return null;
 }
 
+// Navigates to the registration page, fills the email field, solves the CAPTCHA,
+// submits the form, and throws if the server returns a validation error
 async function submitForm(page, email, log) {
   await page
     .goto("https://rg.y6tv.me/regfm.php?devTypeID=100", {
@@ -62,8 +72,9 @@ async function submitForm(page, email, log) {
   await emailField.fill(email);
   logger.info(`[Y6TV] Email filled: ${email}`);
 
-  // Solve CAPTCHA then immediately click submit
   log("[Y6TV] Submitting form...");
+
+  // Start waiting for navigation before the submit click so we don't miss it
   const navPromise = page
     .waitForNavigation({ waitUntil: "load", timeout: 15_000 })
     .catch(() => {});
@@ -73,9 +84,9 @@ async function submitForm(page, email, log) {
     log,
     tag: "Y6TV",
   });
-
   await navPromise;
 
+  // Check for server-side validation errors after submission
   const errorText = await page.evaluate(
     (sels) =>
       sels.reduce(
@@ -90,7 +101,7 @@ async function submitForm(page, email, log) {
   logger.info("[Y6TV] Registration submitted successfully.");
 }
 
-// ─── Service ──────────────────────────────────────────────────────────────────
+// ── Service ───────────────────────────────────────────────────────────────────
 
 export default {
   meta: {
@@ -115,15 +126,13 @@ export default {
 
     const playlists = await waitForPlaylistEmail(emailPage, {
       filterText: "y6tv",
-      // Forward the run-wide seen-IDs set so emails from any previously
-      // processed service are already excluded from this poll.
+      // Pass the run-wide seen-IDs set so emails from earlier services are excluded
       seenIds: inboxSeenIds,
       timeout: 120_000,
     });
 
-    if (playlists.allM3uLinks.length === 0) {
+    if (playlists.allM3uLinks.length === 0)
       log("[Y6TV] No M3U links found in confirmation email.", "warn");
-    }
 
     const expiresAt = new Date(Date.now() + 3 * 864e5).toLocaleString("en-US", {
       month: "short",

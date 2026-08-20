@@ -1,3 +1,15 @@
+/**
+ * Shared logger (Winston).
+ *
+ * Writes timestamped, colorized output to the console.
+ * Log level is controlled via the LOG_LEVEL env var (default: "info").
+ *
+ * Usage:
+ *   import logger from "./logger.js";
+ *   logger.info("message");
+ *   logger.warn("message");
+ *   logger.error("message");
+ */
 import winston from "winston";
 
 const { combine, timestamp, colorize, printf } = winston.format;

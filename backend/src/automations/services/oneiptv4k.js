@@ -1,15 +1,24 @@
+/**
+ * OneIPTV4K free trial registration service.
+ *
+ * Fills the registration form, waits for a verification code email, submits
+ * the code on the site, then polls the inbox for the M3U playlist email.
+ * No CAPTCHA — uses email-based verification instead.
+ * Trial duration is 24 hours.
+ */
 import logger from "../../logger.js";
 import {
   waitForVerificationCodeEmail,
   waitForPlaylistEmail,
 } from "../providers/inboxPoller.js";
+import { generateUsername, generatePhone } from "../utils/fakeData.js";
 
-// ─── Config ───────────────────────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────────────────────
 
 const BASE_URL = "https://oneiptv4k.com";
 const TRIAL_PATH = "/free-trial";
 
-// ─── Selectors ────────────────────────────────────────────────────────────────
+// ── Selectors ─────────────────────────────────────────────────────────────────
 
 const SELECTORS = {
   name: [
@@ -19,14 +28,12 @@ const SELECTORS = {
     'input[placeholder*="name" i]',
     'input[type="text"]:first-of-type',
   ],
-
   email: [
     'input[name="email"]',
     'input[type="email"]',
     'input[placeholder*="email" i]',
     'input[placeholder*="mail" i]',
   ],
-
   whatsapp: [
     'input[name="whatsapp"]',
     'input[name="phone"]',
@@ -36,7 +43,6 @@ const SELECTORS = {
     'input[placeholder*="mobile" i]',
     'input[type="tel"]',
   ],
-
   submit: [
     'button[type="submit"]',
     'input[type="submit"]',
@@ -48,7 +54,6 @@ const SELECTORS = {
     'button:has-text("Claim")',
     'button:has-text("Continue")',
   ],
-
   codeInput: [
     'input[name="code"]',
     'input[name="otp"]',
@@ -64,7 +69,6 @@ const SELECTORS = {
     'input[maxlength="7"]',
     'input[maxlength="8"]',
   ],
-
   codeSubmit: [
     'button[type="submit"]',
     'input[type="submit"]',
@@ -75,26 +79,9 @@ const SELECTORS = {
   ],
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-function randomAlphanumeric(n) {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  return Array.from(
-    { length: n },
-    () => chars[Math.floor(Math.random() * chars.length)],
-  ).join("");
-}
-
-function generateCredentials() {
-  const name = randomAlphanumeric(8);
-  // 10-digit WhatsApp number starting with a non-zero digit
-  const whatsapp =
-    String(Math.floor(1 + Math.random() * 9)) +
-    String(Math.floor(Math.random() * 1e9)).padStart(9, "0");
-  return { name, whatsapp };
-}
-
-// Returns the first visible element whose selector matches, or null.
+// Returns the first visible element matching any selector, or null
 async function findVisible(page, selectors) {
   for (const sel of selectors) {
     try {
@@ -105,6 +92,7 @@ async function findVisible(page, selectors) {
   return null;
 }
 
+// Fills the first visible field — falls back to simulated typing if fill() is rejected
 async function fillFirst(page, selectors, value) {
   const el = await findVisible(page, selectors);
   if (!el) {
@@ -118,6 +106,7 @@ async function fillFirst(page, selectors, value) {
   });
 }
 
+// Clicks the first visible element matching any selector
 async function clickFirst(page, selectors) {
   const el = await findVisible(page, selectors);
   if (!el) {
@@ -128,7 +117,7 @@ async function clickFirst(page, selectors) {
   await el.click();
 }
 
-// ─── Service ──────────────────────────────────────────────────────────────────
+// ── Service ───────────────────────────────────────────────────────────────────
 
 const OneIptv4kRegistration = {
   meta: {
@@ -146,9 +135,10 @@ const OneIptv4kRegistration = {
     inboxSeenIds = new Set(),
     log = () => {},
   }) {
-    const { name, whatsapp } = generateCredentials();
+    const name = generateUsername();
+    const whatsapp = generatePhone();
 
-    // ── Step 1: Open registration page ────────────────────────────────────────
+    // 1. Open registration page
     log(`[OneIPTV4K] Navigating to ${BASE_URL}${TRIAL_PATH}...`);
     await page
       .goto(`${BASE_URL}${TRIAL_PATH}`, {
@@ -161,68 +151,57 @@ const OneIptv4kRegistration = {
         ),
       );
 
-    // ── Step 2: Fill & submit the registration form ────────────────────────────
+    // 2. Fill and submit the registration form
     log(
       `[OneIPTV4K] Filling form (name: "${name}", whatsapp: "${whatsapp}")...`,
     );
     await fillFirst(page, SELECTORS.name, name);
     await fillFirst(page, SELECTORS.email, email);
     await fillFirst(page, SELECTORS.whatsapp, whatsapp);
-
     await page.waitForTimeout(400);
     await clickFirst(page, SELECTORS.submit);
     await page.waitForLoadState("domcontentloaded").catch(() => {});
     await page.waitForTimeout(1_000);
 
-    // ── Step 3: Poll inbox for verification code ───────────────────────────────
+    // 3. Poll inbox for the verification code
     log("[OneIPTV4K] Waiting for verification code email...");
     await emailPage.bringToFront().catch(() => {});
 
-    // Copy the run-wide set into a local one. This does two things:
-    //   1. Emails seen by any earlier service in this run are already excluded.
-    //   2. The local copy is reused for the playlist poll in step 5, so the
-    //      verification-code email itself is also skipped there.
-    // We copy rather than use inboxSeenIds directly so new IDs discovered in
-    // this service's polls don't leak back into the shared set and accidentally
-    // hide emails that a later service might legitimately need.
+    // Copy the run-wide set so earlier-service emails are already excluded,
+    // and so the verification email ID is also skipped in the playlist poll (step 5)
+    // without leaking new IDs back into the shared set.
     const seenIds = new Set(inboxSeenIds);
 
     const code = await waitForVerificationCodeEmail(emailPage, {
-      filterText: "oneiptv4k",
       seenIds,
       timeout: 120_000,
     });
-
-    if (!code) {
+    if (!code)
       throw new Error(
         "[OneIPTV4K] Verification code not received — check inbox or site behaviour.",
       );
-    }
     log(`[OneIPTV4K] Got verification code: ${code}`);
 
-    // ── Step 4: Submit the verification code ──────────────────────────────────
+    // 4. Enter the verification code on the site
     log("[OneIPTV4K] Entering verification code on site...");
     await page.bringToFront().catch(() => {});
     await page.waitForTimeout(600);
-
     await fillFirst(page, SELECTORS.codeInput, code);
     await page.waitForTimeout(300);
     await clickFirst(page, SELECTORS.codeSubmit);
     await page.waitForLoadState("domcontentloaded").catch(() => {});
     await page.waitForTimeout(1_000);
-
     log("[OneIPTV4K] ✅ Code submitted.");
 
-    // ── Step 5: Poll inbox for the playlist email ──────────────────────────────
+    // 5. Poll inbox for the playlist email (verification email already in seenIds)
     log("[OneIPTV4K] Waiting for M3U playlist email...");
     await emailPage.bringToFront().catch(() => {});
-
     const playlists = await waitForPlaylistEmail(emailPage, {
-      seenIds, // skip the already-seen verification code email
+      seenIds,
       timeout: 120_000,
     });
 
-    // ── Step 6: Return result ──────────────────────────────────────────────────
+    // 6. Build and return result
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleString(
       "en-US",
       {
@@ -242,7 +221,6 @@ const OneIptv4kRegistration = {
     return {
       username: name,
       password: null,
-      email,
       tvPlaylist: playlists.tvPlaylist ?? null,
       vodPlaylist: playlists.vodPlaylist ?? null,
       allM3uLinks: playlists.allM3uLinks ?? [],
