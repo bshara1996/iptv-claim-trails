@@ -188,6 +188,7 @@ const OneIptv4kRegistration = {
     const seenIds = new Set(inboxSeenIds);
 
     const code = await waitForVerificationCodeEmail(emailPage, {
+      filterText: "oneiptv4k",
       seenIds,
       timeout: 120_000,
     });

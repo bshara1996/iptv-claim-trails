@@ -97,7 +97,18 @@ async function findVisible(page, selector) {
 async function openAndRead(page, row) {
   await row.scrollIntoViewIfNeeded().catch(() => {});
   await row.click().catch(() => {});
-  await page.waitForTimeout(1_200);
+
+  // dispose.lol opens an in-place panel — wait for its close button to appear
+  // so the content is fully rendered before we read it. For providers that do
+  // a real page navigation the selector won't match and we fall back to a
+  // generous fixed delay.
+  const panelReady = await page
+    .waitForSelector('button[aria-label="Close message detail"]', {
+      state: "visible",
+      timeout: 5_000,
+    })
+    .catch(() => null);
+  if (!panelReady) await page.waitForTimeout(2_500);
 
   const body = (
     await Promise.all(
@@ -327,28 +338,52 @@ export async function waitForPlaylistEmail(
   return result;
 }
 
+// Extracts the most likely OTP from a text string.
+// Strategy:
+//   1. Prefer a digit run that is explicitly preceded by code-context keywords.
+//   2. Fall back to the shortest standalone digit run (4–8 digits) that is NOT
+//      surrounded by other digits — avoids matching years, phone numbers, etc.
+function extractCode(text) {
+  // Primary: digit run with an explicit code-context prefix.
+  const withContext = [
+    ...text.matchAll(
+      /(?:code|otp|pin|verification|confirm)[^a-z0-9]*?(\d{4,8})(?!\d)/gi,
+    ),
+  ];
+  if (withContext.length) {
+    // If multiple matches, prefer the shortest (OTPs are usually 4–6 digits).
+    return withContext.reduce((best, m) =>
+      m[1].length < best[1].length ? m : best,
+    )[1];
+  }
+
+  // Fallback: any standalone 4–8 digit sequence not adjacent to more digits.
+  const standalone = [...text.matchAll(/(?<!\d)(\d{4,8})(?!\d)/g)];
+  if (!standalone.length) return null;
+  // Prefer shorter sequences (OTPs) over longer ones (e.g. phone numbers).
+  return standalone.reduce((best, m) =>
+    m[1].length < best[1].length ? m : best,
+  )[1];
+}
+
 export async function waitForVerificationCodeEmail(
   page,
-  {
-    seenIds = new Set(),
-    codeRe = /(?:code[:\s#-]*|your\s+(?:verification\s+)?code\s+(?:is\s+)?)?(\d{4,8})(?!\d)/i,
-    timeout = 120_000,
-  } = {},
+  { filterText = "", seenIds = new Set(), timeout = 120_000 } = {},
 ) {
   logger.info("[InboxPoller] Polling inbox for verification code...");
 
-  return poll(page, { seenIds, timeout }, async (rowText, row) => {
+  return poll(page, { filterText, seenIds, timeout }, async (rowText, row) => {
     // Check the row preview first — avoids opening the email unnecessarily.
-    const fromPreview = codeRe.exec(rowText);
-    if (fromPreview?.[1]) {
-      logger.info(`[InboxPoller] Code found in preview: ${fromPreview[1]}`);
-      return fromPreview[1];
+    const fromPreview = extractCode(rowText);
+    if (fromPreview) {
+      logger.info(`[InboxPoller] Code found in preview: ${fromPreview}`);
+      return fromPreview;
     }
 
-    const fromBody = codeRe.exec(await openAndRead(page, row));
-    if (fromBody?.[1]) {
-      logger.info(`[InboxPoller] Code found in body: ${fromBody[1]}`);
-      return fromBody[1];
+    const fromBody = extractCode(await openAndRead(page, row));
+    if (fromBody) {
+      logger.info(`[InboxPoller] Code found in body: ${fromBody}`);
+      return fromBody;
     }
 
     logger.info("[InboxPoller] No code in this email — skipping.");

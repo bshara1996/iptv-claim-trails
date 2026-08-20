@@ -109,24 +109,42 @@ async function waitForToken(page, log, tag) {
  *   submitSelectors: string[],
  *   log?: (msg: string) => void,
  *   tag?: string,
+ *   captchaTimeout?: number,  // ms to wait for the reCAPTCHA iframe to appear (default 15 000)
  * }} options
  */
 export async function solveAndSubmit(
   page,
-  { submitSelectors, log = () => {}, tag = "CAPTCHA" } = {},
+  {
+    submitSelectors,
+    log = () => {},
+    tag = "CAPTCHA",
+    captchaTimeout = 15_000,
+  } = {},
 ) {
-  // ── 1. Locate the reCAPTCHA anchor frame ────────────────────────────────────
-  const anchorFrame = page
-    .frames()
-    .find((f) => f.url().includes("google.com/recaptcha/api2/anchor"));
+  // ── 1. Wait for the reCAPTCHA anchor frame to appear ────────────────────────
+  // The iframe is injected asynchronously after the page loads. We poll until
+  // it appears (up to captchaTimeout ms) rather than checking once and bailing.
+  log(`[${tag}] Waiting for reCAPTCHA widget to load...`);
+  const anchorFrame = await (async () => {
+    const deadline = Date.now() + captchaTimeout;
+    while (Date.now() < deadline) {
+      const frame = page
+        .frames()
+        .find((f) => f.url().includes("google.com/recaptcha/api2/anchor"));
+      if (frame) return frame;
+      await page.waitForTimeout(300);
+    }
+    return null;
+  })();
 
   if (!anchorFrame) {
     log(`[${tag}] No reCAPTCHA frame found — skipping CAPTCHA step.`);
     return;
   }
 
+  // ── 2. Wait for the checkbox element to be visible and interactable ─────────
   const checkbox = await anchorFrame
-    .waitForSelector("#recaptcha-anchor", { timeout: 5_000 })
+    .waitForSelector("#recaptcha-anchor", { state: "visible", timeout: 5_000 })
     .catch(() => null);
 
   if (!checkbox) {
@@ -134,13 +152,13 @@ export async function solveAndSubmit(
     return;
   }
 
-  // ── 2. Click the checkbox ───────────────────────────────────────────────────
+  // ── 3. Click the checkbox as soon as it is interactable ─────────────────────
   await checkbox.click();
   log(
     `[${tag}] reCAPTCHA checkbox clicked — waiting for CAPTCHA to be solved...`,
   );
 
-  // ── 3. Wait for the token — indefinitely, surviving resets ──────────────────
+  // ── 4. Wait for the token — indefinitely, surviving resets ──────────────────
   //
   // waitForToken polls every 500 ms with no timeout. On each cycle it:
   //   a) checks if the response token is present → returns immediately if so
@@ -153,7 +171,7 @@ export async function solveAndSubmit(
   await waitForToken(page, log, tag);
   log(`[${tag}] CAPTCHA solved — locating submit button...`);
 
-  // ── 4. Immediately click the submit button ──────────────────────────────────
+  // ── 5. Immediately click the submit button ──────────────────────────────────
   //
   // We attempt the click up to 5 times with a 300 ms gap. The button can be
   // briefly non-interactive immediately after CAPTCHA completes (e.g. the page
