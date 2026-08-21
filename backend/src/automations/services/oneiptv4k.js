@@ -143,7 +143,6 @@ const OneIptv4kRegistration = {
     const whatsapp = generatePhone();
 
     // 1. Open registration page
-    log(`[OneIPTV4K] Navigating to ${TRIAL_URL}...`);
     await page
       .goto(TRIAL_URL, {
         waitUntil: "domcontentloaded",
@@ -156,9 +155,6 @@ const OneIptv4kRegistration = {
       );
 
     // 2. Fill and submit the registration form
-    log(
-      `[OneIPTV4K] Filling form (name: "${name}", whatsapp: "${whatsapp}")...`,
-    );
     await fillFirst(page, SELECTORS.name, name);
     await fillFirst(page, SELECTORS.email, email);
     await fillFirst(page, SELECTORS.whatsapp, whatsapp);
@@ -168,7 +164,6 @@ const OneIptv4kRegistration = {
     await page.waitForTimeout(1_000);
 
     // 3. Poll inbox for the verification code
-    log("[OneIPTV4K] Waiting for verification code email...");
     await emailPage.bringToFront().catch(() => {});
 
     // Copy the run-wide set so earlier-service emails are already excluded,
@@ -184,10 +179,8 @@ const OneIptv4kRegistration = {
       throw new Error(
         "[OneIPTV4K] Verification code not received — check inbox or site behaviour.",
       );
-    log(`[OneIPTV4K] Got verification code: ${code}`);
 
     // 4. Enter the verification code on the site
-    log("[OneIPTV4K] Entering verification code on site...");
     await page.bringToFront().catch(() => {});
     await page.waitForTimeout(600);
     await fillFirst(page, SELECTORS.codeInput, code);
@@ -195,10 +188,8 @@ const OneIptv4kRegistration = {
     await clickFirst(page, SELECTORS.codeSubmit);
     await page.waitForLoadState("domcontentloaded").catch(() => {});
     await page.waitForTimeout(1_000);
-    log("[OneIPTV4K] ✅ Code submitted.");
 
     // 5. Poll inbox for the playlist email (verification email already in seenIds)
-    log("[OneIPTV4K] Waiting for M3U playlist email...");
     await emailPage.bringToFront().catch(() => {});
     const playlists = await waitForPlaylistEmail(emailPage, {
       seenIds,

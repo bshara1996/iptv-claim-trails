@@ -2,7 +2,7 @@
  * VeleStore free trial registration service.
  *
  * Generates random credentials, fills the registration form, solves the reCAPTCHA,
- * navigates to the user cabinet, activates the 6-hour trial, then builds the
+ * navigates to the user cabinet, activates the trial, then builds the
  * playlist URL directly from the credentials (no inbox polling needed).
  */
 import { solveAndSubmit } from "../utils/captcha.js";
@@ -33,11 +33,10 @@ const SELECTORS = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // Fills all registration form fields with the provided credentials
-async function fillForm(page, { login, password, email }, log) {
+async function fillForm(page, { login, password, email }) {
   await page
     .waitForSelector(SELECTORS.name, { timeout: 8_000 })
     .catch(() => {});
-  log(`[${TAG}] Filling registration form...`);
   for (const [sel, val] of [
     [SELECTORS.name, login],
     [SELECTORS.password1, password],
@@ -45,7 +44,6 @@ async function fillForm(page, { login, password, email }, log) {
     [SELECTORS.email, email],
   ]) {
     await page.fill(sel, val);
-    await page.waitForTimeout(300);
   }
 }
 
@@ -77,11 +75,9 @@ async function submitForm(page, log) {
     throw new Error(`Registration failed (captcha): ${errorText}`);
   if (errorText && /ошибка/i.test(errorText))
     throw new Error(`Registration error: ${errorText}`);
-
-  log(`[${TAG}] Registration submitted. URL: ${page.url()}`);
 }
 
-// Clicks "go to cabinet" then activates the 6-hour trial button
+// Clicks "go to cabinet" then activates the trial button
 async function goToCabinetAndActivate(page, log) {
   const cabinetBtn = await page
     .waitForSelector(SELECTORS.cabinet, { timeout: 10_000 })
@@ -98,7 +94,6 @@ async function goToCabinetAndActivate(page, log) {
       .catch(() => {}),
     cabinetBtn.click(),
   ]);
-  log(`[${TAG}] Cabinet URL: ${page.url()}`);
 
   const trialBtn = await page
     .waitForSelector(SELECTORS.trialBtn, { timeout: 10_000 })
@@ -108,12 +103,11 @@ async function goToCabinetAndActivate(page, log) {
     await trialBtn.click();
     await page.waitForTimeout(2_000);
   } else {
-    log(`[${TAG}] «Получить тест на 6 часов» button not found.`, "warn");
+    log(`[${TAG}] Trial button not found.`, "warn");
   }
 }
 
 // Reads the expiry date from the cabinet page and computes the remaining duration.
-// Falls back to a +6h estimate if the date element is missing or unparseable.
 async function extractExpiry(page, log) {
   const raw = await page
     .evaluate(() => {
@@ -127,55 +121,33 @@ async function extractExpiry(page, log) {
     })
     .catch(() => null);
 
-  if (raw) log(`[${TAG}] Subscription expires at: ${raw}`);
-  else
-    log(
-      `[${TAG}] Could not read expiry date — falling back to +6h estimate.`,
-      "warn",
-    );
+  if (raw) log(`[${TAG}] ✅ Subscription expires at: ${raw}`);
+  else log(`[${TAG}] Could not read expiry date.`, "warn");
 
   const match = raw?.match(/^(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})$/);
-  if (match) {
-    const [, dd, mm, yyyy, hh, min] = match;
-    const totalMins = Math.max(
-      0,
-      Math.round(
-        (new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:00`) - Date.now()) / 60_000,
-      ),
-    );
-    const h = Math.floor(totalMins / 60),
-      m = totalMins % 60;
-    const d = Math.floor(h / 24),
-      hr = h % 24;
-    const p = (n, w) => `${n} ${w}${n !== 1 ? "s" : ""}`;
-    // Format as "X Day(s) Y Hour(s)", "X Hour(s) Y Min(s)", etc. based on magnitude
-    const duration =
-      h >= 24
-        ? hr > 0
-          ? `${p(d, "Day")} ${p(hr, "Hour")}`
-          : p(d, "Day")
-        : h > 0
-          ? m > 0
-            ? `${p(h, "Hour")} ${p(m, "Min")}`
-            : p(h, "Hour")
-          : p(totalMins, "Min");
-    log(`[${TAG}] Calculated duration: ${duration}`);
-    return { expiresAt: raw, duration };
-  }
+  if (!match) return { expiresAt: null, duration: null };
 
-  return {
-    expiresAt:
-      raw ??
-      new Date(Date.now() + 6 * 36e5).toLocaleString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      }),
-    duration: "24 Hours",
-  };
+  const [, dd, mm, yyyy, hh, min] = match;
+  const diffMs = new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:00`) - Date.now();
+
+  // Pick the largest unit that fits, then format natively with Intl
+  const rtf = new Intl.RelativeTimeFormat("en", {
+    numeric: "always",
+    style: "long",
+  });
+  const thresholds = [
+    { unit: "day", ms: 86_400_000 },
+    { unit: "hour", ms: 3_600_000 },
+    { unit: "minute", ms: 60_000 },
+  ];
+  const { unit, ms } =
+    thresholds.find(({ ms }) => diffMs >= ms) ?? thresholds.at(-1);
+  const duration = rtf
+    .format(Math.round(diffMs / ms), unit)
+    .replace("in ", "")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+  return { expiresAt: raw, duration };
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -185,13 +157,12 @@ const VeleStoreRegistration = {
     id: "velestore",
     name: "VeleStore",
     url: `${BASE_URL}/?do=register`,
-    description: "VeleStore IPTV 6-hour free trial registration",
+    description: "VeleStore IPTV free trial registration",
   },
 
   async execute({ page, email, log = () => {} }) {
     const login = `user${generateUsername()}`;
     const password = generatePassword();
-    log(`[${TAG}] Generated credentials — login: ${login}`);
 
     // 1. Open registration page
     await page
@@ -207,15 +178,14 @@ const VeleStoreRegistration = {
       );
 
     // 2. Fill form, solve CAPTCHA, submit
-    await fillForm(page, { login, password, email }, log);
+    await fillForm(page, { login, password, email });
     await submitForm(page, log);
 
-    // 3. Navigate to cabinet and activate 6-hour trial
+    // 3. Navigate to cabinet and activate trial
     await goToCabinetAndActivate(page, log);
 
     // 4. Build playlist URL
     const tvPlaylist = `http://p.velestore.su/play/${login}/${password}/playlist.m3u8`;
-    log(`[${TAG}] Playlist URL: ${tvPlaylist}`);
 
     // 5. Extract expiry and duration
     const { expiresAt, duration } = await extractExpiry(page, log);

@@ -73,9 +73,6 @@ async function submitForm(page, email, log) {
 
   await emailField.click().catch(() => {});
   await emailField.fill(email);
-  logger.info(`[Y6TV] Email filled: ${email}`);
-
-  log("[Y6TV] Submitting form...");
 
   // Start waiting for navigation before the submit click so we don't miss it
   const navPromise = page
@@ -121,10 +118,8 @@ export default {
     inboxSeenIds = new Set(),
     log = () => {},
   }) {
-    log("[Y6TV] Submitting registration form...");
     await submitForm(page, email, log);
 
-    log("[Y6TV] Waiting for confirmation email with playlist links...");
     await emailPage.bringToFront().catch(() => {});
 
     const playlists = await waitForPlaylistEmail(emailPage, {

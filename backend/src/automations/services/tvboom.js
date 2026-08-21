@@ -158,7 +158,6 @@ const TvBoomRegistration = {
     const username = generateUsername();
     const password = generatePassword();
     // 1. Fill and submit the registration form
-    log(`[TVBoom] Registering as "${username}"...`);
     await navigateTo(page, `${BASE_URL}/register`).catch(() =>
       navigateTo(page, `${BASE_URL}/index.php?do=register`).catch(() => {}),
     );
@@ -177,7 +176,6 @@ const TvBoomRegistration = {
     await page.waitForLoadState("domcontentloaded").catch(() => {});
 
     // 2. Open confirmation email and click the validation link inside
-    log("[TVBoom] Waiting for confirmation email...");
     await emailPage.bringToFront().catch(() => {});
 
     const validationUrl = await provider.waitForEmailAndExtractLink(emailPage, {
@@ -192,7 +190,6 @@ const TvBoomRegistration = {
         "Validation link not found in TVBoom confirmation email.",
       );
 
-    log("[TVBoom] Clicking validation link inside email...");
     const cleanUrl = validationUrl.replace(/&amp;/g, "&");
     const clicked = await clickValidationLink(emailPage, cleanUrl);
 
@@ -201,13 +198,9 @@ const TvBoomRegistration = {
       await page.waitForLoadState("domcontentloaded").catch(() => {});
     } else {
       // Anchor not found in DOM — fall back to direct navigation
-      log(
-        "[TVBoom] Anchor not found — navigating directly to validation URL...",
-      );
       await navigateTo(page, cleanUrl).catch(() => {});
       await page.bringToFront().catch(() => {});
     }
-    log("[TVBoom] ✅ Account confirmed.");
 
     // 3. Activate 24-hour trial from the cabinet
     await clickAndWait(page, SELECTORS.continueReg);
