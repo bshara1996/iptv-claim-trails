@@ -5,9 +5,10 @@
  * Used by all services so each one doesn't need its own generation logic.
  *
  * Exports:
- *   generateUsername()  – random lowercase username (4 letters + 4 digits)
- *   generatePassword()  – random mixed-case alphanumeric password (10 chars)
- *   generatePhone()     – random 10-digit phone number (non-zero leading digit)
+ *   generateUsername()      – random lowercase username (4 letters + 4 digits)
+ *   generatePassword()      – random mixed-case alphanumeric password (10 chars)
+ *   generatePhone()         – random 10-digit phone number (non-zero leading digit)
+ *   computeExpiresAt(ms)    – formatted expiry timestamp, ms from now
  */
 const LOWERCASE = "abcdefghijklmnopqrstuvwxyz";
 const UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -36,4 +37,17 @@ export function generatePhone() {
   const lead = String(Math.floor(1 + Math.random() * 9));
   const rest = String(Math.floor(Math.random() * 1e9)).padStart(9, "0");
   return lead + rest;
+}
+
+// Returns a human-readable expiry timestamp `ms` milliseconds from now.
+// Format: "Jan 1, 2026, 12:00 AM"  (en-US locale, 12-hour clock)
+export function computeExpiresAt(ms) {
+  return new Date(Date.now() + ms).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false, // true for AM/PM format
+  });
 }

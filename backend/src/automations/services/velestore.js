@@ -6,7 +6,7 @@
  * playlist URL directly from the credentials (no inbox polling needed).
  */
 import { solveAndSubmit } from "../utils/captcha.js";
-import { generateUsername, generatePassword } from "../utils/fakeData.js";
+import { generateUsername, generatePassword } from "../utils/generators.js";
 
 const BASE_URL = "https://velestore.su";
 const TAG = "VeleStore";

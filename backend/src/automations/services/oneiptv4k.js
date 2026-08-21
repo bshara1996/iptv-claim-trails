@@ -11,12 +11,16 @@ import {
   waitForVerificationCodeEmail,
   waitForPlaylistEmail,
 } from "../providers/inboxPoller.js";
-import { generateUsername, generatePhone } from "../utils/fakeData.js";
+import {
+  generateUsername,
+  generatePhone,
+  computeExpiresAt,
+} from "../utils/generators.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const BASE_URL = "https://oneiptv4k.com";
-const TRIAL_PATH = "/free-trial";
+const TRIAL_URL = "https://oneiptv4k.com/free-trial";
+const TRIAL_HOURS = 24;
 
 // ── Selectors ─────────────────────────────────────────────────────────────────
 
@@ -123,7 +127,7 @@ const OneIptv4kRegistration = {
   meta: {
     id: "oneiptv4k",
     name: "OneIPTV4K",
-    url: `${BASE_URL}${TRIAL_PATH}`,
+    url: TRIAL_URL,
     description:
       "OneIPTV4K 24-hour free trial — email code verification + M3U playlist",
   },
@@ -139,9 +143,9 @@ const OneIptv4kRegistration = {
     const whatsapp = generatePhone();
 
     // 1. Open registration page
-    log(`[OneIPTV4K] Navigating to ${BASE_URL}${TRIAL_PATH}...`);
+    log(`[OneIPTV4K] Navigating to ${TRIAL_URL}...`);
     await page
-      .goto(`${BASE_URL}${TRIAL_PATH}`, {
+      .goto(TRIAL_URL, {
         waitUntil: "domcontentloaded",
         timeout: 20_000,
       })
@@ -202,17 +206,7 @@ const OneIptv4kRegistration = {
     });
 
     // 6. Build and return result
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleString(
-      "en-US",
-      {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      },
-    );
+    const expiresAt = computeExpiresAt(TRIAL_HOURS * 60 * 60 * 1000);
 
     log(
       `[OneIPTV4K] ✅ Done. TV: ${playlists.tvPlaylist ?? "none"}, VOD: ${playlists.vodPlaylist ?? "none"}, total links: ${playlists.allM3uLinks.length}`,
@@ -224,7 +218,7 @@ const OneIptv4kRegistration = {
       tvPlaylist: playlists.tvPlaylist ?? null,
       vodPlaylist: playlists.vodPlaylist ?? null,
       allM3uLinks: playlists.allM3uLinks ?? [],
-      duration: playlists.duration ?? "24 Hours",
+      duration: playlists.duration ?? `${TRIAL_HOURS} Hours`,
       expiresAt: playlists.expiresAt ?? expiresAt,
       status: "success",
       note: playlists.tvPlaylist

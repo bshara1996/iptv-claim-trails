@@ -8,6 +8,9 @@
 import logger from "../../logger.js";
 import { waitForPlaylistEmail } from "../providers/inboxPoller.js";
 import { solveAndSubmit } from "../utils/captcha.js";
+import { computeExpiresAt } from "../utils/generators.js";
+
+const TRIAL_DAYS = 3;
 
 // ── Selectors ─────────────────────────────────────────────────────────────────
 
@@ -134,21 +137,14 @@ export default {
     if (playlists.allM3uLinks.length === 0)
       log("[Y6TV] No M3U links found in confirmation email.", "warn");
 
-    const expiresAt = new Date(Date.now() + 3 * 864e5).toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
+    const expiresAt = computeExpiresAt(TRIAL_DAYS * 864e5);
 
     return {
       email,
       tvPlaylist: playlists.tvPlaylist,
       vodPlaylist: playlists.vodPlaylist,
       allM3uLinks: playlists.allM3uLinks,
-      duration: "3 Days",
+      duration: `${TRIAL_DAYS} Days`,
       expiresAt,
       status: "success",
       note: playlists.tvPlaylist

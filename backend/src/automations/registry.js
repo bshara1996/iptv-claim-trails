@@ -12,6 +12,7 @@ import Y6TvRegistration from "./services/y6tv.js";
 import TvBoomRegistration from "./services/tvboom.js";
 import VeleStoreRegistration from "./services/velestore.js";
 import OneIptv4kRegistration from "./services/oneiptv4k.js";
+import GreatestIptvRegistration from "./services/greatestiptv.js";
 
 export const emailProviders = [TmailyProvider, DisposeLolProvider];
 
@@ -20,6 +21,7 @@ export const registrationServices = [
   TvBoomRegistration,
   VeleStoreRegistration,
   OneIptv4kRegistration,
+  GreatestIptvRegistration,
 ];
 
 export function getProvider(id) {

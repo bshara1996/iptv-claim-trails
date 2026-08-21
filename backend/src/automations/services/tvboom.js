@@ -7,9 +7,14 @@
  * Playlist URL is built directly from the credentials (no inbox M3U extraction needed).
  */
 import { solveAndSubmit } from "../utils/captcha.js";
-import { generateUsername, generatePassword } from "../utils/fakeData.js";
+import {
+  generateUsername,
+  generatePassword,
+  computeExpiresAt,
+} from "../utils/generators.js";
 
 const BASE_URL = "https://tvboom.vip";
+const TRIAL_HOURS = 24;
 
 // Matches the account validation link sent in the TVBoom confirmation email
 const VALIDATION_LINK_RE =
@@ -211,17 +216,7 @@ const TvBoomRegistration = {
     await page.waitForLoadState("domcontentloaded").catch(() => {});
 
     const tvPlaylist = `${BASE_URL}/${username}/${password}/hls/playlist.m3u8`;
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleString(
-      "en-US",
-      {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      },
-    );
+    const expiresAt = computeExpiresAt(TRIAL_HOURS * 60 * 60 * 1000);
 
     log(`[TVBoom] ✅ Trial activated. Playlist: ${tvPlaylist}`);
 
@@ -230,7 +225,7 @@ const TvBoomRegistration = {
       password,
       tvPlaylist,
       vodPlaylist: null,
-      duration: "24 Hours",
+      duration: `${TRIAL_HOURS} Hours`,
       expiresAt,
       allM3uLinks: [tvPlaylist],
       status: "success",

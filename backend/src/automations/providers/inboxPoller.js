@@ -273,10 +273,13 @@ export async function waitForPlaylistEmail(
       const unique = [
         ...new Set(
           [
+            // Plain .m3u / .m3u8 file links (with optional query string)
             ...body.matchAll(/https?:\/\/[^\s"'<>]+\.m3u8?[^\s"'<>]*/gi),
-            ...body.matchAll(/https?:\/\/[^\s"'<>]*[?&]type=m3u8?[^\s"'<>]*/gi),
+            // ?type=m3u* / &type=m3u* — covers m3u, m3u8, m3u_plus, etc.
+            // Handles: ?type=m3u_plus&output=ts
+            ...body.matchAll(/https?:\/\/[^\s"'<>]*[?&]type=m3u[^\s"'<>]*/gi),
             // Strip trailing HTML entities (e.g. &lt;/div&gt;) without breaking
-            // query-string ampersands like &username=x&password=y&type=m3u8
+            // query-string ampersands like &username=x&password=y&type=m3u_plus
           ].map((m) => m[0].replace(/&(?:lt|gt|amp|quot|apos);.*/i, "")),
         ),
       ];
