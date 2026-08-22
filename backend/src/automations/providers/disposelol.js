@@ -6,7 +6,12 @@
  * Swapping providers only requires updating the import in registry.js.
  */
 import logger from "../../logger.js";
-import { waitForValidationLink, waitForPlaylistEmail } from "./inboxPoller.js";
+import {
+  waitForValidationLink,
+  waitForPlaylistEmail,
+  waitForVerificationCodeEmail,
+} from "../inbox/index.js";
+import { readEmailFromBody } from "./pageHelpers.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -31,34 +36,20 @@ const CONFIG = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Basic email format check to filter out false positives
-function isValidEmail(str) {
-  return (
-    typeof str === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(str.trim())
-  );
-}
-
-// Reads the address from the aria-live container, falling back to a body regex scan
+// Reads the address from the aria-live container, falling back to a body scan
 async function readEmailFromPage(page) {
   try {
     const el = await page.$(CONFIG.selectors.addressContainer);
     if (!el) return null;
     const text = (await el.innerText().catch(() => "")).trim();
     if (
-      isValidEmail(text) &&
+      text &&
       !text.toLowerCase().startsWith(CONFIG.selectors.loadingText.toLowerCase())
     )
       return text;
   } catch (_) {}
 
-  // Last resort — scan the entire page body for an email-shaped string
-  try {
-    const body = await page.evaluate(() => document.body?.innerText ?? "");
-    const m = body.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
-    if (m && isValidEmail(m[0])) return m[0];
-  } catch (_) {}
-
-  return null;
+  return readEmailFromBody(page);
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────────
@@ -107,9 +98,10 @@ const DisposeLolProvider = {
     throw new Error("[DisposeLol] Timed out waiting for email address.");
   },
 
-  // Delegates inbox polling to inboxPoller — no provider-specific logic needed
+  // Delegates inbox polling to the shared poller — no provider-specific logic needed
   waitForEmailAndExtractLink: waitForValidationLink,
   waitForEmailAndExtractPlaylists: waitForPlaylistEmail,
+  waitForVerificationCodeEmail,
 };
 
 export default DisposeLolProvider;

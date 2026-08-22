@@ -7,6 +7,7 @@
 
 import TmailyProvider from "./providers/tmaily.js";
 import DisposeLolProvider from "./providers/disposelol.js";
+import MailTmProvider from "./providers/mailtm.js";
 
 import Y6TvRegistration from "./services/y6tv.js";
 import TvBoomRegistration from "./services/tvboom.js";
@@ -15,7 +16,11 @@ import OneIptv4kRegistration from "./services/oneiptv4k.js";
 import GreatestIptvRegistration from "./services/greatestiptv.js";
 import LayerSevenRegistration from "./services/layerseven.js";
 
-export const emailProviders = [TmailyProvider, DisposeLolProvider];
+export const emailProviders = [
+  TmailyProvider,
+  DisposeLolProvider,
+  MailTmProvider,
+];
 
 export const registrationServices = [
   Y6TvRegistration,

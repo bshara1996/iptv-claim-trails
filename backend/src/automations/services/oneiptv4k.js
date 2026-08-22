@@ -8,14 +8,11 @@
  */
 import logger from "../../logger.js";
 import {
-  waitForVerificationCodeEmail,
-  waitForPlaylistEmail,
-} from "../providers/inboxPoller.js";
-import {
   generateUsername,
   generatePhone,
-  computeExpiresAt,
+  computeTrialExpiry,
 } from "../utils/generators.js";
+import { findVisible, fillFirst, clickFirst } from "../utils/pageUtils.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -83,44 +80,6 @@ const SELECTORS = {
   ],
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-// Returns the first visible element matching any selector, or null
-async function findVisible(page, selectors) {
-  for (const sel of selectors) {
-    try {
-      const el = await page.$(sel);
-      if (el && (await el.isVisible().catch(() => false))) return el;
-    } catch (_) {}
-  }
-  return null;
-}
-
-// Fills the first visible field — falls back to simulated typing if fill() is rejected
-async function fillFirst(page, selectors, value) {
-  const el = await findVisible(page, selectors);
-  if (!el) {
-    logger.warn(`[OneIPTV4K] Field not found for selectors: ${selectors[0]}`);
-    return;
-  }
-  await el.scrollIntoViewIfNeeded().catch(() => {});
-  await el.fill(value).catch(async () => {
-    await el.click();
-    await el.type(value, { delay: 40 });
-  });
-}
-
-// Clicks the first visible element matching any selector
-async function clickFirst(page, selectors) {
-  const el = await findVisible(page, selectors);
-  if (!el) {
-    logger.warn(`[OneIPTV4K] Button not found for selectors: ${selectors[0]}`);
-    return;
-  }
-  await el.scrollIntoViewIfNeeded().catch(() => {});
-  await el.click();
-}
-
 // ── Service ───────────────────────────────────────────────────────────────────
 
 const OneIptv4kRegistration = {
@@ -135,6 +94,7 @@ const OneIptv4kRegistration = {
   async execute({
     page,
     emailPage,
+    provider,
     email,
     inboxSeenIds = new Set(),
     log = () => {},
@@ -171,7 +131,7 @@ const OneIptv4kRegistration = {
     // without leaking new IDs back into the shared set.
     const seenIds = new Set(inboxSeenIds);
 
-    const code = await waitForVerificationCodeEmail(emailPage, {
+    const code = await provider.waitForVerificationCodeEmail(emailPage, {
       seenIds,
       timeout: 120_000,
     });
@@ -191,13 +151,16 @@ const OneIptv4kRegistration = {
 
     // 5. Poll inbox for the playlist email (verification email already in seenIds)
     await emailPage.bringToFront().catch(() => {});
-    const playlists = await waitForPlaylistEmail(emailPage, {
-      seenIds,
-      timeout: 120_000,
-    });
+    const playlists = await provider.waitForEmailAndExtractPlaylists(
+      emailPage,
+      {
+        seenIds,
+        timeout: 120_000,
+      },
+    );
 
     // 6. Build and return result
-    const expiresAt = computeExpiresAt(TRIAL_HOURS * 60 * 60 * 1000);
+    const expiresAt = computeTrialExpiry(TRIAL_HOURS);
 
     log(
       `[OneIPTV4K] ✅ Done. TV: ${playlists.tvPlaylist ?? "none"}, VOD: ${playlists.vodPlaylist ?? "none"}, total links: ${playlists.allM3uLinks.length}`,

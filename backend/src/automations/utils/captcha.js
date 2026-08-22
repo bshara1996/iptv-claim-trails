@@ -12,18 +12,9 @@
  *   await solveAndSubmit(page, { submitSelectors: ['button[type="submit"]'], log, tag: "MyService" });
  */
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+import { findVisible } from "./pageUtils.js";
 
-// Returns the first visible element matching any selector, or null
-async function findVisible(page, selectors) {
-  for (const sel of selectors) {
-    try {
-      const el = await page.$(sel);
-      if (el && (await el.isVisible().catch(() => false))) return el;
-    } catch (_) {}
-  }
-  return null;
-}
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 // Polls every 500 ms until the reCAPTCHA response token is present.
 // Re-resolves the anchor frame and re-clicks the checkbox each cycle to survive

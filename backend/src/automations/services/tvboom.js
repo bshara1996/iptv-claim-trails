@@ -10,11 +10,13 @@ import { solveAndSubmit } from "../utils/captcha.js";
 import {
   generateUsername,
   generatePassword,
-  computeExpiresAt,
+  computeTrialExpiry,
 } from "../utils/generators.js";
+import { clickFirst, fillFirst } from "../utils/pageUtils.js";
 
 const BASE_URL = "https://tvboom.vip";
 const TRIAL_HOURS = 24;
+const GOTO_OPTS = { waitUntil: "domcontentloaded", timeout: 15_000 };
 
 // Matches the account validation link sent in the TVBoom confirmation email
 const VALIDATION_LINK_RE =
@@ -75,38 +77,6 @@ const SELECTORS = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Returns the first visible element matching any selector, or null
-async function findVisible(page, selectors) {
-  for (const sel of selectors) {
-    try {
-      const el = await page.$(sel);
-      if (el && (await el.isVisible().catch(() => false))) return el;
-    } catch (_) {}
-  }
-  return null;
-}
-
-// Clicks the first visible element matching any selector
-async function clickFirst(page, selectors) {
-  const el = await findVisible(page, selectors);
-  if (el) {
-    await el.click();
-    return true;
-  }
-  return false;
-}
-
-// Fills the first visible element matching any selector with the given value
-async function fillFirst(page, selectors, value) {
-  const el = await findVisible(page, selectors);
-  if (el) {
-    await el.click().catch(() => {});
-    await el.fill(value);
-    return true;
-  }
-  return false;
-}
-
 // Searches the email page (including frames) for the validation anchor and clicks it.
 // Searching frames is needed because some providers render email content inside an iframe.
 async function clickValidationLink(emailPage, url) {
@@ -125,16 +95,6 @@ async function clickValidationLink(emailPage, url) {
     } catch (_) {}
   }
   return false;
-}
-
-async function navigateTo(page, url) {
-  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15_000 });
-}
-
-// Clicks the first matching element then waits for the page to settle
-async function clickAndWait(page, selectors) {
-  await clickFirst(page, selectors);
-  await page.waitForLoadState("domcontentloaded").catch(() => {});
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -157,10 +117,15 @@ const TvBoomRegistration = {
   }) {
     const username = generateUsername();
     const password = generatePassword();
+
     // 1. Fill and submit the registration form
-    await navigateTo(page, `${BASE_URL}/register`).catch(() =>
-      navigateTo(page, `${BASE_URL}/index.php?do=register`).catch(() => {}),
-    );
+    await page
+      .goto(`${BASE_URL}/register`, GOTO_OPTS)
+      .catch(() =>
+        page
+          .goto(`${BASE_URL}/index.php?do=register`, GOTO_OPTS)
+          .catch(() => {}),
+      );
 
     await clickFirst(page, SELECTORS.rulesAccept);
     await fillFirst(page, SELECTORS.username, username);
@@ -181,7 +146,6 @@ const TvBoomRegistration = {
     const validationUrl = await provider.waitForEmailAndExtractLink(emailPage, {
       filterText: "tvboom",
       pattern: VALIDATION_LINK_RE,
-      // Pass the run-wide seen-IDs set so emails from earlier services are excluded
       seenIds: inboxSeenIds,
       timeout: 60_000,
     });
@@ -198,18 +162,19 @@ const TvBoomRegistration = {
       await page.waitForLoadState("domcontentloaded").catch(() => {});
     } else {
       // Anchor not found in DOM — fall back to direct navigation
-      await navigateTo(page, cleanUrl).catch(() => {});
+      await page.goto(cleanUrl, GOTO_OPTS).catch(() => {});
       await page.bringToFront().catch(() => {});
     }
 
     // 3. Activate 24-hour trial from the cabinet
-    await clickAndWait(page, SELECTORS.continueReg);
-    await clickAndWait(page, SELECTORS.cabinet);
+    await clickFirst(page, SELECTORS.continueReg);
+    await page.waitForLoadState("domcontentloaded").catch(() => {});
+    await clickFirst(page, SELECTORS.cabinet);
+    await page.waitForLoadState("domcontentloaded").catch(() => {});
     await clickFirst(page, SELECTORS.activateTest);
     await page.waitForLoadState("domcontentloaded").catch(() => {});
 
     const tvPlaylist = `${BASE_URL}/${username}/${password}/hls/playlist.m3u8`;
-    const expiresAt = computeExpiresAt(TRIAL_HOURS * 60 * 60 * 1000);
 
     log(`[TVBoom] ✅ Trial activated. Playlist: ${tvPlaylist}`);
 
@@ -219,7 +184,7 @@ const TvBoomRegistration = {
       tvPlaylist,
       vodPlaylist: null,
       duration: `${TRIAL_HOURS} Hours`,
-      expiresAt,
+      expiresAt: computeTrialExpiry(TRIAL_HOURS),
       allM3uLinks: [tvPlaylist],
       status: "success",
       note: "24-hour IPTV trial activated successfully.",

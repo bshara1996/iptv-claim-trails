@@ -9,7 +9,8 @@
  *   3. Navigate to /orders, click "View Accounts", and extract the M3U URL.
  */
 import { solveAndSubmit } from "../utils/captcha.js";
-import { generateUsername, computeExpiresAt } from "../utils/generators.js";
+import { generateUsername, computeTrialExpiry } from "../utils/generators.js";
+import { fillFirst } from "../utils/pageUtils.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -35,17 +36,6 @@ const SELECTORS = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const gotoOpts = { waitUntil: "domcontentloaded", timeout: 20_000 };
-
-// Returns the first element from `selectors` that exists and is visible, or null.
-async function findVisible(page, selectors) {
-  for (const sel of selectors) {
-    try {
-      const el = await page.$(sel);
-      if (el && (await el.isVisible().catch(() => false))) return el;
-    } catch (_) {}
-  }
-  return null;
-}
 
 // Extracts the M3U URL from the page by scanning all text for the get.php pattern.
 async function extractM3uFromPage(page) {
@@ -86,8 +76,7 @@ export default {
       [SELECTORS.email, email],
       [SELECTORS.password, PASSWORD],
     ]) {
-      const el = await findVisible(page, sel);
-      if (el) await el.fill(val);
+      await fillFirst(page, sel, val);
     }
 
     // Solve CAPTCHA then click "Create Account"
@@ -137,7 +126,7 @@ export default {
       vodPlaylist: null,
       allM3uLinks: m3uLink ? [m3uLink] : [],
       duration: `${TRIAL_HOURS} Hours`,
-      expiresAt: computeExpiresAt(TRIAL_HOURS * 60 * 60 * 1000),
+      expiresAt: computeTrialExpiry(TRIAL_HOURS),
       status: "success",
       note: m3uLink
         ? "LayerSeven trial activated successfully."

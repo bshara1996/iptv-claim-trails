@@ -5,10 +5,11 @@
  * Used by all services so each one doesn't need its own generation logic.
  *
  * Exports:
- *   generateUsername()      – random lowercase username (4 letters + 4 digits)
- *   generatePassword()      – random mixed-case alphanumeric password (10 chars)
- *   generatePhone()         – random 10-digit phone number (non-zero leading digit)
- *   computeExpiresAt(ms)    – formatted expiry timestamp, ms from now
+ *   generateUsername()         – random lowercase username (4 letters + 4 digits)
+ *   generatePassword()         – random mixed-case alphanumeric password (10 chars)
+ *   generatePhone()            – random 10-digit phone number (non-zero leading digit)
+ *   computeExpiresAt(ms)       – formatted expiry timestamp, ms from now
+ *   computeTrialExpiry(hours)  – shorthand: computeExpiresAt(hours * 3_600_000)
  */
 const LOWERCASE = "abcdefghijklmnopqrstuvwxyz";
 const UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -40,7 +41,7 @@ export function generatePhone() {
 }
 
 // Returns a human-readable expiry timestamp `ms` milliseconds from now.
-// Format: "Jan 1, 2026, 12:00 AM"  (en-US locale, 12-hour clock)
+// Format: "Jan 1, 2026, 00:00" (en-US locale, 24-hour clock)
 export function computeExpiresAt(ms) {
   return new Date(Date.now() + ms).toLocaleString("en-US", {
     month: "short",
@@ -48,6 +49,12 @@ export function computeExpiresAt(ms) {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false, // true for AM/PM format
+    hour12: false,
   });
+}
+
+// Shorthand for trial expiry: converts hours → ms then formats.
+// Usage: computeTrialExpiry(24) → expiry 24 hours from now
+export function computeTrialExpiry(hours) {
+  return computeExpiresAt(hours * 3_600_000);
 }

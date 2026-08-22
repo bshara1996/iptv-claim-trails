@@ -7,6 +7,7 @@
  */
 import { solveAndSubmit } from "../utils/captcha.js";
 import { generateUsername, generatePassword } from "../utils/generators.js";
+import { fillFirst } from "../utils/pageUtils.js";
 
 const BASE_URL = "https://velestore.su";
 const TAG = "VeleStore";
@@ -37,14 +38,10 @@ async function fillForm(page, { login, password, email }) {
   await page
     .waitForSelector(SELECTORS.name, { timeout: 8_000 })
     .catch(() => {});
-  for (const [sel, val] of [
-    [SELECTORS.name, login],
-    [SELECTORS.password1, password],
-    [SELECTORS.password2, password],
-    [SELECTORS.email, email],
-  ]) {
-    await page.fill(sel, val);
-  }
+  await fillFirst(page, SELECTORS.name, login);
+  await fillFirst(page, SELECTORS.password1, password);
+  await fillFirst(page, SELECTORS.password2, password);
+  await fillFirst(page, SELECTORS.email, email);
 }
 
 // Solves the CAPTCHA, submits the form, and throws on server-side validation errors

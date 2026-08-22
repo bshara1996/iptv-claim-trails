@@ -6,9 +6,9 @@
  * Trial duration is 3 days.
  */
 import logger from "../../logger.js";
-import { waitForPlaylistEmail } from "../providers/inboxPoller.js";
 import { solveAndSubmit } from "../utils/captcha.js";
-import { computeExpiresAt } from "../utils/generators.js";
+import { computeTrialExpiry } from "../utils/generators.js";
+import { findVisible } from "../utils/pageUtils.js";
 
 const TRIAL_DAYS = 3;
 
@@ -39,17 +39,6 @@ const ERROR_SELECTORS = [
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-// Returns the first visible element matching any selector, or null
-async function findVisible(page, selectors) {
-  for (const sel of selectors) {
-    try {
-      const el = await page.$(sel);
-      if (el && (await el.isVisible())) return el;
-    } catch (_) {}
-  }
-  return null;
-}
 
 // Navigates to the registration page, fills the email field, solves the CAPTCHA,
 // submits the form, and throws if the server returns a validation error
@@ -114,6 +103,7 @@ export default {
   async execute({
     page,
     emailPage,
+    provider,
     email,
     inboxSeenIds = new Set(),
     log = () => {},
@@ -122,17 +112,20 @@ export default {
 
     await emailPage.bringToFront().catch(() => {});
 
-    const playlists = await waitForPlaylistEmail(emailPage, {
-      filterText: "y6tv",
-      // Pass the run-wide seen-IDs set so emails from earlier services are excluded
-      seenIds: inboxSeenIds,
-      timeout: 120_000,
-    });
+    const playlists = await provider.waitForEmailAndExtractPlaylists(
+      emailPage,
+      {
+        filterText: "y6tv",
+        // Pass the run-wide seen-IDs set so emails from earlier services are excluded
+        seenIds: inboxSeenIds,
+        timeout: 120_000,
+      },
+    );
 
     if (playlists.allM3uLinks.length === 0)
       log("[Y6TV] No M3U links found in confirmation email.", "warn");
 
-    const expiresAt = computeExpiresAt(TRIAL_DAYS * 864e5);
+    const expiresAt = computeTrialExpiry(TRIAL_DAYS * 24);
 
     return {
       email,

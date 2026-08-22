@@ -6,7 +6,12 @@
  * Swapping providers only requires updating the import in registry.js.
  */
 import logger from "../../logger.js";
-import { waitForValidationLink, waitForPlaylistEmail } from "./inboxPoller.js";
+import {
+  waitForValidationLink,
+  waitForPlaylistEmail,
+  waitForVerificationCodeEmail,
+} from "../inbox/index.js";
+import { readEmailFromBody } from "./pageHelpers.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -46,15 +51,8 @@ const CONFIG = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Basic email format check to filter out false positives from broad selectors
-function isValidEmail(str) {
-  return (
-    typeof str === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(str.trim())
-  );
-}
-
 // Tries each candidate selector in order, reading the value as text, input value,
-// or data-email attribute. Falls back to a regex scan of the full page body.
+// or data-email attribute. Falls back to a body scan.
 async function readEmailFromPage(page) {
   for (const sel of CONFIG.selectors.emailCandidates) {
     try {
@@ -65,16 +63,11 @@ async function readEmailFromPage(page) {
         (await el.inputValue().catch(() => "")) ||
         (await el.getAttribute("data-email").catch(() => ""))
       ).trim();
-      if (isValidEmail(text)) return text;
+      if (text) return text;
     } catch (_) {}
   }
-  // Last resort — scan the entire page body for an email-shaped string
-  try {
-    const body = await page.evaluate(() => document.body?.innerText ?? "");
-    const m = body.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
-    if (m && isValidEmail(m[0])) return m[0];
-  } catch (_) {}
-  return null;
+
+  return readEmailFromBody(page);
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────────
@@ -120,9 +113,10 @@ const TmailyProvider = {
     throw new Error("[Tmaily] Timed out waiting for email address.");
   },
 
-  // Delegates inbox polling to inboxPoller — no provider-specific logic needed
+  // Delegates inbox polling to the shared poller — no provider-specific logic needed
   waitForEmailAndExtractLink: waitForValidationLink,
   waitForEmailAndExtractPlaylists: waitForPlaylistEmail,
+  waitForVerificationCodeEmail,
 };
 
 export default TmailyProvider;

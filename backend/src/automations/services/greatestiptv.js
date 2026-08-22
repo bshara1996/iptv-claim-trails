@@ -8,8 +8,8 @@
  *   3. Switch to the inbox page and poll for the access-details email.
  *   4. Extract and return the M3U playlist link.
  */
-import { waitForPlaylistEmail } from "../providers/inboxPoller.js";
-import { computeExpiresAt } from "../utils/generators.js";
+import { computeTrialExpiry } from "../utils/generators.js";
+import { findVisible } from "../utils/pageUtils.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -36,17 +36,6 @@ const SELECTORS = {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-// Returns the first element from `selectors` that exists and is visible, or null.
-async function findVisible(page, selectors) {
-  for (const sel of selectors) {
-    try {
-      const el = await page.$(sel);
-      if (el && (await el.isVisible().catch(() => false))) return el;
-    } catch (_) {}
-  }
-  return null;
-}
 
 // Returns true when the page body contains any of the confirmation phrases.
 // Reading innerText is more reliable than selector-based checks because the
@@ -76,6 +65,7 @@ export default {
   async execute({
     page,
     emailPage,
+    provider,
     email,
     inboxSeenIds = new Set(),
     log = () => {},
@@ -144,11 +134,14 @@ export default {
     // A fresh copy of inboxSeenIds ensures emails from earlier services are skipped.
     await emailPage.bringToFront().catch(() => {});
 
-    const playlists = await waitForPlaylistEmail(emailPage, {
-      filterText: "greatest",
-      seenIds: new Set(inboxSeenIds),
-      timeout: 120_000,
-    });
+    const playlists = await provider.waitForEmailAndExtractPlaylists(
+      emailPage,
+      {
+        filterText: "greatest",
+        seenIds: new Set(inboxSeenIds),
+        timeout: 120_000,
+      },
+    );
 
     // ── Step 4: Return the result ─────────────────────────────────────────────
     if (playlists.allM3uLinks.length === 0)
@@ -158,7 +151,7 @@ export default {
         `[${TAG}] ✅ M3U extracted — TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
       );
 
-    const expiresAt = computeExpiresAt(TRIAL_HOURS * 60 * 60 * 1000);
+    const expiresAt = computeTrialExpiry(TRIAL_HOURS);
 
     return {
       username: null,
