@@ -19,11 +19,14 @@ import {
 } from "./extractors.js";
 import { findVisible } from "../utils/pageUtils.js";
 
-// Clicks a row, reads content across all frames, then navigates back to inbox
+// Clicks a row, waits for the DOM to settle, reads content across all frames,
+// then navigates back to the inbox.
 async function openAndRead(page, row) {
   await row.scrollIntoViewIfNeeded().catch(() => {});
   await row.click().catch(() => {});
-  await page.waitForTimeout(1_200);
+  await page
+    .waitForLoadState("domcontentloaded")
+    .catch(() => page.waitForTimeout(1_200));
 
   const body = (
     await Promise.all(
@@ -123,7 +126,18 @@ export async function waitForValidationLink(
   const result = await _poll(
     page,
     { filterText, seenIds, timeout },
-    async (_rowText, row) => {
+    async (rowText, row) => {
+      // Try the row preview text first — avoids opening the email if the link is visible there
+      const fromPreview = extractLinks(rowText).find(
+        (l) => !pattern || pattern.test(l),
+      );
+      if (fromPreview) {
+        logger.info(
+          `[InboxPoller] Extracted link from preview: ${fromPreview}`,
+        );
+        return fromPreview;
+      }
+
       const links = extractLinks(await openAndRead(page, row));
       const match = pattern
         ? links.find((l) => pattern.test(l))

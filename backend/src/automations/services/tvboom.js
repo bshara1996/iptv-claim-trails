@@ -12,7 +12,7 @@ import {
   generatePassword,
   computeTrialExpiry,
 } from "../utils/generators.js";
-import { clickFirst, fillFirst } from "../utils/pageUtils.js";
+import { clickFirst, fillFirst, waitAndClick } from "../utils/pageUtils.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -33,7 +33,7 @@ const SELECTORS = {
   continueReg:
     'a:has-text("Продолжить регистрацию"), button:has-text("Продолжить регистрацию")',
   cabinet: 'a:has-text("Перейти в кабинет"), a[href*="/cabinet"]',
-  activateTest: 'a[onclick="GetTest()"], a.btn[onclick*="GetTest"]',
+  activateTest: 'a[onclick*="GetTest"]',
 };
 
 // Matches the TVBoom validation link; tolerates &amp; HTML-encoding.
@@ -63,7 +63,6 @@ export default {
 
     // Step 1: Accept terms, fill form, submit
     await page.goto(`${BASE_URL}/register`, GOTO_OPTS).catch(() => {});
-
     if (await clickFirst(page, SELECTORS.rulesAccept))
       await page.waitForLoadState("domcontentloaded").catch(() => {});
 
@@ -71,24 +70,20 @@ export default {
     await fillFirst(page, SELECTORS.email, email);
     await fillFirst(page, SELECTORS.password, password);
     await fillFirst(page, SELECTORS.passwordRepeat, password);
-
     await solveAndSubmit(page, {
       submitSelectors: SELECTORS.submit,
       log,
       tag: TAG,
     });
-    await page.waitForLoadState("domcontentloaded").catch(() => {});
 
     // Step 2: Poll inbox and navigate to the validation link
     await emailPage.bringToFront().catch(() => {});
-
     const validationUrl = await provider.waitForEmailAndExtractLink(emailPage, {
       filterText: "tvboom",
       pattern: VALIDATION_LINK_RE,
       seenIds: inboxSeenIds,
       timeout: 60_000,
     });
-
     if (!validationUrl)
       throw new Error(
         "Validation link not found in TVBoom confirmation email.",
@@ -104,10 +99,9 @@ export default {
     await page.waitForLoadState("domcontentloaded").catch(() => {});
 
     await clickFirst(page, SELECTORS.cabinet);
-    await page.waitForLoadState("domcontentloaded").catch(() => {});
 
-    await clickFirst(page, SELECTORS.activateTest);
-    await page.waitForLoadState("domcontentloaded").catch(() => {});
+    await waitAndClick(page, SELECTORS.activateTest);
+    await page.waitForTimeout(1_300);
 
     const tvPlaylist = `${BASE_URL}/${username}/${password}/hls/playlist.m3u8`;
     log(`[${TAG}] ✅ Trial activated. Playlist: ${tvPlaylist}`);
