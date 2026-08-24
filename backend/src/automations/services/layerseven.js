@@ -27,10 +27,9 @@ const PANEL = {
 // ── Selectors ─────────────────────────────────────────────────────────────────
 
 const SELECTORS = {
-  username: ['input[name="username"]', 'input[placeholder*="username" i]'],
-  email: ['input[name="email"]', 'input[type="email"]'],
-  password: ['input[name="password"]', 'input[type="password"]'],
-  submit: ['button[type="submit"]', 'button:has-text("Create Account")'],
+  email: "#email",
+  password: "#password",
+  submit: 'button[type="submit"]:has-text("Create account")',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -65,21 +64,20 @@ export default {
     // ── Step 1: Fill and submit the registration form ─────────────────────────
     await page.goto(PANEL.signUp, gotoOpts).catch(() => {});
     await page
-      .waitForSelector(SELECTORS.email[0], {
+      .waitForSelector(SELECTORS.email, {
         timeout: 10_000,
         state: "visible",
       })
       .catch(() => {});
 
     for (const [sel, val] of [
-      [SELECTORS.username, username],
       [SELECTORS.email, email],
       [SELECTORS.password, PASSWORD],
     ]) {
       await fillFirst(page, sel, val);
     }
 
-    // Solve CAPTCHA then click "Create Account"
+    // Solve CAPTCHA then click "Create account"
     await solveAndSubmit(page, {
       submitSelectors: SELECTORS.submit,
       log,

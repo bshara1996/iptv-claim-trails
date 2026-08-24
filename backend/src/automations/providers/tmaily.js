@@ -72,7 +72,7 @@ async function readEmailFromPage(page) {
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
-const TmailyProvider = {
+export default {
   meta: {
     id: "tmaily",
     name: "TMaily",
@@ -118,5 +118,3 @@ const TmailyProvider = {
   waitForEmailAndExtractPlaylists: waitForPlaylistEmail,
   waitForVerificationCodeEmail,
 };
-
-export default TmailyProvider;

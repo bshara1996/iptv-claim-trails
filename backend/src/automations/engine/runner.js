@@ -5,14 +5,28 @@ import { createContext, closeContext } from "../../browser.js";
 import { getProvider, getService } from "../registry.js";
 import logger from "../../logger.js";
 import { tasks } from "./taskStore.js";
-import { emit, log, makeApiPageStub, buildRecord, logPlaylists } from "./helpers.js";
+import {
+  emit,
+  log,
+  makeApiPageStub,
+  buildRecord,
+  logPlaylists,
+} from "./helpers.js";
 import { runLegacyService } from "./legacy.js";
 
-export async function runTask(taskId, providerId, serviceIds, { headless } = {}) {
+export async function runTask(
+  taskId,
+  providerId,
+  serviceIds,
+  { headless } = {},
+) {
   const task = tasks.get(taskId);
   if (!task) return;
 
-  const { emitter, abortController: { signal } } = task;
+  const {
+    emitter,
+    abortController: { signal },
+  } = task;
   task.status = "running";
 
   // ── Validate inputs ───────────────────────────────────────────────────────
@@ -69,18 +83,34 @@ export async function runTask(taskId, providerId, serviceIds, { headless } = {})
       if (signal.aborted) break;
 
       log(emitter, `Starting registration on ${service.meta.name}...`);
-      emit(emitter, "service_start", { serviceId: service.meta.id, name: service.meta.name });
+      emit(emitter, "service_start", {
+        serviceId: service.meta.id,
+        name: service.meta.name,
+      });
 
       const regPage = await context.newPage();
 
       try {
         // Dispatch: execute() (current API) or register() (legacy)
-        const result = typeof service.execute === "function"
-          ? await service.execute({
-              page: regPage, emailPage, provider, email, inboxSeenIds,
-              log: (msg, level = "info") => log(emitter, msg, level),
-            })
-          : await runLegacyService(service, regPage, emailPage, provider, email, inboxSeenIds, emitter);
+        const result =
+          typeof service.execute === "function"
+            ? await service.execute({
+                page: regPage,
+                emailPage,
+                provider,
+                email,
+                inboxSeenIds,
+                log: (msg, level = "info") => log(emitter, msg, level),
+              })
+            : await runLegacyService(
+                service,
+                regPage,
+                emailPage,
+                provider,
+                email,
+                inboxSeenIds,
+                emitter,
+              );
 
         const record = buildRecord(service, email, result);
         task.results.push(record);
@@ -88,17 +118,27 @@ export async function runTask(taskId, providerId, serviceIds, { headless } = {})
         logPlaylists(emitter, record);
       } catch (err) {
         const status = err.type === "CAPTCHA" ? "captcha" : "failed";
-        const record = buildRecord(service, email, { status, note: err.message });
+        const record = buildRecord(service, email, {
+          status,
+          note: err.message,
+        });
         task.results.push(record);
         emit(emitter, "result", record);
-        log(emitter, `${status === "captcha" ? "🛡️" : "❌"} ${service.meta.name}: ${err.message}`, "warn");
+        log(
+          emitter,
+          `${status === "captcha" ? "🛡️" : "❌"} ${service.meta.name}: ${err.message}`,
+          "warn",
+        );
       }
     }
 
     task.status = signal.aborted ? "cancelled" : "done";
-    log(emitter, signal.aborted
-      ? "Task was cancelled by user."
-      : `Automation complete. ${task.results.length} service(s) processed.`);
+    log(
+      emitter,
+      signal.aborted
+        ? "Task was cancelled by user."
+        : `Automation complete. ${task.results.length} service(s) processed.`,
+    );
   } catch (err) {
     if (err.name === "AbortError") {
       task.status = "cancelled";

@@ -15,6 +15,7 @@ import VeleStoreRegistration from "./services/velestore.js";
 import OneIptv4kRegistration from "./services/oneiptv4k.js";
 import GreatestIptvRegistration from "./services/greatestiptv.js";
 import LayerSevenRegistration from "./services/layerseven.js";
+import TvcornRegistration from "./services/tvcorn.js";
 
 export const emailProviders = [
   TmailyProvider,
@@ -29,6 +30,7 @@ export const registrationServices = [
   OneIptv4kRegistration,
   GreatestIptvRegistration,
   LayerSevenRegistration,
+  TvcornRegistration,
 ];
 
 export function getProvider(id) {

@@ -23,7 +23,12 @@ export function log(emitter, message, level = "info") {
 // page. Satisfies calls like bringToFront() and frames() made by services.
 export function makeApiPageStub() {
   const noop = () => Promise.resolve();
-  return { bringToFront: noop, waitForTimeout: noop, close: noop, frames: () => [] };
+  return {
+    bringToFront: noop,
+    waitForTimeout: noop,
+    close: noop,
+    frames: () => [],
+  };
 }
 
 // Normalises a raw service result into a consistent shape for storage and the UI
@@ -47,8 +52,12 @@ export function buildRecord(service, email, src) {
 
 export function logPlaylists(emitter, record) {
   if (record.duration)
-    log(emitter, `⏳ Duration: ${record.duration}${record.expiresAt ? ` · Expires: ${record.expiresAt}` : ""}`);
-  if (record.tvPlaylist)  log(emitter, `📺 TV Playlist: ${record.tvPlaylist}`);
-  if (record.vodPlaylist) log(emitter, `🍿 VOD Playlist: ${record.vodPlaylist}`);
-  else                    log(emitter, "ℹ️ VOD Playlist: none");
+    log(
+      emitter,
+      `⏳ Duration: ${record.duration}${record.expiresAt ? ` · Expires: ${record.expiresAt}` : ""}`,
+    );
+  if (record.tvPlaylist) log(emitter, `📺 TV Playlist: ${record.tvPlaylist}`);
+  if (record.vodPlaylist)
+    log(emitter, `🍿 VOD Playlist: ${record.vodPlaylist}`);
+  else log(emitter, "ℹ️ VOD Playlist: none");
 }

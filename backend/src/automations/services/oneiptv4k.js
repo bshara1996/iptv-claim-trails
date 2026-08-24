@@ -82,7 +82,7 @@ const SELECTORS = {
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
-const OneIptv4kRegistration = {
+export default {
   meta: {
     id: "oneiptv4k",
     name: "OneIPTV4K",
@@ -181,5 +181,3 @@ const OneIptv4kRegistration = {
     };
   },
 };
-
-export default OneIptv4kRegistration;

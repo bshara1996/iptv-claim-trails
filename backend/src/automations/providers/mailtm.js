@@ -55,7 +55,7 @@ function buildReader(token) {
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
-const MailTmProvider = {
+export default {
   meta: {
     id: "mailtm",
     name: "Mail.tm",
@@ -223,5 +223,3 @@ const MailTmProvider = {
     return result ?? EMPTY_PLAYLISTS;
   },
 };
-
-export default MailTmProvider;

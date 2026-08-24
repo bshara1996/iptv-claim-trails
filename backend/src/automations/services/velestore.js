@@ -1,16 +1,23 @@
 /**
  * VeleStore free trial registration service.
  *
- * Generates random credentials, fills the registration form, solves the reCAPTCHA,
- * navigates to the user cabinet, activates the trial, then builds the
- * playlist URL directly from the credentials (no inbox polling needed).
+ * Fills the registration form, solves reCAPTCHA, navigates to the cabinet,
+ * activates the trial, then builds the playlist URL from credentials.
  */
 import { solveAndSubmit } from "../utils/captcha.js";
-import { generateUsername, generatePassword } from "../utils/generators.js";
-import { fillFirst } from "../utils/pageUtils.js";
+import {
+  generateUsername,
+  generatePassword,
+  computeTrialExpiry,
+} from "../utils/generators.js";
+import { clickFirst, fillFirst } from "../utils/pageUtils.js";
+
+// ── Config ────────────────────────────────────────────────────────────────────
 
 const BASE_URL = "https://velestore.su";
 const TAG = "VeleStore";
+const TRIAL_HOURS = 72;
+const GOTO_OPTS = { waitUntil: "domcontentloaded", timeout: 20_000 };
 
 // ── Selectors ─────────────────────────────────────────────────────────────────
 
@@ -19,35 +26,42 @@ const SELECTORS = {
   password1: "#password1",
   password2: "#password2",
   email: "#email",
-  submit: [
-    'button[name="submit"][type="submit"]',
-    'button.btn[type="submit"]',
-    'button[type="submit"]',
-    'input[type="submit"]',
-  ],
+  submit: 'button[name="submit"][type="submit"]',
   cabinet:
-    'a:has-text("ПЕРЕЙТИ В КАБИНЕТ"), button:has-text("ПЕРЕЙТИ В КАБИНЕТ")',
-  trialBtn: 'input[type="button"][value="Получить тест на 6 часов"]',
+    'a:has-text("ПЕРЕЙТИ В КАБИНЕТ"), a:has-text("Перейти в кабинет"), a[href*="/cabinet"], a[href*="/user/"]',
+  trialBtn:
+    'input[type="button"][value="Получить тест на 6 часов"], button:has-text("Получить тест")',
   errorBlock: ".inform-1",
+  expiryBlock: "div.udtb",
+  expiryLabel: "div.udtlb",
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Fills all registration form fields with the provided credentials
+function buildPlaylistUrl(login, password) {
+  return `http://p.velestore.su/play/${login}/${password}/playlist.m3u8`;
+}
+
+async function openRegistrationPage(page, log) {
+  await page.goto(`${BASE_URL}/?do=register`, GOTO_OPTS).catch(() => {
+    log(`[${TAG}] Page load timed out — proceeding with current DOM.`, "warn");
+  });
+}
+
 async function fillForm(page, { login, password, email }) {
   await page
-    .waitForSelector(SELECTORS.name, { timeout: 8_000 })
+    .waitForSelector(SELECTORS.name, { timeout: 8_000, state: "visible" })
     .catch(() => {});
+
   await fillFirst(page, SELECTORS.name, login);
   await fillFirst(page, SELECTORS.password1, password);
   await fillFirst(page, SELECTORS.password2, password);
   await fillFirst(page, SELECTORS.email, email);
 }
 
-// Solves the CAPTCHA, submits the form, and throws on server-side validation errors
 async function submitForm(page, log) {
-  // Start waiting for navigation before the submit click so we don't miss it
-  const nav = page
+  // Start waiting for navigation BEFORE the submit click so we don't miss it.
+  const navPromise = page
     .waitForNavigation({ waitUntil: "domcontentloaded", timeout: 25_000 })
     .catch(() => {});
 
@@ -56,7 +70,7 @@ async function submitForm(page, log) {
     log,
     tag: TAG,
   });
-  await nav;
+  await navPromise;
 
   const errorText = await page
     .evaluate(
@@ -65,6 +79,8 @@ async function submitForm(page, log) {
     )
     .catch(() => null);
 
+  // Distinguish captcha/security-code rejections (retryable) from other errors,
+  // since the generic "ошибка" substring would otherwise match both cases.
   if (
     errorText &&
     /код безопасности|captcha|ошибка регистрации/i.test(errorText)
@@ -74,10 +90,9 @@ async function submitForm(page, log) {
     throw new Error(`Registration error: ${errorText}`);
 }
 
-// Clicks "go to cabinet" then activates the trial button
-async function goToCabinetAndActivate(page, log) {
+async function activateTrial(page, log) {
   const cabinetBtn = await page
-    .waitForSelector(SELECTORS.cabinet, { timeout: 10_000 })
+    .waitForSelector(SELECTORS.cabinet, { timeout: 10_000, state: "visible" })
     .catch(() => null);
 
   if (!cabinetBtn) {
@@ -85,6 +100,8 @@ async function goToCabinetAndActivate(page, log) {
     return;
   }
 
+  // Wait for the cabinet-page navigation in parallel with the click so a fast
+  // response doesn't cause us to miss the load event.
   await Promise.all([
     page
       .waitForNavigation({ waitUntil: "domcontentloaded", timeout: 15_000 })
@@ -92,64 +109,66 @@ async function goToCabinetAndActivate(page, log) {
     cabinetBtn.click(),
   ]);
 
-  const trialBtn = await page
-    .waitForSelector(SELECTORS.trialBtn, { timeout: 10_000 })
-    .catch(() => null);
-
-  if (trialBtn) {
-    await trialBtn.click();
+  if (await clickFirst(page, SELECTORS.trialBtn)) {
     await page.waitForTimeout(2_000);
-  } else {
-    log(`[${TAG}] Trial button not found.`, "warn");
+    return;
   }
+
+  log(`[${TAG}] Trial button not found.`, "warn");
 }
 
-// Reads the expiry date from the cabinet page and computes the remaining duration.
-async function extractExpiry(page, log) {
+async function getExpiryInfo(page, log) {
   const raw = await page
-    .evaluate(() => {
-      for (const block of document.querySelectorAll("div.udtb")) {
-        if (
-          block.querySelector("div.udtlb")?.innerText.includes("Действует до")
-        )
-          return block.querySelector("font")?.innerText.trim() ?? null;
-      }
-      return null;
-    })
+    .evaluate(
+      ({ blockSel, labelSel }) => {
+        for (const block of document.querySelectorAll(blockSel)) {
+          if (block.querySelector(labelSel)?.innerText.includes("Действует до"))
+            return block.querySelector("font")?.innerText.trim() ?? null;
+        }
+        return null;
+      },
+      { blockSel: SELECTORS.expiryBlock, labelSel: SELECTORS.expiryLabel },
+    )
     .catch(() => null);
 
-  if (raw) log(`[${TAG}] ✅ Subscription expires at: ${raw}`);
-  else log(`[${TAG}] Could not read expiry date.`, "warn");
-
   const match = raw?.match(/^(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})$/);
-  if (!match) return { expiresAt: null, duration: null };
 
-  const [, dd, mm, yyyy, hh, min] = match;
-  const diffMs = new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:00`) - Date.now();
+  if (match) {
+    log(`[${TAG}] ✅ Subscription expires at: ${raw}`);
+    const [, dd, mm, yyyy, hh, min] = match;
+    const diffMs = new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:00`) - Date.now();
+    // Format the remaining time as a human-readable relative duration
+    // (e.g. "2 days", "6 hours", "45 minutes") using the largest fitting unit.
+    const rtf = new Intl.RelativeTimeFormat("en", {
+      numeric: "always",
+      style: "long",
+    });
+    const thresholds = [
+      { unit: "day", ms: 86_400_000 },
+      { unit: "hour", ms: 3_600_000 },
+      { unit: "minute", ms: 60_000 },
+    ];
+    const { unit, ms } =
+      thresholds.find(({ ms: threshold }) => diffMs >= threshold) ??
+      thresholds.at(-1);
+    const duration = rtf
+      .format(Math.round(diffMs / ms), unit)
+      .replace("in ", "")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
 
-  // Pick the largest unit that fits, then format natively with Intl
-  const rtf = new Intl.RelativeTimeFormat("en", {
-    numeric: "always",
-    style: "long",
-  });
-  const thresholds = [
-    { unit: "day", ms: 86_400_000 },
-    { unit: "hour", ms: 3_600_000 },
-    { unit: "minute", ms: 60_000 },
-  ];
-  const { unit, ms } =
-    thresholds.find(({ ms }) => diffMs >= ms) ?? thresholds.at(-1);
-  const duration = rtf
-    .format(Math.round(diffMs / ms), unit)
-    .replace("in ", "")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+    return { expiresAt: raw, duration };
+  }
 
-  return { expiresAt: raw, duration };
+  log(`[${TAG}] Could not read expiry date — using trial default.`, "warn");
+  return {
+    expiresAt: computeTrialExpiry(TRIAL_HOURS),
+    duration: `${TRIAL_HOURS} Hours`,
+  };
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
-const VeleStoreRegistration = {
+export default {
   meta: {
     id: "velestore",
     name: "VeleStore",
@@ -158,38 +177,30 @@ const VeleStoreRegistration = {
   },
 
   async execute({ page, email, log = () => {} }) {
+    // "user" prefix matches how VeleStore accounts are normally created on the site.
     const login = `user${generateUsername()}`;
     const password = generatePassword();
 
-    // 1. Open registration page
-    await page
-      .goto(`${BASE_URL}/?do=register`, {
-        waitUntil: "domcontentloaded",
-        timeout: 20_000,
-      })
-      .catch(() =>
-        log(
-          `[${TAG}] Page load timed out — proceeding with current DOM.`,
-          "warn",
-        ),
-      );
+    // ── Step 1: Open registration page, fill form, submit ─────────────────────
+    await openRegistrationPage(page, log);
 
-    // 2. Fill form, solve CAPTCHA, submit
     await fillForm(page, { login, password, email });
     await submitForm(page, log);
+    log(`[${TAG}] ✅ Account registered (${login}).`);
 
-    // 3. Navigate to cabinet and activate trial
-    await goToCabinetAndActivate(page, log);
+    // ── Step 2: Navigate to cabinet and activate trial ────────────────────────
+    await activateTrial(page, log);
 
-    // 4. Build playlist URL
-    const tvPlaylist = `http://p.velestore.su/play/${login}/${password}/playlist.m3u8`;
+    // ── Step 3: Build playlist URL and extract expiry ──────────────────────────
+    const tvPlaylist = buildPlaylistUrl(login, password);
+    log(`[${TAG}] ✅ Playlist: ${tvPlaylist}`);
 
-    // 5. Extract expiry and duration
-    const { expiresAt, duration } = await extractExpiry(page, log);
+    const { expiresAt, duration } = await getExpiryInfo(page, log);
 
     return {
       username: login,
       password,
+      email,
       tvPlaylist,
       vodPlaylist: null,
       allM3uLinks: [tvPlaylist],
@@ -200,5 +211,3 @@ const VeleStoreRegistration = {
     };
   },
 };
-
-export default VeleStoreRegistration;

@@ -21,18 +21,10 @@ const TRIAL_HOURS = 36;
 // ── Selectors ─────────────────────────────────────────────────────────────────
 
 const SELECTORS = {
-  // Email input on the free-trial page
-  email: ["#trial_email", 'input[name="email"]', 'input[type="email"]'],
-
-  // "Activate Free Trial" submit button
-  submit: ['button[type="submit"]', 'input[type="submit"]'],
-
-  // Elements present only after a successful activation
-  confirmation: [
-    ':has-text("TRIAL ACTIVATED")',
-    ':has-text("You\'re In")',
-    ':has-text("Your access details are being sent")',
-  ],
+  email: "#trial_email",
+  trialTypeM3u: ".sc-card-opt",
+  submit: "#trial_submit",
+  confirmation: ':has-text("TRIAL ACTIVATED")',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -76,11 +68,14 @@ export default {
       .catch(() => {});
     // Wait for the email field before interacting — the form may load after DOMContentLoaded
     await page
-      .waitForSelector(SELECTORS.email[0], {
+      .waitForSelector(SELECTORS.email, {
         timeout: 10_000,
         state: "visible",
       })
       .catch(() => {});
+
+    // Ensure M3U Playlist option is selected (it's the default but click to be safe)
+    await page.click(SELECTORS.trialTypeM3u).catch(() => {});
 
     // ── Step 2: Submit the form, retry until confirmation appears ─────────────
     // The site sometimes ignores the first submission, so we keep re-filling and
@@ -104,7 +99,7 @@ export default {
       // whichever comes first, before checking the page state.
       await Promise.race([
         page
-          .waitForSelector(SELECTORS.confirmation[0], {
+          .waitForSelector(SELECTORS.confirmation, {
             timeout: 3_000,
             state: "visible",
           })

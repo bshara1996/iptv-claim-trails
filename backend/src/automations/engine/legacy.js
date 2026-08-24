@@ -17,11 +17,20 @@ function legacyNote(playlists, fallback) {
 }
 
 export async function runLegacyService(
-  service, regPage, emailPage, provider, email, inboxSeenIds, emitter,
+  service,
+  regPage,
+  emailPage,
+  provider,
+  email,
+  inboxSeenIds,
+  emitter,
 ) {
   const result = await service.register(regPage, email);
 
-  log(emitter, `📬 Checking inbox for ${service.meta.name} confirmation & playlists...`);
+  log(
+    emitter,
+    `📬 Checking inbox for ${service.meta.name} confirmation & playlists...`,
+  );
   await emailPage.bringToFront().catch(() => {});
 
   const playlists = await provider
@@ -30,7 +39,10 @@ export async function runLegacyService(
       seenIds: inboxSeenIds,
       timeout: 60_000,
     })
-    .catch((e) => { log(emitter, `Notice: ${e.message}`, "warn"); return {}; });
+    .catch((e) => {
+      log(emitter, `Notice: ${e.message}`, "warn");
+      return {};
+    });
 
   return { ...result, ...playlists, note: legacyNote(playlists, result.note) };
 }

@@ -3,91 +3,66 @@
  *
  * Fills the registration form, solves the reCAPTCHA, then polls the inbox
  * for a confirmation email containing the M3U playlist links.
- * Trial duration is 3 days.
+ * Trial duration is 3 days (72 hours).
  */
-import logger from "../../logger.js";
 import { solveAndSubmit } from "../utils/captcha.js";
 import { computeTrialExpiry } from "../utils/generators.js";
-import { findVisible } from "../utils/pageUtils.js";
+import { fillFirst } from "../utils/pageUtils.js";
 
-const TRIAL_DAYS = 3;
+// ── Config ────────────────────────────────────────────────────────────────────
+
+const TRIAL_URL = "https://rg.y6tv.me/regfm.php?devTypeID=100";
+const TAG = "Y6TV";
+const TRIAL_HOURS = 72;
+const GOTO_OPTS = { waitUntil: "domcontentloaded", timeout: 10_000 };
 
 // ── Selectors ─────────────────────────────────────────────────────────────────
 
-const EMAIL_SELECTORS = [
-  'input[name="email"]',
-  'input[placeholder="E-Mail"]',
-  'input[placeholder*="mail" i]',
-  'input[type="email"]',
-  'input[type="text"]',
-];
-
-const SUBMIT_SELECTORS = [
-  "#regBtn",
-  'input[name="regBtn"]',
-  'input[value="Зарегистрировать"]',
-  "input.regFormBtn",
-  'button[type="submit"]',
-  'input[type="submit"]',
-];
-
-const ERROR_SELECTORS = [
-  ".error",
-  ".alert-error",
-  ".alert-danger",
-  ".registration-error",
-];
+const SELECTORS = {
+  email: 'input[name="email"]',
+  submit: "#regBtn",
+  error: ".regFormErrInf",
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // Navigates to the registration page, fills the email field, solves the CAPTCHA,
-// submits the form, and throws if the server returns a validation error
+// submits the form, and throws if the server returns a validation error.
 async function submitForm(page, email, log) {
   await page
-    .goto("https://rg.y6tv.me/regfm.php?devTypeID=100", {
-      waitUntil: "domcontentloaded",
-      timeout: 10_000,
-    })
+    .goto(TRIAL_URL, GOTO_OPTS)
     .catch(() =>
-      logger.warn("[Y6TV] Page load timeout — proceeding with current DOM."),
+      log(`[${TAG}] Page load timeout — proceeding with current DOM.`, "warn"),
     );
 
   await page
-    .waitForSelector(EMAIL_SELECTORS[0], { timeout: 5_000 })
+    .waitForSelector(SELECTORS.email, { timeout: 5_000, state: "visible" })
     .catch(() => {});
 
-  const emailField = await findVisible(page, EMAIL_SELECTORS);
-  if (!emailField)
-    throw new Error("Email field not found on the Y6TV registration page.");
+  await fillFirst(page, SELECTORS.email, email);
 
-  await emailField.click().catch(() => {});
-  await emailField.fill(email);
-
-  // Start waiting for navigation before the submit click so we don't miss it
+  // Start waiting for navigation BEFORE the submit click so we don't miss it.
   const navPromise = page
-    .waitForNavigation({ waitUntil: "load", timeout: 15_000 })
+    .waitForNavigation({ waitUntil: "domcontentloaded", timeout: 15_000 })
     .catch(() => {});
 
   await solveAndSubmit(page, {
-    submitSelectors: SUBMIT_SELECTORS,
+    submitSelectors: SELECTORS.submit,
     log,
-    tag: "Y6TV",
+    tag: TAG,
   });
+  // Check for server-side validation errors after submission.
   await navPromise;
 
-  // Check for server-side validation errors after submission
-  const errorText = await page.evaluate(
-    (sels) =>
-      sels.reduce(
-        (found, s) =>
-          found ?? document.querySelector(s)?.innerText?.trim() ?? null,
-        null,
-      ),
-    ERROR_SELECTORS,
-  );
+  const errorText = await page
+    .evaluate(
+      (sel) => document.querySelector(sel)?.innerText?.trim() ?? null,
+      SELECTORS.error,
+    )
+    .catch(() => null);
   if (errorText) throw new Error(`Registration rejected: ${errorText}`);
 
-  logger.info("[Y6TV] Registration submitted successfully.");
+  log(`[${TAG}] Registration submitted successfully.`);
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -96,7 +71,7 @@ export default {
   meta: {
     id: "y6tv",
     name: "Y6TV",
-    url: "https://rg.y6tv.me/regfm.php?devTypeID=100",
+    url: TRIAL_URL,
     description: "Y6TV IPTV free trial registration",
   },
 
@@ -108,32 +83,44 @@ export default {
     inboxSeenIds = new Set(),
     log = () => {},
   }) {
+    // 1. Fill and submit the registration form
     await submitForm(page, email, log);
 
+    // 2. Poll the inbox for the confirmation email with M3U links.
+    // A defensive copy of inboxSeenIds prevents the poller from mutating
+    // the run-wide set shared across services.
     await emailPage.bringToFront().catch(() => {});
 
     const playlists = await provider.waitForEmailAndExtractPlaylists(
       emailPage,
       {
         filterText: "y6tv",
-        // Pass the run-wide seen-IDs set so emails from earlier services are excluded
-        seenIds: inboxSeenIds,
+        seenIds: new Set(inboxSeenIds),
         timeout: 120_000,
       },
     );
 
     if (playlists.allM3uLinks.length === 0)
-      log("[Y6TV] No M3U links found in confirmation email.", "warn");
+      log(`[${TAG}] No M3U links found in confirmation email.`, "warn");
+    else
+      log(
+        `[${TAG}] ✅ M3U extracted — TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
+      );
 
-    const expiresAt = computeTrialExpiry(TRIAL_DAYS * 24);
+    // 3. Build the result
+    // Prefer duration/expiry values extracted from the confirmation email
+    // (when available) and fall back to the TRIAL_HOURS default otherwise.
+    const defaultExpiresAt = computeTrialExpiry(TRIAL_HOURS);
 
     return {
+      username: null,
+      password: null,
       email,
-      tvPlaylist: playlists.tvPlaylist,
-      vodPlaylist: playlists.vodPlaylist,
-      allM3uLinks: playlists.allM3uLinks,
-      duration: `${TRIAL_DAYS} Days`,
-      expiresAt,
+      tvPlaylist: playlists.tvPlaylist ?? null,
+      vodPlaylist: playlists.vodPlaylist ?? null,
+      allM3uLinks: playlists.allM3uLinks ?? [],
+      duration: playlists.duration ?? `${TRIAL_HOURS / 24} Days`,
+      expiresAt: playlists.expiresAt ?? defaultExpiresAt,
       status: "success",
       note: playlists.tvPlaylist
         ? "M3U playlist links extracted from confirmation email."

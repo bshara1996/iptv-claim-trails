@@ -54,7 +54,7 @@ async function readEmailFromPage(page) {
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
-const DisposeLolProvider = {
+export default {
   meta: {
     id: "disposelol",
     name: "Dispose.lol",
@@ -103,5 +103,3 @@ const DisposeLolProvider = {
   waitForEmailAndExtractPlaylists: waitForPlaylistEmail,
   waitForVerificationCodeEmail,
 };
-
-export default DisposeLolProvider;

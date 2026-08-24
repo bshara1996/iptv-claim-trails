@@ -1,10 +1,8 @@
 /**
  * TVBoom free trial registration service.
  *
- * Generates random credentials, fills the registration form, solves the reCAPTCHA,
- * clicks the validation link from the confirmation email, then activates the
- * 24-hour trial from the user cabinet.
- * Playlist URL is built directly from the credentials (no inbox M3U extraction needed).
+ * Fills the registration form, solves reCAPTCHA, clicks the validation link
+ * from the confirmation email, then activates the 24-hour trial.
  */
 import { solveAndSubmit } from "../utils/captcha.js";
 import {
@@ -14,77 +12,59 @@ import {
 } from "../utils/generators.js";
 import { clickFirst, fillFirst } from "../utils/pageUtils.js";
 
+// ── Config ────────────────────────────────────────────────────────────────────
+
 const BASE_URL = "https://tvboom.vip";
+const TAG = "TVBoom";
 const TRIAL_HOURS = 24;
 const GOTO_OPTS = { waitUntil: "domcontentloaded", timeout: 15_000 };
-
-// Matches the account validation link sent in the TVBoom confirmation email
-const VALIDATION_LINK_RE =
-  /https?:\/\/tvboom\.vip\/index\.php\?do=register(?:&|&amp;)doaction=validating(?:&|&amp;)id=[a-zA-Z0-9_|=~%-]+/i;
 
 // ── Selectors ─────────────────────────────────────────────────────────────────
 
 const SELECTORS = {
-  rulesAccept: [
-    'button:has-text("Принимаю")',
-    'input[value*="Принимаю"]',
-    'button:has-text("Согласен")',
-    'input[value*="Согласен"]',
-  ],
-  username: [
-    'input[name="name"]',
-    'input[name="login"]',
-    'input[placeholder*="Логин" i]',
-  ],
-  email: [
-    'input[name="email"]',
-    'input[type="email"]',
-    'input[placeholder*="mail" i]',
-  ],
-  password: [
-    'input[name="password"]',
-    'input[name="pass"]',
-    'input[type="password"]:first-of-type',
-  ],
-  passwordRepeat: [
-    'input[name="password_repeat"]',
-    'input[name="pass2"]',
-    'input[placeholder*="Повторите" i]',
-    'input[type="password"]:nth-of-type(2)',
-  ],
-  submit: [
-    'button[name="submit"][type="submit"]',
-    'button[type="submit"]',
-    'input[type="submit"]',
-  ],
-  continueReg: [
-    'a:has-text("Продолжить регистрацию")',
-    'button:has-text("Продолжить регистрацию")',
-    'a[href*="do=register"]',
-  ],
-  cabinet: [
-    'a:has-text("ПЕРЕЙТИ В КАБИНЕТ")',
-    'a:has-text("Перейти в кабинет")',
-    'a[href*="/cabinet"]',
-    'a[href*="/user/"]',
-  ],
-  activateTest: [
-    'a:has-text("Активировать тест на 24 часа")',
-    'a:has-text("Активировать тест")',
-    'button:has-text("Активировать")',
-  ],
+  rulesAccept: '#registration input.bbcodes[type="submit"]',
+  username: "#name",
+  email: "#email",
+  password: "#password1",
+  passwordRepeat: "#password2",
+  submit: 'button[name="submit"][type="submit"]',
+  continueReg:
+    'a:has-text("Продолжить регистрацию"), button:has-text("Продолжить регистрацию")',
+  cabinet:
+    'a:has-text("Перейти в кабинет"), a[href*="/cabinet"], a[href*="/user/"]',
+  activateTest:
+    'a:has-text("Активировать тест"), a:has-text("Активировать"), button:has-text("Активировать")',
 };
+
+// Matches the account validation link sent in the TVBoom confirmation email.
+// Accepts both & and &amp; because some email providers HTML-encode the href.
+const VALIDATION_LINK_RE =
+  /https?:\/\/tvboom\.vip\/index\.php\?do=register(?:&|&amp;)doaction=validating(?:&|&amp;)id=[a-zA-Z0-9_|=~%-]+/i;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+async function openRegistrationPage(page) {
+  for (const url of [
+    `${BASE_URL}/register`,
+    `${BASE_URL}/index.php?do=register`,
+  ]) {
+    if (
+      await page
+        .goto(url, GOTO_OPTS)
+        .then(() => true)
+        .catch(() => false)
+    )
+      return;
+  }
+}
+
 // Searches the email page (including frames) for the validation anchor and clicks it.
-// Searching frames is needed because some providers render email content inside an iframe.
-async function clickValidationLink(emailPage, url) {
-  const targets = [emailPage, ...emailPage.frames()];
-  for (const target of targets) {
+// Some providers render email content inside an iframe, so we scan both the main
+// page and every child frame.
+async function clickValidationLink(emailPage) {
+  for (const target of [emailPage, ...emailPage.frames()]) {
     try {
-      const anchors = await target.$$("a[href]");
-      for (const anchor of anchors) {
+      for (const anchor of await target.$$("a[href]")) {
         const href = await anchor.evaluate((el) => el.href).catch(() => "");
         if (href && VALIDATION_LINK_RE.test(href.replace(/&amp;/g, "&"))) {
           await anchor.scrollIntoViewIfNeeded().catch(() => {});
@@ -99,7 +79,7 @@ async function clickValidationLink(emailPage, url) {
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
-const TvBoomRegistration = {
+export default {
   meta: {
     id: "tvboom",
     name: "TVBoom",
@@ -118,16 +98,11 @@ const TvBoomRegistration = {
     const username = generateUsername();
     const password = generatePassword();
 
-    // 1. Fill and submit the registration form
-    await page
-      .goto(`${BASE_URL}/register`, GOTO_OPTS)
-      .catch(() =>
-        page
-          .goto(`${BASE_URL}/index.php?do=register`, GOTO_OPTS)
-          .catch(() => {}),
-      );
+    // ── Step 1: Fill and submit the registration form ─────────────────────────
+    await openRegistrationPage(page);
 
-    await clickFirst(page, SELECTORS.rulesAccept);
+    if (await clickFirst(page, SELECTORS.rulesAccept))
+      await page.waitForLoadState("domcontentloaded").catch(() => {});
     await fillFirst(page, SELECTORS.username, username);
     await fillFirst(page, SELECTORS.email, email);
     await fillFirst(page, SELECTORS.password, password);
@@ -136,11 +111,11 @@ const TvBoomRegistration = {
     await solveAndSubmit(page, {
       submitSelectors: SELECTORS.submit,
       log,
-      tag: "TVBoom",
+      tag: TAG,
     });
     await page.waitForLoadState("domcontentloaded").catch(() => {});
 
-    // 2. Open confirmation email and click the validation link inside
+    // ── Step 2: Open the confirmation email and click the validation link ───────
     await emailPage.bringToFront().catch(() => {});
 
     const validationUrl = await provider.waitForEmailAndExtractLink(emailPage, {
@@ -149,24 +124,25 @@ const TvBoomRegistration = {
       seenIds: inboxSeenIds,
       timeout: 60_000,
     });
+
     if (!validationUrl)
       throw new Error(
         "Validation link not found in TVBoom confirmation email.",
       );
 
     const cleanUrl = validationUrl.replace(/&amp;/g, "&");
-    const clicked = await clickValidationLink(emailPage, cleanUrl);
+    // Try clicking the anchor in the email first; if not found, navigate directly.
+    const clicked = await clickValidationLink(emailPage);
 
     if (clicked) {
       await page.bringToFront().catch(() => {});
       await page.waitForLoadState("domcontentloaded").catch(() => {});
     } else {
-      // Anchor not found in DOM — fall back to direct navigation
       await page.goto(cleanUrl, GOTO_OPTS).catch(() => {});
       await page.bringToFront().catch(() => {});
     }
 
-    // 3. Activate 24-hour trial from the cabinet
+    // ── Step 3: Activate the 24-hour trial from the cabinet ────────────────────
     await clickFirst(page, SELECTORS.continueReg);
     await page.waitForLoadState("domcontentloaded").catch(() => {});
     await clickFirst(page, SELECTORS.cabinet);
@@ -175,8 +151,7 @@ const TvBoomRegistration = {
     await page.waitForLoadState("domcontentloaded").catch(() => {});
 
     const tvPlaylist = `${BASE_URL}/${username}/${password}/hls/playlist.m3u8`;
-
-    log(`[TVBoom] ✅ Trial activated. Playlist: ${tvPlaylist}`);
+    log(`[${TAG}] ✅ Trial activated. Playlist: ${tvPlaylist}`);
 
     return {
       username,
@@ -191,5 +166,3 @@ const TvBoomRegistration = {
     };
   },
 };
-
-export default TvBoomRegistration;
