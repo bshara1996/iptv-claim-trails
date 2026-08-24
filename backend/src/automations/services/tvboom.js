@@ -149,6 +149,7 @@ export default {
     await page.waitForLoadState("domcontentloaded").catch(() => {});
     await clickFirst(page, SELECTORS.activateTest);
     await page.waitForLoadState("domcontentloaded").catch(() => {});
+    await page.waitForTimeout(100);
 
     const tvPlaylist = `${BASE_URL}/${username}/${password}/hls/playlist.m3u8`;
     log(`[${TAG}] ✅ Trial activated. Playlist: ${tvPlaylist}`);
