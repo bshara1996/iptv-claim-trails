@@ -11,5 +11,5 @@
  *   engine/legacy.js    – backward-compatible register() execution path
  *   engine/runner.js    – runTask (main automation loop)
  */
-export { createTask, getTask, cancelTask } from "./engine/taskStore.js";
-export { runTask } from "./engine/runner.js";
+export { createTask, getTask, cancelTask } from "./taskStore.js";
+export { runTask } from "./runner.js";

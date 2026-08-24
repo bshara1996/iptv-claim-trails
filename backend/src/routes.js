@@ -18,7 +18,7 @@ import {
   runTask,
   cancelTask,
   getTask,
-} from "./automations/engine.js";
+} from "./automations/engine/index.js";
 import logger from "./logger.js";
 
 const router = Router();
