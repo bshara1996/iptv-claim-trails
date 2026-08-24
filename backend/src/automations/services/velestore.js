@@ -27,43 +27,38 @@ const SELECTORS = {
   password2: "#password2",
   email: "#email",
   submit: 'button[name="submit"][type="submit"]',
-  cabinet:
-    'a:has-text("ПЕРЕЙТИ В КАБИНЕТ"), a:has-text("Перейти в кабинет"), a[href*="/cabinet"], a[href*="/user/"]',
-  trialBtn:
-    'input[type="button"][value="Получить тест на 6 часов"], button:has-text("Получить тест")',
-  errorBlock: ".inform-1",
+  error: ".inform-1",
+  cabinet: 'a:has-text("ПЕРЕЙТИ В КАБИНЕТ"), a:has-text("Перейти в кабинет")',
+  trialBtn: 'input[type="button"][value="Получить тест на 6 часов"]',
   expiryBlock: "div.udtb",
   expiryLabel: "div.udtlb",
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function buildPlaylistUrl(login, password) {
-  return `http://p.velestore.su/play/${login}/${password}/playlist.m3u8`;
-}
-
-async function openRegistrationPage(page, log) {
-  await page.goto(`${BASE_URL}/?do=register`, GOTO_OPTS).catch(() => {
-    log(`[${TAG}] Page load timed out — proceeding with current DOM.`, "warn");
-  });
-}
-
-async function fillForm(page, { login, password, email }) {
+// Navigates to the registration page, fills all fields, solves the CAPTCHA,
+// submits the form, and throws if the server returns a validation error.
+async function submitRegistration(page, { login, password, email }, log) {
   await page
-    .waitForSelector(SELECTORS.name, { timeout: 8_000, state: "visible" })
+    .goto(`${BASE_URL}/?do=register`, GOTO_OPTS)
+    .catch(() =>
+      log(
+        `[${TAG}] Page load timed out — proceeding with current DOM.`,
+        "warn",
+      ),
+    );
+
+  await page
+    .waitForSelector(SELECTORS.name, { state: "visible", timeout: 8_000 })
     .catch(() => {});
 
   await fillFirst(page, SELECTORS.name, login);
   await fillFirst(page, SELECTORS.password1, password);
   await fillFirst(page, SELECTORS.password2, password);
   await fillFirst(page, SELECTORS.email, email);
-}
 
-async function submitForm(page, log) {
   // Start waiting for navigation BEFORE the submit click so we don't miss it.
-  const navPromise = page
-    .waitForNavigation({ waitUntil: "domcontentloaded", timeout: 25_000 })
-    .catch(() => {});
+  const navPromise = page.waitForNavigation(GOTO_OPTS).catch(() => {});
 
   await solveAndSubmit(page, {
     submitSelectors: SELECTORS.submit,
@@ -75,12 +70,11 @@ async function submitForm(page, log) {
   const errorText = await page
     .evaluate(
       (sel) => document.querySelector(sel)?.innerText.trim() ?? null,
-      SELECTORS.errorBlock,
+      SELECTORS.error,
     )
     .catch(() => null);
 
-  // Distinguish captcha/security-code rejections (retryable) from other errors,
-  // since the generic "ошибка" substring would otherwise match both cases.
+  // Distinguish captcha/security-code rejections from generic errors.
   if (
     errorText &&
     /код безопасности|captcha|ошибка регистрации/i.test(errorText)
@@ -90,9 +84,10 @@ async function submitForm(page, log) {
     throw new Error(`Registration error: ${errorText}`);
 }
 
+// Clicks the cabinet link then activates the trial button.
 async function activateTrial(page, log) {
   const cabinetBtn = await page
-    .waitForSelector(SELECTORS.cabinet, { timeout: 10_000, state: "visible" })
+    .waitForSelector(SELECTORS.cabinet, { state: "visible", timeout: 10_000 })
     .catch(() => null);
 
   if (!cabinetBtn) {
@@ -100,12 +95,10 @@ async function activateTrial(page, log) {
     return;
   }
 
-  // Wait for the cabinet-page navigation in parallel with the click so a fast
-  // response doesn't cause us to miss the load event.
+  // Wait for navigation in parallel with the click so a fast response
+  // doesn't cause us to miss the load event.
   await Promise.all([
-    page
-      .waitForNavigation({ waitUntil: "domcontentloaded", timeout: 15_000 })
-      .catch(() => {}),
+    page.waitForNavigation(GOTO_OPTS).catch(() => {}),
     cabinetBtn.click(),
   ]);
 
@@ -117,53 +110,42 @@ async function activateTrial(page, log) {
   log(`[${TAG}] Trial button not found.`, "warn");
 }
 
+// Reads the expiry date from the cabinet page and returns it with a human-readable duration.
 async function getExpiryInfo(page, log) {
   const raw = await page
     .evaluate(
       ({ blockSel, labelSel }) => {
-        for (const block of document.querySelectorAll(blockSel)) {
+        for (const block of document.querySelectorAll(blockSel))
           if (block.querySelector(labelSel)?.innerText.includes("Действует до"))
             return block.querySelector("font")?.innerText.trim() ?? null;
-        }
         return null;
       },
       { blockSel: SELECTORS.expiryBlock, labelSel: SELECTORS.expiryLabel },
     )
     .catch(() => null);
 
+  // Expected format: "DD.MM.YYYY HH:MM"
   const match = raw?.match(/^(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})$/);
-
-  if (match) {
-    log(`[${TAG}] ✅ Subscription expires at: ${raw}`);
-    const [, dd, mm, yyyy, hh, min] = match;
-    const diffMs = new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:00`) - Date.now();
-    // Format the remaining time as a human-readable relative duration
-    // (e.g. "2 days", "6 hours", "45 minutes") using the largest fitting unit.
-    const rtf = new Intl.RelativeTimeFormat("en", {
-      numeric: "always",
-      style: "long",
-    });
-    const thresholds = [
-      { unit: "day", ms: 86_400_000 },
-      { unit: "hour", ms: 3_600_000 },
-      { unit: "minute", ms: 60_000 },
-    ];
-    const { unit, ms } =
-      thresholds.find(({ ms: threshold }) => diffMs >= threshold) ??
-      thresholds.at(-1);
-    const duration = rtf
-      .format(Math.round(diffMs / ms), unit)
-      .replace("in ", "")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-
-    return { expiresAt: raw, duration };
+  if (!match) {
+    log(`[${TAG}] Could not read expiry date — using trial default.`, "warn");
+    return {
+      expiresAt: computeTrialExpiry(TRIAL_HOURS),
+      duration: `${TRIAL_HOURS} Hours`,
+    };
   }
 
-  log(`[${TAG}] Could not read expiry date — using trial default.`, "warn");
-  return {
-    expiresAt: computeTrialExpiry(TRIAL_HOURS),
-    duration: `${TRIAL_HOURS} Hours`,
-  };
+  const [, dd, mm, yyyy, hh, min] = match;
+  const diffMs = new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:00`) - Date.now();
+  const days = Math.round(diffMs / 86_400_000);
+  const hours = Math.round(diffMs / 3_600_000);
+  const duration =
+    days >= 1
+      ? `${days} Days`
+      : hours >= 1
+        ? `${hours} Hours`
+        : `${Math.round(diffMs / 60_000)} Minutes`;
+  log(`[${TAG}] ✅ Subscription expires at: ${raw}`);
+  return { expiresAt: raw, duration };
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -181,18 +163,15 @@ export default {
     const login = `user${generateUsername()}`;
     const password = generatePassword();
 
-    // ── Step 1: Open registration page, fill form, submit ─────────────────────
-    await openRegistrationPage(page, log);
-
-    await fillForm(page, { login, password, email });
-    await submitForm(page, log);
+    // Step 1: Open registration page, fill form, submit
+    await submitRegistration(page, { login, password, email }, log);
     log(`[${TAG}] ✅ Account registered (${login}).`);
 
-    // ── Step 2: Navigate to cabinet and activate trial ────────────────────────
+    // Step 2: Navigate to cabinet and activate trial
     await activateTrial(page, log);
 
-    // ── Step 3: Build playlist URL and extract expiry ──────────────────────────
-    const tvPlaylist = buildPlaylistUrl(login, password);
+    // Step 3: Build playlist URL and extract expiry
+    const tvPlaylist = `http://p.velestore.su/play/${login}/${password}/playlist.m3u8`;
     log(`[${TAG}] ✅ Playlist: ${tvPlaylist}`);
 
     const { expiresAt, duration } = await getExpiryInfo(page, log);

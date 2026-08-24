@@ -1,9 +1,9 @@
 /**
  * Y6TV free trial registration service.
  *
- * Fills the registration form, solves the reCAPTCHA, then polls the inbox
- * for a confirmation email containing the M3U playlist links.
- * Trial duration is 3 days (72 hours).
+ * Navigates to the registration page, fills the email field, solves the
+ * reCAPTCHA, then polls the inbox for a confirmation email containing
+ * the M3U playlist links. Trial duration is 3 days (72 hours).
  */
 import { solveAndSubmit } from "../utils/captcha.js";
 import { computeTrialExpiry } from "../utils/generators.js";
@@ -26,9 +26,9 @@ const SELECTORS = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Navigates to the registration page, fills the email field, solves the CAPTCHA,
-// submits the form, and throws if the server returns a validation error.
-async function submitForm(page, email, log) {
+// Navigates to the registration page, fills the email field, solves the
+// CAPTCHA, submits the form, and throws if the server returns a validation error.
+async function submitRegistration(page, email, log) {
   await page
     .goto(TRIAL_URL, GOTO_OPTS)
     .catch(() =>
@@ -42,16 +42,13 @@ async function submitForm(page, email, log) {
   await fillFirst(page, SELECTORS.email, email);
 
   // Start waiting for navigation BEFORE the submit click so we don't miss it.
-  const navPromise = page
-    .waitForNavigation({ waitUntil: "domcontentloaded", timeout: 15_000 })
-    .catch(() => {});
+  const navPromise = page.waitForNavigation(GOTO_OPTS).catch(() => {});
 
   await solveAndSubmit(page, {
     submitSelectors: SELECTORS.submit,
     log,
     tag: TAG,
   });
-  // Check for server-side validation errors after submission.
   await navPromise;
 
   const errorText = await page
@@ -60,6 +57,7 @@ async function submitForm(page, email, log) {
       SELECTORS.error,
     )
     .catch(() => null);
+
   if (errorText) throw new Error(`Registration rejected: ${errorText}`);
 
   log(`[${TAG}] Registration submitted successfully.`);
@@ -83,12 +81,10 @@ export default {
     inboxSeenIds = new Set(),
     log = () => {},
   }) {
-    // 1. Fill and submit the registration form
-    await submitForm(page, email, log);
+    // Step 1: Fill and submit the registration form
+    await submitRegistration(page, email, log);
 
-    // 2. Poll the inbox for the confirmation email with M3U links.
-    // A defensive copy of inboxSeenIds prevents the poller from mutating
-    // the run-wide set shared across services.
+    // Step 2: Poll the inbox for the confirmation email with M3U links
     await emailPage.bringToFront().catch(() => {});
 
     const playlists = await provider.waitForEmailAndExtractPlaylists(
@@ -107,11 +103,7 @@ export default {
         `[${TAG}] ✅ M3U extracted — TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
       );
 
-    // 3. Build the result
-    // Prefer duration/expiry values extracted from the confirmation email
-    // (when available) and fall back to the TRIAL_HOURS default otherwise.
-    const defaultExpiresAt = computeTrialExpiry(TRIAL_HOURS);
-
+    // Step 3: Build and return the result
     return {
       username: null,
       password: null,
@@ -120,7 +112,7 @@ export default {
       vodPlaylist: playlists.vodPlaylist ?? null,
       allM3uLinks: playlists.allM3uLinks ?? [],
       duration: playlists.duration ?? `${TRIAL_HOURS / 24} Days`,
-      expiresAt: playlists.expiresAt ?? defaultExpiresAt,
+      expiresAt: playlists.expiresAt ?? computeTrialExpiry(TRIAL_HOURS),
       status: "success",
       note: playlists.tvPlaylist
         ? "M3U playlist links extracted from confirmation email."

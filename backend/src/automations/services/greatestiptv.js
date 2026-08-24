@@ -9,14 +9,15 @@
  *   4. Extract and return the M3U playlist link.
  */
 import { computeTrialExpiry } from "../utils/generators.js";
-import { findVisible } from "../utils/pageUtils.js";
+import { findVisible, clickFirst } from "../utils/pageUtils.js";
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────────────────────
 
 const TRIAL_URL = "https://www.greatestiptv.com/free-trial/";
 const TAG = "GreatestIPTV";
 const MAX_RETRIES = 10;
 const TRIAL_HOURS = 36;
+const GOTO_OPTS = { waitUntil: "domcontentloaded", timeout: 20_000 };
 
 // ── Selectors ─────────────────────────────────────────────────────────────────
 
@@ -24,14 +25,11 @@ const SELECTORS = {
   email: "#trial_email",
   trialTypeM3u: ".sc-card-opt",
   submit: "#trial_submit",
-  confirmation: ':has-text("TRIAL ACTIVATED")',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Returns true when the page body contains any of the confirmation phrases.
-// Reading innerText is more reliable than selector-based checks because the
-// confirmation card is injected dynamically after the AJAX response.
+// Returns true if the page text contains any known post-activation confirmation phrase.
 async function isConfirmed(page) {
   const text = await page
     .evaluate(() => document.body?.innerText ?? "")
@@ -51,7 +49,7 @@ export default {
     name: "GreatestIPTV",
     url: TRIAL_URL,
     description:
-      "GreatestIPTV 24-hour free trial — email submission + M3U playlist",
+      "GreatestIPTV 36-hour free trial — email submission + M3U playlist",
   },
 
   async execute({
@@ -62,30 +60,21 @@ export default {
     inboxSeenIds = new Set(),
     log = () => {},
   }) {
-    // ── Step 1: Open the trial page ───────────────────────────────────────────
+    // Step 1: Open the trial page
+    await page.goto(TRIAL_URL, GOTO_OPTS).catch(() => {});
     await page
-      .goto(TRIAL_URL, { waitUntil: "domcontentloaded", timeout: 20_000 })
-      .catch(() => {});
-    // Wait for the email field before interacting — the form may load after DOMContentLoaded
-    await page
-      .waitForSelector(SELECTORS.email, {
-        timeout: 10_000,
-        state: "visible",
-      })
+      .waitForSelector(SELECTORS.email, { state: "visible", timeout: 10_000 })
       .catch(() => {});
 
     // Ensure M3U Playlist option is selected (it's the default but click to be safe)
-    await page.click(SELECTORS.trialTypeM3u).catch(() => {});
+    await clickFirst(page, SELECTORS.trialTypeM3u);
 
-    // ── Step 2: Submit the form, retry until confirmation appears ─────────────
-    // The site sometimes ignores the first submission, so we keep re-filling and
-    // re-clicking until the "TRIAL ACTIVATED" card becomes visible.
+    // Step 2: Submit the form, retrying until confirmation appears
     let confirmed = false;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       const emailField = await findVisible(page, SELECTORS.email);
       if (!emailField) {
-        // Field not ready yet — wait briefly and try again
         await page.waitForTimeout(1_500);
         continue;
       }
@@ -95,19 +84,10 @@ export default {
       const submitBtn = await findVisible(page, SELECTORS.submit);
       if (submitBtn) await submitBtn.click();
 
-      // Wait for either the confirmation element or the network to settle,
-      // whichever comes first, before checking the page state.
-      await Promise.race([
-        page
-          .waitForSelector(SELECTORS.confirmation, {
-            timeout: 3_000,
-            state: "visible",
-          })
-          .catch(() => {}),
-        page
-          .waitForLoadState("networkidle", { timeout: 3_000 })
-          .catch(() => {}),
-      ]);
+      // Wait for either the network to settle or a short timeout before checking.
+      await page
+        .waitForLoadState("networkidle", { timeout: 3_000 })
+        .catch(() => {});
 
       if (await isConfirmed(page)) {
         log(`[${TAG}] ✅ Trial activated on attempt ${attempt}.`);
@@ -123,10 +103,7 @@ export default {
         `[${TAG}] Trial activation not confirmed after ${MAX_RETRIES} attempts.`,
       );
 
-    // ── Step 3: Poll the inbox for the access-details email ───────────────────
-    // Switch focus to the email tab; the poller will refresh and open the email.
-    // filterText "greatest" matches the subject "Your Free Trial is Ready - Greatest IPTV".
-    // A fresh copy of inboxSeenIds ensures emails from earlier services are skipped.
+    // Step 3: Poll the inbox for the access-details email
     await emailPage.bringToFront().catch(() => {});
 
     const playlists = await provider.waitForEmailAndExtractPlaylists(
@@ -138,15 +115,12 @@ export default {
       },
     );
 
-    // ── Step 4: Return the result ─────────────────────────────────────────────
     if (playlists.allM3uLinks.length === 0)
       log(`[${TAG}] No M3U links found in confirmation email.`, "warn");
     else
       log(
         `[${TAG}] ✅ M3U extracted — TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
       );
-
-    const expiresAt = computeTrialExpiry(TRIAL_HOURS);
 
     return {
       username: null,
@@ -155,10 +129,10 @@ export default {
       vodPlaylist: playlists.vodPlaylist ?? null,
       allM3uLinks: playlists.allM3uLinks,
       duration: playlists.duration ?? `${TRIAL_HOURS} Hours`,
-      expiresAt,
+      expiresAt: playlists.expiresAt ?? computeTrialExpiry(TRIAL_HOURS),
       status: "success",
       note: playlists.tvPlaylist
-        ? "24-hour GreatestIPTV trial activated successfully."
+        ? "36-hour GreatestIPTV trial activated successfully."
         : "Trial activated — M3U link not found in confirmation email.",
     };
   },

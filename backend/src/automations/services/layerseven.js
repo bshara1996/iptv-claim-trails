@@ -10,13 +10,14 @@
  */
 import { solveAndSubmit } from "../utils/captcha.js";
 import { generateUsername, computeTrialExpiry } from "../utils/generators.js";
-import { fillFirst } from "../utils/pageUtils.js";
+import { fillFirst, extractM3u } from "../utils/pageUtils.js";
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────────────────────
 
 const TAG = "LayerSeven";
 const PASSWORD = "123456";
 const TRIAL_HOURS = 24;
+const GOTO_OPTS = { waitUntil: "domcontentloaded", timeout: 20_000 };
 
 const PANEL = {
   signUp: "https://panel.layerseven.ai/sign-up",
@@ -30,22 +31,9 @@ const SELECTORS = {
   email: "#email",
   password: "#password",
   submit: 'button[type="submit"]:has-text("Create account")',
+  viewAccounts: 'button:has-text("View Accounts"), a:has-text("View Accounts")',
+  m3uCell: 'td:has-text("get.php")',
 };
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const gotoOpts = { waitUntil: "domcontentloaded", timeout: 20_000 };
-
-// Extracts the M3U URL from the page by scanning all text for the get.php pattern.
-async function extractM3uFromPage(page) {
-  const text = await page
-    .evaluate(() => document.body?.innerText ?? "")
-    .catch(() => "");
-  const match = text.match(
-    /https?:\/\/[^\s]+\/get\.php\?[^\s]+type=m3u[^\s]*/i,
-  );
-  return match ? match[0].replace(/&amp;/g, "&") : null;
-}
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
@@ -59,23 +47,16 @@ export default {
   },
 
   async execute({ page, email, log = () => {} }) {
+    // The panel uses email as the account identity; username is for the result record only.
     const username = generateUsername();
 
     // ── Step 1: Fill and submit the registration form ─────────────────────────
-    await page.goto(PANEL.signUp, gotoOpts).catch(() => {});
+    await page.goto(PANEL.signUp, GOTO_OPTS).catch(() => {});
     await page
-      .waitForSelector(SELECTORS.email, {
-        timeout: 10_000,
-        state: "visible",
-      })
+      .waitForSelector(SELECTORS.email, { state: "visible", timeout: 10_000 })
       .catch(() => {});
-
-    for (const [sel, val] of [
-      [SELECTORS.email, email],
-      [SELECTORS.password, PASSWORD],
-    ]) {
-      await fillFirst(page, sel, val);
-    }
+    await fillFirst(page, SELECTORS.email, email);
+    await fillFirst(page, SELECTORS.password, PASSWORD);
 
     // Solve CAPTCHA then click "Create account"
     await solveAndSubmit(page, {
@@ -88,34 +69,34 @@ export default {
     // ── Step 2: Request the free trial ───────────────────────────────────────
     // Navigate directly — more reliable than clicking the link since the
     // post-registration page may vary.
-    await page.goto(PANEL.requestTrial, gotoOpts).catch(() => {});
+    await page.goto(PANEL.requestTrial, GOTO_OPTS).catch(() => {});
 
     // ── Step 3: Navigate to orders, click "View Accounts", extract M3U ───────
-    await page.goto(PANEL.orders, gotoOpts).catch(() => {});
+    await page.goto(PANEL.orders, GOTO_OPTS).catch(() => {});
 
     // Click "View Accounts" to reveal the M3U link
     const viewBtn = await page
-      .waitForSelector(
-        'button:has-text("View Accounts"), a:has-text("View Accounts")',
-        { timeout: 10_000, state: "visible" },
-      )
+      .waitForSelector(SELECTORS.viewAccounts, {
+        state: "visible",
+        timeout: 10_000,
+      })
       .catch(() => null);
 
     if (viewBtn) {
       await viewBtn.click();
       // Wait for the M3U cell to appear after the click
       await page
-        .waitForSelector('td:has-text("get.php")', {
-          timeout: 10_000,
+        .waitForSelector(SELECTORS.m3uCell, {
           state: "visible",
+          timeout: 10_000,
         })
         .catch(() => {});
     }
 
-    const m3uLink = await extractM3uFromPage(page);
+    const m3uLink = await extractM3u(page);
 
-    if (!m3uLink) log(`[${TAG}] M3U link not found on accounts page.`, "warn");
-    else log(`[${TAG}] ✅ M3U extracted: ${m3uLink}`);
+    if (m3uLink) log(`[${TAG}] ✅ M3U extracted: ${m3uLink}`);
+    else log(`[${TAG}] M3U link not found on accounts page.`, "warn");
 
     return {
       username,

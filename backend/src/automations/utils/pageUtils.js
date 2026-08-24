@@ -2,9 +2,10 @@
  * Shared Playwright page helpers used across services and providers.
  *
  * Exports:
- *   findVisible(page, selectors) – first visible element from a selector list
- *   clickFirst(page, selectors)  – click the first visible element
- *   fillFirst(page, selectors, value) – fill the first visible element
+ *   findVisible(page, selectors)          – first visible element from a selector list
+ *   clickFirst(page, selectors)           – click the first visible element
+ *   fillFirst(page, selectors, value)     – fill the first visible element
+ *   extractM3u(page)                      – extract an M3U get.php URL from page text
  */
 
 // Returns the first visible element matching any selector in the array, or null.
@@ -41,4 +42,15 @@ export async function fillFirst(page, selectors, value) {
     await el.type(value, { delay: 40 });
   });
   return true;
+}
+
+// Scans the page text for an M3U get.php URL and returns it, or null if not found.
+export async function extractM3u(page) {
+  const text = await page
+    .evaluate(() => document.body?.innerText ?? "")
+    .catch(() => "");
+  const match = text.match(
+    /https?:\/\/[^\s]+\/get\.php\?[^\s]+type=m3u[^\s]*/i,
+  );
+  return match ? match[0].replace(/&amp;/g, "&") : null;
 }
