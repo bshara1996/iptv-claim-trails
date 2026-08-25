@@ -49,13 +49,14 @@ export default {
   async execute({ page, email, log = () => {} }) {
     // The panel uses email as the account identity; username is for the result record only.
     const username = generateUsername();
+    const resolvedEmail = email ?? `${generateUsername()}@gmail.com`;
 
-    // ── Step 1: Fill and submit the registration form ─────────────────────────
+    // Step 1: Fill and submit the registration form
     await page.goto(PANEL.signUp, GOTO_OPTS).catch(() => {});
     await page
       .waitForSelector(SELECTORS.email, { state: "visible", timeout: 10_000 })
       .catch(() => {});
-    await fillFirst(page, SELECTORS.email, email);
+    await fillFirst(page, SELECTORS.email, resolvedEmail);
     await fillFirst(page, SELECTORS.password, PASSWORD);
 
     // Solve CAPTCHA then click "Create account"
@@ -66,12 +67,10 @@ export default {
     });
     log(`[${TAG}] ✅ Account created.`);
 
-    // ── Step 2: Request the free trial ───────────────────────────────────────
-    // Navigate directly — more reliable than clicking the link since the
-    // post-registration page may vary.
+    // Step 2: Request the free trial
     await page.goto(PANEL.requestTrial, GOTO_OPTS).catch(() => {});
 
-    // ── Step 3: Navigate to orders, click "View Accounts", extract M3U ───────
+    // Step 3: Navigate to orders, click "View Accounts", extract M3U
     await page.goto(PANEL.orders, GOTO_OPTS).catch(() => {});
 
     // Click "View Accounts" to reveal the M3U link

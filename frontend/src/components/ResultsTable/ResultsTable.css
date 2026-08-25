@@ -521,7 +521,11 @@
   gap: 5px;
   padding: 2px 8px;
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(0, 168, 255, 0.15) 0%, rgba(0, 168, 255, 0.05) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(0, 168, 255, 0.15) 0%,
+    rgba(0, 168, 255, 0.05) 100%
+  );
   border: 1px solid rgba(0, 168, 255, 0.3);
   color: var(--accent-light);
   font-family: var(--font-mono);

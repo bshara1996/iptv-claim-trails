@@ -16,6 +16,7 @@ import OneIptv4kRegistration from "./services/oneiptv4k.js";
 import GreatestIptvRegistration from "./services/greatestiptv.js";
 import LayerSevenRegistration from "./services/layerseven.js";
 import TvCornRegistration from "./services/tvcorn.js";
+import KookaRegistration from "./services/kooka.js";
 
 export const emailProviders = [
   TmailyProvider,
@@ -31,6 +32,7 @@ export const registrationServices = [
   GreatestIptvRegistration,
   LayerSevenRegistration,
   TvCornRegistration,
+  KookaRegistration,
 ];
 
 export function getProvider(id) {
