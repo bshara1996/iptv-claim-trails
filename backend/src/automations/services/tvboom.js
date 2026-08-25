@@ -12,7 +12,7 @@ import {
   generatePassword,
   computeTrialExpiry,
 } from "../utils/generators.js";
-import { clickFirst, fillFirst, waitAndClick } from "../utils/pageUtils.js";
+import { clickFirst, fillFirst } from "../utils/pageUtils.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -39,6 +39,18 @@ const SELECTORS = {
 // Matches the TVBoom validation link; tolerates &amp; HTML-encoding.
 const VALIDATION_LINK_RE =
   /https?:\/\/tvboom\.vip\/index\.php\?do=register(?:&|&amp;)doaction=validating(?:&|&amp;)id=[a-zA-Z0-9_|=~%-]+/i;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Waits for an element to be visible, then clicks it. Returns false if not found.
+async function waitAndClick(page, selector, timeout = 10_000) {
+  const el = await page
+    .waitForSelector(selector, { state: "visible", timeout })
+    .catch(() => null);
+  if (!el) return false;
+  await el.click();
+  return true;
+}
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
@@ -101,7 +113,6 @@ export default {
     await clickFirst(page, SELECTORS.cabinet);
 
     await waitAndClick(page, SELECTORS.activateTest);
-    await page.waitForTimeout(1_300);
 
     const tvPlaylist = `${BASE_URL}/${username}/${password}/hls/playlist.m3u8`;
     log(`[${TAG}] ✅ Trial activated. Playlist: ${tvPlaylist}`);

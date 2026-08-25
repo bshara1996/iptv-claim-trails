@@ -5,7 +5,6 @@
  *   findVisible(page, selectors)          – first visible element from a selector list
  *   clickFirst(page, selectors)           – click the first visible element
  *   fillFirst(page, selectors, value)     – fill the first visible element
- *   waitAndClick(page, selector)          – wait for visibility then click
  *   extractM3u(page)                      – extract an M3U get.php URL from page text
  */
 
@@ -42,16 +41,6 @@ export async function fillFirst(page, selectors, value) {
     await el.click();
     await el.type(value, { delay: 40 });
   });
-  return true;
-}
-
-// Waits for an element to be visible, then clicks it. Returns false if not found.
-export async function waitAndClick(page, selector, timeout = 10_000) {
-  const el = await page
-    .waitForSelector(selector, { state: "visible", timeout })
-    .catch(() => null);
-  if (!el) return false;
-  await el.click();
   return true;
 }
 
