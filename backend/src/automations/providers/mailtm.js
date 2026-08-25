@@ -94,7 +94,12 @@ export default {
   // Polls the Mail.tm inbox until an email with a numeric verification code arrives.
   async waitForVerificationCodeEmail(
     page,
-    { seenIds = new Set(), codeRe = /\b(\d{6})\b/, timeout = 120_000 } = {},
+    {
+      filterText = "",
+      seenIds = new Set(),
+      codeRe = /\b(\d{6})\b/,
+      timeout = 120_000,
+    } = {},
   ) {
     const token = page._mailtmToken;
     if (!token)
@@ -106,7 +111,7 @@ export default {
 
     const result = await pollApi(
       reader,
-      { seenIds, timeout },
+      { filterText, seenIds, timeout },
       async (content, preview) => {
         const fromPreview = codeRe.exec(preview)?.[1];
         if (fromPreview) {

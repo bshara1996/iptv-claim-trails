@@ -6,11 +6,10 @@
  *      and create the account. Password is fixed at "123456".
  *      No email verification step.
  *   2. Navigate to /checkout?free-trial=1 to request the trial.
- *   3. Navigate to /orders, click "View Accounts", and extract the M3U URL.
  */
 import { solveAndSubmit } from "../utils/captcha.js";
 import { generateUsername, computeTrialExpiry } from "../utils/generators.js";
-import { fillFirst, extractM3u } from "../utils/pageUtils.js";
+import { fillInstant, extractM3u } from "../utils/pageUtils.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -22,7 +21,6 @@ const GOTO_OPTS = { waitUntil: "domcontentloaded", timeout: 20_000 };
 const PANEL = {
   signUp: "https://panel.layerseven.ai/sign-up",
   requestTrial: "https://panel.layerseven.ai/checkout?free-trial=1",
-  orders: "https://panel.layerseven.ai/orders",
 };
 
 // ── Selectors ─────────────────────────────────────────────────────────────────
@@ -56,8 +54,10 @@ export default {
     await page
       .waitForSelector(SELECTORS.email, { state: "visible", timeout: 10_000 })
       .catch(() => {});
-    await fillFirst(page, SELECTORS.email, resolvedEmail);
-    await fillFirst(page, SELECTORS.password, PASSWORD);
+    await fillInstant(page, {
+      [SELECTORS.email]: resolvedEmail,
+      [SELECTORS.password]: PASSWORD,
+    });
 
     // Solve CAPTCHA then click "Create account"
     await solveAndSubmit(page, {
@@ -69,9 +69,6 @@ export default {
 
     // Step 2: Request the free trial
     await page.goto(PANEL.requestTrial, GOTO_OPTS).catch(() => {});
-
-    // Step 3: Navigate to orders, click "View Accounts", extract M3U
-    await page.goto(PANEL.orders, GOTO_OPTS).catch(() => {});
 
     // Click "View Accounts" to reveal the M3U link
     const viewBtn = await page

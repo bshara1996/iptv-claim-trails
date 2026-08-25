@@ -9,7 +9,7 @@
  *   4. Extract and return the M3U playlist link.
  */
 import { computeTrialExpiry } from "../utils/generators.js";
-import { findVisible, clickFirst } from "../utils/pageUtils.js";
+import { findVisible, clickFirst, fillInstant } from "../utils/pageUtils.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -79,7 +79,7 @@ export default {
         continue;
       }
 
-      await emailField.fill(email);
+      await fillInstant(page, { [SELECTORS.email]: email });
 
       const submitBtn = await findVisible(page, SELECTORS.submit);
       if (submitBtn) await submitBtn.click();

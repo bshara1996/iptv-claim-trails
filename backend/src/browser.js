@@ -111,6 +111,32 @@ export async function createContext({ headless } = {}) {
     locale: "en-US",
   });
 
+  // // Block resources that are not needed for automation.
+  // // This speeds up every page load across all services significantly.
+  // // Keeping "script" allowed because most sites need JS to render forms.
+  // // Keeping "xhr" and "fetch" allowed so API calls within pages still work.
+  // // reCAPTCHA iframes are loaded as "document" so they are also unaffected.
+  // // Stylesheets from reCAPTCHA/gstatic are allowed — the checkbox needs them to render.
+  // await context.route("**/*", (route) => {
+  //   const type = route.request().resourceType();
+  //   const url = route.request().url();
+
+  //   // Always allow reCAPTCHA and gstatic resources — blocking them breaks the captcha widget
+  //   const isCaptchaAsset =
+  //     url.includes("google.com/recaptcha") ||
+  //     url.includes("gstatic.com/recaptcha") ||
+  //     url.includes("recaptcha.net");
+
+  //   if (isCaptchaAsset) return route.continue();
+
+  //   const blocked = ["image", "media", "font", "stylesheet"];
+  //   if (blocked.includes(type)) {
+  //     route.abort();
+  //   } else {
+  //     route.continue();
+  //   }
+  // });
+
   activeSessions++;
   openContexts.add(context);
   logger.info(`Browser context created (active sessions: ${activeSessions})`);

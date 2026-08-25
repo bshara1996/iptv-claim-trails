@@ -15,7 +15,7 @@ import {
   generatePhone,
   computeTrialExpiry,
 } from "../utils/generators.js";
-import { fillFirst, clickFirst } from "../utils/pageUtils.js";
+import { fillInstant, clickFirst } from "../utils/pageUtils.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -78,8 +78,10 @@ export default {
       .catch(() => {});
 
     // Step 2: Fill and submit the registration form
-    await fillFirst(page, SELECTORS.email, resolvedEmail);
-    await fillFirst(page, SELECTORS.whatsapp, whatsapp);
+    await fillInstant(page, {
+      [SELECTORS.email]: resolvedEmail,
+      [SELECTORS.whatsapp]: whatsapp,
+    });
     await clickFirst(page, SELECTORS.submit);
     log(`[${TAG}] Registration submitted.`);
 

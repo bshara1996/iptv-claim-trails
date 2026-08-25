@@ -24,9 +24,7 @@ import { findVisible } from "../utils/pageUtils.js";
 async function openAndRead(page, row) {
   await row.scrollIntoViewIfNeeded().catch(() => {});
   await row.click().catch(() => {});
-  await page
-    .waitForLoadState("domcontentloaded")
-    .catch(() => page.waitForTimeout(1_200));
+  await page.waitForLoadState("commit").catch(() => page.waitForTimeout(400));
 
   const body = (
     await Promise.all(
@@ -45,10 +43,8 @@ async function openAndRead(page, row) {
   const back = await findVisible(page, INBOX_SELECTORS.backToInbox);
   if (back) await back.click();
   else
-    await page
-      .goBack({ waitUntil: "domcontentloaded", timeout: 10_000 })
-      .catch(() => {});
-  await page.waitForTimeout(600);
+    await page.goBack({ waitUntil: "commit", timeout: 10_000 }).catch(() => {});
+  await page.waitForTimeout(200);
 
   return body;
 }
@@ -72,8 +68,8 @@ async function _poll(
 
   while (Date.now() < deadline) {
     const btn = await findVisible(page, INBOX_SELECTORS.refreshBtn);
-    await (btn ? btn.click().catch(() => {}) : page.waitForTimeout(1_500));
-    await page.waitForTimeout(800);
+    await (btn ? btn.click().catch(() => {}) : page.waitForTimeout(500));
+    await page.waitForTimeout(300);
 
     const rows = await page.$$(INBOX_SELECTORS.messageRow).catch(() => []);
     logger.info(`[InboxPoller] Inbox: ${rows.length} message(s).`);
@@ -102,8 +98,8 @@ async function _poll(
       if (result != null) return result;
     }
 
-    // Sleep between inbox refresh cycles to avoid hammering the page
-    await page.waitForTimeout(2_000).catch(() => {});
+    // Sleep between inbox refresh cycles
+    await page.waitForTimeout(500).catch(() => {});
   }
   return null;
 }
@@ -197,11 +193,16 @@ export async function waitForPlaylistEmail(
 
 export async function waitForVerificationCodeEmail(
   page,
-  { seenIds = new Set(), codeRe = /\b(\d{6})\b/, timeout = 120_000 } = {},
+  {
+    filterText = "",
+    seenIds = new Set(),
+    codeRe = /\b(\d{6})\b/,
+    timeout = 120_000,
+  } = {},
 ) {
   logger.info("[InboxPoller] Polling inbox for verification code...");
 
-  return _poll(page, { seenIds, timeout }, async (rowText, row) => {
+  return _poll(page, { filterText, seenIds, timeout }, async (rowText, row) => {
     const extract = (text) => codeRe.exec(text)?.[1] ?? null;
 
     const fromPreview = extract(rowText);

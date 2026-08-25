@@ -6,6 +6,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { generateUsername } from "../utils/generators.js";
 import { solveImageCaptcha } from "../utils/captchaOcr.js";
+import { fillInstant } from "../utils/pageUtils.js";
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -60,26 +61,6 @@ const SELECTORS = {
 const waitFor = (page, sel, timeout = 8_000) =>
   page.waitForSelector(sel, { state: "visible", timeout }).catch(() => null);
 
-// Sets input values via the native setter so framework listeners fire.
-// Accepts a plain object of { selector: value } pairs.
-async function fillFields(page, fields) {
-  await page.evaluate((entries) => {
-    const setter = Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      "value",
-    ).set;
-    const dispatch = (el, val) => {
-      setter.call(el, val);
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-      el.dispatchEvent(new Event("change", { bubbles: true }));
-    };
-    for (const [sel, val] of entries) {
-      const el = document.querySelector(sel);
-      if (el) dispatch(el, val);
-    }
-  }, Object.entries(fields));
-}
-
 // ── CAPTCHA ───────────────────────────────────────────────────────────────────
 
 // OCRs the CAPTCHA image; returns the 4-char alphanumeric code or null.
@@ -120,7 +101,7 @@ async function register(page, email, username, log) {
     const code = await readCaptcha(page, log);
     if (!code) continue;
 
-    await fillFields(page, {
+    await fillInstant(page, {
       [SELECTORS.regEmail]: email,
       [SELECTORS.regUsername]: username,
       [SELECTORS.regPassword]: PASSWORD,
@@ -184,7 +165,7 @@ async function login(page, email, log) {
     const code = await readCaptcha(page, log);
     if (!code) continue;
 
-    await fillFields(page, {
+    await fillInstant(page, {
       [SELECTORS.loginEmail]: email,
       [SELECTORS.loginPass]: PASSWORD,
       [SELECTORS.captchaInput]: code,
@@ -272,7 +253,7 @@ async function generateLine(page, log) {
 
   // Wait for the Edit popup to appear, then let it fully render
   await waitFor(page, SELECTORS.editSubmit, 10_000);
-  await fillFields(page, {
+  await fillInstant(page, {
     [SELECTORS.lineUser]: LINE_USER,
     [SELECTORS.linePass]: LINE_PASS,
   });

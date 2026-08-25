@@ -5,14 +5,14 @@
  * then extracts the M3U playlist link from the credentials page.
  */
 import { generateUsername, computeTrialExpiry } from "../utils/generators.js";
-import { fillFirst, clickFirst, extractM3u } from "../utils/pageUtils.js";
+import { fillInstant, clickFirst, extractM3u } from "../utils/pageUtils.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const TRIAL_URL = "https://en.tvcorn.com/trial";
 const TAG = "TVCorn";
 const TRIAL_HOURS = 24;
-const GOTO_OPTS = { waitUntil: "domcontentloaded", timeout: 20_000 };
+const GOTO_OPTS = { waitUntil: "commit", timeout: 20_000 };
 
 // ── Selectors ─────────────────────────────────────────────────────────────────
 
@@ -52,14 +52,16 @@ export default {
     await page
       .waitForSelector(SELECTORS.name, { state: "visible", timeout: 10_000 })
       .catch(() => {});
-    await fillFirst(page, SELECTORS.name, username);
-    await fillFirst(page, SELECTORS.email, email);
+    await fillInstant(page, {
+      [SELECTORS.name]: username,
+      [SELECTORS.email]: email,
+    });
     await clickFirst(page, SELECTORS.continueBtn);
-    await page.waitForLoadState("domcontentloaded").catch(() => {});
 
     // Step 2: Poll inbox for the OTP verification code
     await emailPage.bringToFront().catch(() => {});
     const code = await provider.waitForVerificationCodeEmail(emailPage, {
+      filterText: "tvcorn",
       seenIds: new Set(inboxSeenIds),
       timeout: 120_000,
     });
@@ -69,7 +71,7 @@ export default {
 
     // Step 3: Enter OTP and confirm
     await page.bringToFront().catch(() => {});
-    await fillFirst(page, SELECTORS.otpBox, code);
+    await fillInstant(page, { [SELECTORS.otpBox]: code });
     await clickFirst(page, SELECTORS.confirmSubmit);
 
     // Step 4: Dismiss the "I know what I'm doing" prompt and open the M3U tab

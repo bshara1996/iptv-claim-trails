@@ -7,7 +7,7 @@
  */
 import { solveAndSubmit } from "../utils/captcha.js";
 import { computeTrialExpiry } from "../utils/generators.js";
-import { fillFirst } from "../utils/pageUtils.js";
+import { fillInstant } from "../utils/pageUtils.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ async function submitRegistration(page, email, log) {
     .waitForSelector(SELECTORS.email, { timeout: 5_000, state: "visible" })
     .catch(() => {});
 
-  await fillFirst(page, SELECTORS.email, email);
+  await fillInstant(page, { [SELECTORS.email]: email });
 
   // Start waiting for navigation BEFORE the submit click so we don't miss it.
   const navPromise = page.waitForNavigation(GOTO_OPTS).catch(() => {});

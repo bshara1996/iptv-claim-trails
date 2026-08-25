@@ -12,7 +12,7 @@ import {
   generatePassword,
   computeTrialExpiry,
 } from "../utils/generators.js";
-import { clickFirst, fillFirst } from "../utils/pageUtils.js";
+import { clickFirst, fillInstant } from "../utils/pageUtils.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -78,10 +78,12 @@ export default {
     if (await clickFirst(page, SELECTORS.rulesAccept))
       await page.waitForLoadState("domcontentloaded").catch(() => {});
 
-    await fillFirst(page, SELECTORS.username, username);
-    await fillFirst(page, SELECTORS.email, email);
-    await fillFirst(page, SELECTORS.password, password);
-    await fillFirst(page, SELECTORS.passwordRepeat, password);
+    await fillInstant(page, {
+      [SELECTORS.username]: username,
+      [SELECTORS.email]: email,
+      [SELECTORS.password]: password,
+      [SELECTORS.passwordRepeat]: password,
+    });
     await solveAndSubmit(page, {
       submitSelectors: SELECTORS.submit,
       log,

@@ -4,7 +4,7 @@
  * Exports:
  *   findVisible(page, selectors)          – first visible element from a selector list
  *   clickFirst(page, selectors)           – click the first visible element
- *   fillFirst(page, selectors, value)     – fill the first visible element
+ *   fillInstant(page, fields)             – instantly fill multiple fields via native setter (kcccam-style)
  *   extractM3u(page)                      – extract an M3U get.php URL from page text
  */
 
@@ -32,16 +32,26 @@ export async function clickFirst(page, selectors) {
   return false;
 }
 
-// Fills the first visible element. Falls back to simulated typing if fill() is rejected.
-export async function fillFirst(page, selectors, value) {
-  const el = await findVisible(page, selectors);
-  if (!el) return false;
-  await el.scrollIntoViewIfNeeded().catch(() => {});
-  await el.fill(value).catch(async () => {
-    await el.click();
-    await el.type(value, { delay: 40 });
-  });
-  return true;
+// Instantly fills one or more fields in a single page.evaluate() call using the
+// native HTMLInputElement setter so React/Vue framework listeners fire correctly.
+// Accepts a plain object of { selector: value } pairs — all fields are filled
+// in one synchronous DOM batch with no typing delay.
+export async function fillInstant(page, fields) {
+  await page.evaluate((entries) => {
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    ).set;
+    const dispatch = (el, val) => {
+      setter.call(el, val);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    for (const [sel, val] of entries) {
+      const el = document.querySelector(sel);
+      if (el) dispatch(el, val);
+    }
+  }, Object.entries(fields));
 }
 
 // Scans the page text for an M3U get.php URL and returns it, or null if not found.

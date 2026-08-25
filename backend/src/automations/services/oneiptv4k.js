@@ -12,7 +12,7 @@ import {
   generatePhone,
   computeTrialExpiry,
 } from "../utils/generators.js";
-import { fillFirst, clickFirst } from "../utils/pageUtils.js";
+import { fillInstant, clickFirst } from "../utils/pageUtils.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -55,9 +55,11 @@ export default {
 
     // Step 1: Fill and submit the registration form
     await page.goto(TRIAL_URL, GOTO_OPTS).catch(() => {});
-    await fillFirst(page, SELECTORS.name, name);
-    await fillFirst(page, SELECTORS.email, email);
-    await fillFirst(page, SELECTORS.whatsapp, whatsapp);
+    await fillInstant(page, {
+      [SELECTORS.name]: name,
+      [SELECTORS.email]: email,
+      [SELECTORS.whatsapp]: whatsapp,
+    });
     await page.waitForTimeout(400);
     await clickFirst(page, SELECTORS.submit);
     await page.waitForLoadState("domcontentloaded").catch(() => {});
@@ -67,6 +69,7 @@ export default {
     await emailPage.bringToFront().catch(() => {});
     const seenIds = new Set(inboxSeenIds);
     const code = await provider.waitForVerificationCodeEmail(emailPage, {
+      filterText: "oneiptv4k",
       seenIds,
       timeout: 120_000,
     });
@@ -75,7 +78,7 @@ export default {
     // Step 3: Enter the verification code
     await page.bringToFront().catch(() => {});
     await page.waitForTimeout(600);
-    await fillFirst(page, SELECTORS.codeInput, code);
+    await fillInstant(page, { [SELECTORS.codeInput]: code });
     await page.waitForTimeout(300);
     await clickFirst(page, SELECTORS.submit);
     await page.waitForLoadState("domcontentloaded").catch(() => {});

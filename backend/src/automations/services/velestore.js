@@ -10,7 +10,7 @@ import {
   generatePassword,
   computeTrialExpiry,
 } from "../utils/generators.js";
-import { clickFirst, fillFirst } from "../utils/pageUtils.js";
+import { clickFirst, fillInstant } from "../utils/pageUtils.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -52,10 +52,12 @@ async function submitRegistration(page, { login, password, email }, log) {
     .waitForSelector(SELECTORS.name, { state: "visible", timeout: 8_000 })
     .catch(() => {});
 
-  await fillFirst(page, SELECTORS.name, login);
-  await fillFirst(page, SELECTORS.password1, password);
-  await fillFirst(page, SELECTORS.password2, password);
-  await fillFirst(page, SELECTORS.email, email);
+  await fillInstant(page, {
+    [SELECTORS.name]: login,
+    [SELECTORS.password1]: password,
+    [SELECTORS.password2]: password,
+    [SELECTORS.email]: email,
+  });
 
   // Start waiting for navigation BEFORE the submit click so we don't miss it.
   const navPromise = page.waitForNavigation(GOTO_OPTS).catch(() => {});
