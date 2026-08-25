@@ -29,6 +29,12 @@ Thumbs.db
 
 # Environment files (intentionally excluded - .env will be tracked)
 
+# Accounts data
+kcccam_accounts.json
+
+# Tesseract trained data (downloaded at runtime)
+tessdata/
+
 # Temporary files
 tmp/
 temp/

@@ -17,6 +17,7 @@ import GreatestIptvRegistration from "./services/greatestiptv.js";
 import LayerSevenRegistration from "./services/layerseven.js";
 import TvCornRegistration from "./services/tvcorn.js";
 import KookaRegistration from "./services/kooka.js";
+import KccCamRegistration from "./services/kcccam.js";
 
 export const emailProviders = [
   TmailyProvider,
@@ -33,6 +34,7 @@ export const registrationServices = [
   LayerSevenRegistration,
   TvCornRegistration,
   KookaRegistration,
+  KccCamRegistration,
 ];
 
 export function getProvider(id) {
