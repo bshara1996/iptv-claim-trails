@@ -5,14 +5,8 @@
  * Inbox polling is done via pollApi() — no Playwright page needed.
  */
 import logger from "../../logger.js";
-import {
-  pollApi,
-  extractLinks,
-  extractPlaylists,
-  EMPTY_PLAYLISTS,
-} from "../inbox/index.js";
-import { apiFetch } from "../utils/apiFetch.js";
 import { generateUsername, generatePassword } from "../utils/generators.js";
+import { makeApi, createProviderMethods } from "./base/apiProvider.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -20,14 +14,12 @@ const BASE_URL = "https://api.mail.tm";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Convenience wrapper that pre-binds the Mail.tm base URL
-const api = (path, opts) => apiFetch(BASE_URL, path, opts);
+const api = makeApi(BASE_URL);
 
-// Builds the reader used by pollApi():
-//   fetchMessages() → [{ id, preview }]
-//   readMessage(id) → full content string (text + html joined)
+// Builds the inbox reader used by pollApi — fetches message list and reads individual messages.
 function buildReader(token) {
   return {
+    // Fetches the first page of messages and returns lightweight preview objects.
     async fetchMessages() {
       const data = await api("/messages?page=1", { token });
       return (data["hydra:member"] ?? []).map((msg) => ({
@@ -43,6 +35,7 @@ function buildReader(token) {
       }));
     },
 
+    // Fetches the full message body by ID and joins text + HTML parts into one string.
     async readMessage(id) {
       const full = await api(`/messages/${id}`, { token });
       const htmlParts = Array.isArray(full.html)
@@ -51,6 +44,14 @@ function buildReader(token) {
       return `${full.text ?? ""}\n${htmlParts}`;
     },
   };
+}
+
+// Reads the auth token stored on `page` by createEmail and returns the inbox reader.
+function getReader(page) {
+  const token = page._mailtmToken;
+  if (!token)
+    throw new Error("[MailTm] No auth token — call createEmail first.");
+  return buildReader(token);
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ export default {
     apiOnly: true,
   },
 
+  // Creates a Mail.tm account, obtains an auth token, and stores both on the page stub.
   async createEmail(page) {
     logger.info("[MailTm] Fetching available domains...");
     const domainsData = await api("/domains?page=1");
@@ -83,7 +85,7 @@ export default {
       body: { address, password },
     });
 
-    // Store credentials on the page object so polling methods can access them
+    // Store credentials on the page stub so polling methods can read them later.
     page._mailtmToken = token;
     page._mailtmAddress = address;
 
@@ -91,140 +93,6 @@ export default {
     return address;
   },
 
-  // Polls the Mail.tm inbox until an email with a numeric verification code arrives.
-  async waitForVerificationCodeEmail(
-    page,
-    {
-      filterText = "",
-      seenIds = new Set(),
-      codeRe = /\b(\d{6})\b/,
-      timeout = 120_000,
-    } = {},
-  ) {
-    const token = page._mailtmToken;
-    if (!token)
-      throw new Error("[MailTm] No auth token — call createEmail first.");
-
-    logger.info("[MailTm] Polling inbox for verification code...");
-
-    const reader = buildReader(token);
-
-    const result = await pollApi(
-      reader,
-      { filterText, seenIds, timeout },
-      async (content, preview) => {
-        const fromPreview = codeRe.exec(preview)?.[1];
-        if (fromPreview) {
-          logger.info(`[MailTm] Code found in preview: ${fromPreview}`);
-          return fromPreview;
-        }
-
-        const fromBody = codeRe.exec(content)?.[1];
-        if (fromBody) {
-          logger.info(`[MailTm] Code found in body: ${fromBody}`);
-          return fromBody;
-        }
-
-        logger.info("[MailTm] No code in this email — skipping.");
-        return null;
-      },
-    );
-
-    if (!result)
-      logger.warn("[MailTm] Timed out waiting for verification code email.");
-    return result;
-  },
-
-  // Polls the Mail.tm inbox until an email matching filterText arrives,
-  // then extracts and returns the first URL matching pattern (or any URL).
-  async waitForEmailAndExtractLink(
-    page,
-    {
-      filterText = "",
-      pattern = null,
-      seenIds = new Set(),
-      timeout = 120_000,
-    } = {},
-  ) {
-    const token = page._mailtmToken;
-    if (!token)
-      throw new Error("[MailTm] No auth token — call createEmail first.");
-
-    logger.info(
-      `[MailTm] Waiting for validation link email${filterText ? ` matching "${filterText}"` : ""}...`,
-    );
-
-    const reader = buildReader(token);
-
-    const result = await pollApi(
-      reader,
-      { filterText, seenIds, timeout },
-      async (content, preview) => {
-        const links = extractLinks(content);
-        const match = pattern
-          ? links.find((l) => pattern.test(l))
-          : (links[0] ?? null);
-
-        if (match) {
-          logger.info(`[MailTm] Extracted link: ${match}`);
-        } else {
-          logger.warn(
-            `[MailTm] No usable link found in email (preview: "${preview.slice(0, 80)}") — skipping.`,
-          );
-        }
-        return match ?? null;
-      },
-    );
-
-    if (!result)
-      logger.warn(
-        `[MailTm] Timed out waiting for email${filterText ? ` matching "${filterText}"` : ""}.`,
-      );
-
-    return result;
-  },
-
-  // Polls the Mail.tm inbox until an email with M3U links arrives,
-  // then extracts and returns playlist URLs + duration info.
-  async waitForEmailAndExtractPlaylists(
-    page,
-    { filterText = "", seenIds = new Set(), timeout = 120_000 } = {},
-  ) {
-    const token = page._mailtmToken;
-    if (!token)
-      throw new Error("[MailTm] No auth token — call createEmail first.");
-
-    logger.info(
-      `[MailTm] Polling inbox for playlist email${filterText ? ` matching "${filterText}"` : ""}...`,
-    );
-
-    const reader = buildReader(token);
-
-    const result = await pollApi(
-      reader,
-      { filterText, seenIds, timeout },
-      async (content) => {
-        const playlists = extractPlaylists(content);
-
-        if (!playlists) {
-          logger.info("[MailTm] No M3U links in this email — skipping.");
-          return null;
-        }
-
-        logger.info(
-          `[MailTm] TV: ${playlists.tvPlaylist}, VOD: ${playlists.vodPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
-        );
-        if (playlists.duration)
-          logger.info(
-            `[MailTm] Duration: ${playlists.duration}${playlists.expiresAt ? ` · expires: ${playlists.expiresAt}` : ""}`,
-          );
-
-        return playlists;
-      },
-    );
-
-    if (!result) logger.warn("[MailTm] Timed out waiting for playlist email.");
-
-    return result ?? EMPTY_PLAYLISTS;
-  },
+  // Shared polling methods — generated by the factory.
+  ...createProviderMethods("MailTm", getReader),
 };

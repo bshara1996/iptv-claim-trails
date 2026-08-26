@@ -2,16 +2,13 @@
  * TMaily disposable email provider.
  *
  * Opens tmaily.com, waits for a temporary email address to be generated,
- * then exposes inbox polling via the shared inboxPoller helpers.
+ * then exposes inbox polling via the shared browser poller helpers.
  * Swapping providers only requires updating the import in registry.js.
  */
-import logger from "../../logger.js";
 import {
-  waitForValidationLink,
-  waitForPlaylistEmail,
-  waitForVerificationCodeEmail,
-} from "../inbox/index.js";
-import { readEmailFromBody } from "./pageHelpers.js";
+  createBrowserProvider,
+  readEmailFromBody,
+} from "./base/browserProvider.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -19,7 +16,7 @@ const CONFIG = {
   url: "https://tmaily.com/",
 
   selectors: {
-    // Ordered from most specific to most generic — first match wins
+    // Ordered from most specific to most generic — first match wins.
     emailCandidates: [
       "#email-address",
       "#email",
@@ -39,20 +36,21 @@ const CONFIG = {
       '[id*="email"]',
     ],
 
-    // Visible while the page is still generating the address
+    // Visible while the page is still generating the address.
     generatingMarker: ':text("generating")',
   },
 
   timeouts: {
     pageLoad: 20_000,
+    addressPoll: 10_000,
     pollInterval: 800,
   },
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── DOM reader ────────────────────────────────────────────────────────────────
 
-// Tries each candidate selector in order, reading the value as text, input value,
-// or data-email attribute. Falls back to a body scan.
+// Tries each candidate selector in order to find the generated address.
+// Falls back to a full body scan if all selectors fail.
 async function readEmailFromPage(page) {
   for (const sel of CONFIG.selectors.emailCandidates) {
     try {
@@ -70,51 +68,28 @@ async function readEmailFromPage(page) {
   return readEmailFromBody(page);
 }
 
+// ── beforePoll hook ───────────────────────────────────────────────────────────
+
+// Waits for the "generating" loading marker to disappear before the address poll loop starts.
+async function beforePoll(page) {
+  await page
+    .waitForSelector(CONFIG.selectors.generatingMarker, {
+      state: "hidden",
+      timeout: 10_000,
+    })
+    .catch(() => {}); // marker may not appear at all — that's fine
+}
+
 // ── Provider ──────────────────────────────────────────────────────────────────
 
-export default {
-  meta: {
+export default createBrowserProvider(
+  {
     id: "tmaily",
     name: "TMaily",
     url: CONFIG.url,
     description: "Disposable temporary email via tmaily.com",
   },
-
-  async createEmail(page) {
-    logger.info("[Tmaily] Navigating to tmaily.com...");
-    await page.goto(CONFIG.url, {
-      waitUntil: "domcontentloaded",
-      timeout: CONFIG.timeouts.pageLoad,
-    });
-
-    // Wait for the "generating" indicator to disappear before reading the address
-    logger.info("[Tmaily] Waiting for email address to be generated...");
-    await page
-      .waitForSelector(CONFIG.selectors.generatingMarker, {
-        state: "hidden",
-        timeout: 10_000,
-      })
-      .catch(() =>
-        logger.info(
-          "[Tmaily] Generating marker gone / not found — proceeding.",
-        ),
-      );
-
-    // Poll until the address is readable — the DOM may update slightly after the marker hides
-    const deadline = Date.now() + 10_000;
-    while (Date.now() < deadline) {
-      const email = await readEmailFromPage(page);
-      if (email) {
-        logger.info(`[Tmaily] Email ready: ${email}`);
-        return email;
-      }
-      await page.waitForTimeout(CONFIG.timeouts.pollInterval);
-    }
-    throw new Error("[Tmaily] Timed out waiting for email address.");
-  },
-
-  // Delegates inbox polling to the shared poller — no provider-specific logic needed
-  waitForEmailAndExtractLink: waitForValidationLink,
-  waitForEmailAndExtractPlaylists: waitForPlaylistEmail,
-  waitForVerificationCodeEmail,
-};
+  readEmailFromPage,
+  CONFIG.timeouts,
+  beforePoll,
+);
