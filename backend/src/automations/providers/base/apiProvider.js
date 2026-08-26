@@ -4,12 +4,12 @@
  * Shared infrastructure for REST-API-based email providers.
  *
  * Exports:
- *   makeApi(baseUrl)          — returns a fetch helper pre-bound to baseUrl
- *   createProviderMethods(tag, getReader) — generates the three inbox-polling methods
+ *   makeApi(baseUrl, opts?)          — fetch helper pre-bound to baseUrl
+ *   makeGetReader(pageKey, tag, fn)  — guard wrapper that reads credentials from the page stub
+ *   createProviderMethods(tag, getReader) — generates the three shared inbox-polling methods
  */
 
 import logger from "../../../logger.js";
-import { apiFetch } from "../../utils/apiFetch.js";
 import {
   pollApi,
   extractLinks,
@@ -17,25 +17,73 @@ import {
   EMPTY_PLAYLISTS,
 } from "../../inbox/index.js";
 
-// ── makeApi ───────────────────────────────────────────────────────────────────
+// ── HTTP ──────────────────────────────────────────────────────────────────────
 
-// Returns a fetch helper bound to baseUrl so providers don't repeat the base URL on every call.
-export function makeApi(baseUrl) {
-  return (path, opts) => apiFetch(baseUrl, path, opts);
+// Generic fetch wrapper: injects auth header, throws on non-2xx, returns null on 204.
+// opts.errorDetail(json) — optional hook for provider-specific error message extraction.
+async function apiFetch(
+  baseUrl,
+  path,
+  { method = "GET", token = null, body = null, errorDetail = null } = {},
+) {
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const j = await res.json();
+      detail = errorDetail?.(j) ?? j.message ?? JSON.stringify(j);
+    } catch (_) {}
+    throw new Error(
+      `[apiFetch] ${method} ${baseUrl}${path} → ${res.status}${detail ? `: ${detail}` : ""}`,
+    );
+  }
+
+  return res.status === 204 ? null : res.json(); // null on No Content
 }
 
-// ── createProviderMethods ─────────────────────────────────────────────────────
+// Returns a fetch helper bound to baseUrl. Any per-request options (token, body, errorDetail)
+// are passed through on each call. makeApiOpts can set defaults for all calls (e.g. errorDetail).
+export function makeApi(baseUrl, makeApiOpts = {}) {
+  return (path, callOpts) =>
+    apiFetch(baseUrl, path, { ...makeApiOpts, ...callOpts });
+}
+
+// ── Credential helper ─────────────────────────────────────────────────────────
+
+// Guards against polling before createEmail has run by checking the credential on the page stub.
+export function makeGetReader(pageKey, tag, buildReader) {
+  return function getReader(page) {
+    const credential = page[pageKey];
+    if (!credential)
+      throw new Error(`[${tag}] No ${pageKey} — call createEmail first.`);
+    return buildReader(credential);
+  };
+}
+
+// ── Provider method factory ───────────────────────────────────────────────────
 
 // Generates the three shared inbox-polling methods for any API-based provider.
-// Each method resolves the inbox reader via getReader, then delegates to pollApi.
+// getReader(page) resolves the inbox reader lazily — credentials are stashed on
+// the page stub by createEmail and retrieved here when polling starts.
 export function createProviderMethods(tag, getReader) {
-  // Resolves the reader from the page and delegates to the generic API poller.
-  function _poll(page, opts, onRow) {
-    return pollApi(getReader(page), opts, onRow);
+  // Logs start, delegates to pollApi, logs on timeout.
+  async function _run(page, startMsg, timeoutMsg, opts, onRow) {
+    logger.info(`[${tag}] ${startMsg}`);
+    const result = await pollApi(getReader(page), opts, onRow);
+    if (!result) logger.warn(`[${tag}] ${timeoutMsg}`);
+    return result;
   }
 
   return {
-    // Polls the inbox until an email containing a 6-digit verification code arrives.
+    // Polls until an email with a 6-digit verification code arrives.
     async waitForVerificationCodeEmail(
       page,
       {
@@ -45,25 +93,25 @@ export function createProviderMethods(tag, getReader) {
         timeout = 120_000,
       } = {},
     ) {
-      logger.info(`[${tag}] Polling inbox for verification code...`);
-
-      const result = await _poll(
+      return _run(
         page,
+        "Polling inbox for verification code...",
+        "Timed out waiting for verification code.",
         { filterText, seenIds, timeout },
-        async (content, preview) => {
-          const code = codeRe.exec(preview)?.[1] ?? codeRe.exec(content)?.[1];
-          if (code) logger.info(`[${tag}] Code found: ${code}`);
-          else logger.info(`[${tag}] No code in this email — skipping.`);
-          return code ?? null;
+        (content, preview) => {
+          const code =
+            codeRe.exec(preview)?.[1] ?? codeRe.exec(content)?.[1] ?? null;
+          logger.info(
+            code
+              ? `[${tag}] Code found: ${code}`
+              : `[${tag}] No code in this email — skipping.`,
+          );
+          return code;
         },
       );
-
-      if (!result)
-        logger.warn(`[${tag}] Timed out waiting for verification code.`);
-      return result;
     },
 
-    // Polls the inbox until a matching email arrives, then returns the first URL (or the one matching pattern).
+    // Polls until a matching email arrives, then returns the first URL (or the one matching pattern).
     async waitForEmailAndExtractLink(
       page,
       {
@@ -73,48 +121,36 @@ export function createProviderMethods(tag, getReader) {
         timeout = 120_000,
       } = {},
     ) {
-      logger.info(
-        `[${tag}] Waiting for link email${filterText ? ` matching "${filterText}"` : ""}...`,
-      );
-
-      const result = await _poll(
+      return _run(
         page,
+        `Waiting for link email${filterText ? ` matching "${filterText}"` : ""}...`,
+        `Timed out waiting for email${filterText ? ` matching "${filterText}"` : ""}.`,
         { filterText, seenIds, timeout },
-        async (content, preview) => {
+        (content, preview) => {
           const links = extractLinks(content);
-          const match = pattern
-            ? links.find((l) => pattern.test(l))
-            : (links[0] ?? null);
-
+          const match =
+            (pattern ? links.find((l) => pattern.test(l)) : links[0]) ?? null;
           if (match) logger.info(`[${tag}] Extracted link: ${match}`);
           else
             logger.warn(
               `[${tag}] No usable link in email (preview: "${preview.slice(0, 80)}") — skipping.`,
             );
-          return match ?? null;
+          return match;
         },
       );
-
-      if (!result)
-        logger.warn(
-          `[${tag}] Timed out waiting for email${filterText ? ` matching "${filterText}"` : ""}.`,
-        );
-      return result;
     },
 
-    // Polls the inbox until an email with M3U playlist links arrives, then returns the extracted playlists.
+    // Polls until an email with M3U playlist links arrives, then returns the extracted playlists.
     async waitForEmailAndExtractPlaylists(
       page,
       { filterText = "", seenIds = new Set(), timeout = 120_000 } = {},
     ) {
-      logger.info(
-        `[${tag}] Polling inbox for playlist email${filterText ? ` matching "${filterText}"` : ""}...`,
-      );
-
-      const result = await _poll(
+      const result = await _run(
         page,
+        `Polling inbox for playlist email${filterText ? ` matching "${filterText}"` : ""}...`,
+        "Timed out waiting for playlist email.",
         { filterText, seenIds, timeout },
-        async (content) => {
+        (content) => {
           const playlists = extractPlaylists(content);
           if (!playlists) {
             logger.info(`[${tag}] No M3U links in this email — skipping.`);
@@ -130,9 +166,7 @@ export function createProviderMethods(tag, getReader) {
           return playlists;
         },
       );
-
-      if (!result)
-        logger.warn(`[${tag}] Timed out waiting for playlist email.`);
+      // Never return null — callers expect a destructurable object.
       return result ?? EMPTY_PLAYLISTS;
     },
   };

@@ -14,7 +14,15 @@
 
 import logger from "../../logger.js";
 
-const RATE_DELAY = 1_500; // 1 request per 1.5 s stays safely under Mail.tm rate limits
+// How long to wait between fetch-messages poll cycles.
+// 800 ms keeps the loop responsive while staying well within the 100 req/min limit.
+const POLL_DELAY = 800;
+
+// How long to wait before reading an individual message (the second HTTP request).
+// Kept higher to give Mail.tm's rate limiter breathing room when a new message is found.
+const READ_DELAY = 1_500;
+
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function pollApi(
   { fetchMessages, readMessage },
@@ -43,7 +51,7 @@ export async function pollApi(
       )
         continue;
 
-      await new Promise((r) => setTimeout(r, RATE_DELAY)); // gap before request 2
+      await delay(READ_DELAY); // gap before request 2
 
       let content = "";
       try {
@@ -59,7 +67,7 @@ export async function pollApi(
       if (result != null) return result;
     }
 
-    await new Promise((r) => setTimeout(r, RATE_DELAY)); // gap before next fetchMessages
+    await delay(POLL_DELAY); // gap before next fetchMessages
   }
 
   return null;

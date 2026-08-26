@@ -9,7 +9,11 @@
  *   GET  /api/v1/public/mailbox/{address} → { messages: [{ id, from, subject, text, html }] }
  */
 import logger from "../../logger.js";
-import { makeApi, createProviderMethods } from "./base/apiProvider.js";
+import {
+  makeApi,
+  makeGetReader,
+  createProviderMethods,
+} from "./base/apiProvider.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -46,12 +50,7 @@ function buildReader(address) {
 }
 
 // Reads the mailbox address stored on `page` by createEmail and returns the inbox reader.
-function getReader(page) {
-  const address = page._dropmailAddress;
-  if (!address)
-    throw new Error(`[${TAG}] No address — call createEmail first.`);
-  return buildReader(address);
-}
+const getReader = makeGetReader("_dropmailAddress", TAG, buildReader);
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
