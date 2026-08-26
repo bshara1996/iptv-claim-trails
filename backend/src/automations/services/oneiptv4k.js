@@ -65,11 +65,15 @@ export default {
     await page.waitForLoadState("domcontentloaded").catch(() => {});
     await page.waitForTimeout(1_000);
 
-    // Step 2: Poll inbox for the verification code
+    // Step 2: Poll inbox for the verification code.
+    // Subject/sender varies ("Digi Market", "IPTV Pro") so no filterText —
+    // codeRe anchors on a label word to avoid false matches from other emails.
     await emailPage.bringToFront().catch(() => {});
     const seenIds = new Set(inboxSeenIds);
     const code = await provider.waitForVerificationCodeEmail(emailPage, {
-      filterText: "oneiptv4k",
+      filterText: "",
+      codeRe:
+        /(?:code|verification|confirm(?:ation)?|otp)[^0-9]{0,60}(\d{6})(?!\d)/i,
       seenIds,
       timeout: 120_000,
     });

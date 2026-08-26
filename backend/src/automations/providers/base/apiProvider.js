@@ -99,13 +99,17 @@ export function createProviderMethods(tag, getReader) {
         "Timed out waiting for verification code.",
         { filterText, seenIds, timeout },
         (content, preview) => {
+          // Strip tags so codes inside <b>/<span> etc. are visible to the regex.
+          const plain = content
+            .replace(/<[^>]*>/g, " ")
+            .replace(/\s{2,}/g, " ");
           const code =
-            codeRe.exec(preview)?.[1] ?? codeRe.exec(content)?.[1] ?? null;
-          logger.info(
-            code
-              ? `[${tag}] Code found: ${code}`
-              : `[${tag}] No code in this email — skipping.`,
-          );
+            codeRe.exec(preview)?.[1] ?? codeRe.exec(plain)?.[1] ?? null;
+          if (code) logger.info(`[${tag}] Code found: ${code}`);
+          else
+            logger.warn(
+              `[${tag}] No code in this email — skipping. preview: ${preview.slice(0, 120)}`,
+            );
           return code;
         },
       );
@@ -150,10 +154,12 @@ export function createProviderMethods(tag, getReader) {
         `Polling inbox for playlist email${filterText ? ` matching "${filterText}"` : ""}...`,
         "Timed out waiting for playlist email.",
         { filterText, seenIds, timeout },
-        (content) => {
+        (content, preview) => {
           const playlists = extractPlaylists(content);
           if (!playlists) {
-            logger.info(`[${tag}] No M3U links in this email — skipping.`);
+            logger.warn(
+              `[${tag}] No M3U links in this email — skipping. preview: ${preview.slice(0, 120)}`,
+            );
             return null;
           }
           logger.info(

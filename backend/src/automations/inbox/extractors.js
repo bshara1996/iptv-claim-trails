@@ -62,17 +62,33 @@ export const EMPTY_PLAYLISTS = {
   expiresAt: null,
 };
 
+// Decodes common HTML entities so URLs with &amp; survive regex matching.
+function decodeEntities(str) {
+  return str
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'");
+}
+
 // Extracts and classifies M3U playlist links from email content.
 // Returns null when no M3U links are found.
 export function extractPlaylists(content) {
+  const d = decodeEntities(content);
+  // Matches bare URLs and href-wrapped URLs for .m3u/.m3u8, type=m3u, and output=m3u.
+  const M3U_RE =
+    /https?:\/\/[^\s"'<>]*(?:\.m3u8?|[?&](?:type|output)=m3u)[^\s"'<>]*/gi;
   const unique = [
-    ...new Set(
-      [
-        ...content.matchAll(/https?:\/\/[^\s"'<>]+\.m3u8?[^\s"'<>]*/gi),
-        ...content.matchAll(/https?:\/\/[^\s"'<>]*[?&]type=m3u[^\s"'<>]*/gi),
-      ].map((m) => m[0].replace(/&(?:lt|gt|amp|quot|apos);.*/i, "")),
-    ),
-  ];
+    ...new Set([
+      ...[...d.matchAll(M3U_RE)].map((m) => m[0]),
+      ...[
+        ...d.matchAll(
+          /href=["']([^"']*(?:\.m3u8?|[?&](?:type|output)=m3u)[^"']*)/gi,
+        ),
+      ].map((m) => m[1]),
+    ]),
+  ].filter((u) => /^https?:\/\//i.test(u));
 
   if (!unique.length) return null;
 

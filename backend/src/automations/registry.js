@@ -21,10 +21,10 @@ import KookaRegistration from "./services/kooka.js";
 import KccCamRegistration from "./services/kcccam.js";
 
 export const emailProviders = [
+  DropMailProvider,
   TmailyProvider,
   DisposeLolProvider,
   MailTmProvider,
-  DropMailProvider,
 ];
 
 export const registrationServices = [
