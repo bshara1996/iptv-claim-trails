@@ -9,6 +9,7 @@ import TmailyProvider from "./providers/tmaily.js";
 import DisposeLolProvider from "./providers/disposelol.js";
 import MailTmProvider from "./providers/mailtm.js";
 import DropMailProvider from "./providers/dropmail.js";
+import EmailnatorProvider from "./providers/emailnator.js";
 
 import Y6TvRegistration from "./services/y6tv.js";
 import TvBoomRegistration from "./services/tvboom.js";
@@ -21,10 +22,12 @@ import KookaRegistration from "./services/kooka.js";
 import KccCamRegistration from "./services/kcccam.js";
 
 export const emailProviders = [
+  EmailnatorProvider,
   DropMailProvider,
+  MailTmProvider,
+
   TmailyProvider,
   DisposeLolProvider,
-  MailTmProvider,
 ];
 
 export const registrationServices = [

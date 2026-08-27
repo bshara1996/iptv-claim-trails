@@ -73,11 +73,15 @@ export function makeGetReader(pageKey, tag, buildReader) {
 // Generates the three shared inbox-polling methods for any API-based provider.
 // getReader(page) resolves the inbox reader lazily — credentials are stashed on
 // the page stub by createEmail and retrieved here when polling starts.
-export function createProviderMethods(tag, getReader) {
+export function createProviderMethods(tag, getReader, defaultOpts = {}) {
   // Logs start, delegates to pollApi, logs on timeout.
   async function _run(page, startMsg, timeoutMsg, opts, onRow) {
     logger.info(`[${tag}] ${startMsg}`);
-    const result = await pollApi(getReader(page), opts, onRow);
+    const result = await pollApi(
+      getReader(page),
+      { ...defaultOpts, ...opts },
+      onRow,
+    );
     if (!result) logger.warn(`[${tag}] ${timeoutMsg}`);
     return result;
   }
