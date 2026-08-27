@@ -88,14 +88,8 @@ export default {
       .catch(() => {});
     await clickFirst(page, SELECTORS.m3uTab);
 
-    // Step 5: Extract the M3U link (retry for up to 15 s while the page generates it)
-    let m3uLink = null;
-    const deadline = Date.now() + 15_000;
-    while (Date.now() < deadline) {
-      m3uLink = await extractM3u(page);
-      if (m3uLink) break;
-      await page.waitForTimeout(300);
-    }
+    // Step 5: Extract the M3U link
+    const m3uLink = await extractM3u(page);
 
     if (m3uLink) log(`[${TAG}] ✅ M3U extracted: ${m3uLink}`);
     else log(`[${TAG}] M3U link not found on credentials page.`, "warn");
