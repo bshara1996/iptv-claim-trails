@@ -6,7 +6,7 @@
  * Concurrency is capped at MAX_CONCURRENT_BROWSERS (default: 5).
  * Switching headless mode mid-run closes all contexts and relaunches the browser.
  */
-import { chromium } from "playwright";
+import { chromium, firefox, webkit } from "playwright";
 import logger from "./logger.js";
 
 // ── State ─────────────────────────────────────────────────────────────────────

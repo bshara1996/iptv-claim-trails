@@ -5,11 +5,11 @@
  * To add a service:  create services/<name>.js,  import it, add it to registrationServices[].
  */
 
+import EmailnatorProvider from "./providers/emailnator.js";
+import DropMailProvider from "./providers/dropmail.js";
+import MailTmProvider from "./providers/mailtm.js";
 import TmailyProvider from "./providers/tmaily.js";
 import DisposeLolProvider from "./providers/disposelol.js";
-import MailTmProvider from "./providers/mailtm.js";
-import DropMailProvider from "./providers/dropmail.js";
-import EmailnatorProvider from "./providers/emailnator.js";
 
 import Y6TvRegistration from "./services/y6tv.js";
 import TvBoomRegistration from "./services/tvboom.js";
@@ -20,6 +20,8 @@ import LayerSevenRegistration from "./services/layerseven.js";
 import TvCornRegistration from "./services/tvcorn.js";
 import KookaRegistration from "./services/kooka.js";
 import KccCamRegistration from "./services/kcccam.js";
+import LibertyTvRegistration from "./services/libertytv.js";
+import StreamingElbrusRegistration from "./services/streamingelbrus.js";
 
 export const emailProviders = [
   EmailnatorProvider,
@@ -34,10 +36,14 @@ export const registrationServices = [
   Y6TvRegistration,
   TvBoomRegistration,
   VeleStoreRegistration,
+  StreamingElbrusRegistration,
+
   OneIptv4kRegistration,
-  GreatestIptvRegistration,
-  LayerSevenRegistration,
   TvCornRegistration,
+  LibertyTvRegistration,
+
+  LayerSevenRegistration,
+  GreatestIptvRegistration,
   KookaRegistration,
   KccCamRegistration,
 ];
