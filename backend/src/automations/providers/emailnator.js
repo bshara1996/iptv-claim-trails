@@ -2,14 +2,19 @@
  * Emailnator disposable email provider.
  *
  * Uses the Emailnator web API (https://www.emailnator.com).
- * Generates GoogleMail (@gmail.com) addresses only.
- * Mailbox UI: https://www.emailnator.com/mailbox#<address>
+ * Generates Gmail addresses (dot-trick variant by default).
+ * Mailbox UI: https://www.emailnator.com/inbox#<address>
  *
- * API flow:
- *   GET  /                           → session cookies + XSRF-TOKEN
- *   POST /generate-email             → { email: ["googleMail"] } → address
- *   POST /message-list  { email }    → message list
- *   POST /message-list  { email, messageID } → message HTML
+ * API flow (Next.js rewrite — no session/XSRF required):
+ *   POST /api/generate-email  { ids: [<typeId>] }   → { email: "address", ... }
+ *   POST /api/message-list    { email }              → { messages: [{id, from, subject, ...}], ... }
+ *   GET  /api/message/:id                            → { id, from, subject, date, content }
+ *
+ * Email type IDs:
+ *   domain   = 1
+ *   plusGmail  = 2
+ *   dotGmail   = 3  (default — dot-trick @gmail.com)
+ *   googleMail = 8
  */
 import logger from "../../logger.js";
 import { makeGetReader, createProviderMethods } from "./base/apiProvider.js";
@@ -20,82 +25,73 @@ const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-// ── Session ───────────────────────────────────────────────────────────────────
+// Email type IDs as defined by the Emailnator API
+const EMAIL_TYPES = { domain: 1, plusGmail: 2, dotGmail: 3, googleMail: 8 };
 
-// GETs the homepage to acquire session cookies and the XSRF token required for all POSTs.
-async function acquireSession() {
-  const res = await fetch(BASE_URL, { headers: { "User-Agent": UA } });
+// ── Shared headers (no auth required) ────────────────────────────────────────
 
-  const rawCookies = res.headers.getSetCookie?.() ?? [];
-  const cookieHeader =
-    rawCookies.length > 0
-      ? rawCookies.map((c) => c.split(";")[0]).join("; ")
-      : (res.headers.get("set-cookie") ?? "");
-
-  const xsrfMatch = cookieHeader.match(/XSRF-TOKEN=([^;,\s]+)/);
-  if (!xsrfMatch) throw new Error(`[${TAG}] Could not extract XSRF-TOKEN.`);
-
-  return { cookies: cookieHeader, xsrf: decodeURIComponent(xsrfMatch[1]) };
-}
-
-function authHeaders({ cookies, xsrf }) {
+function baseHeaders(extra = {}) {
   return {
     "Content-Type": "application/json",
     Accept: "application/json, text/plain, */*",
-    Cookie: cookies,
-    "x-xsrf-token": xsrf,
-    "x-requested-with": "XMLHttpRequest",
     "User-Agent": UA,
-    Referer: BASE_URL,
+    Referer: `${BASE_URL}/`,
+    Origin: BASE_URL,
+    ...extra,
   };
+}
+
+// ── API helpers ───────────────────────────────────────────────────────────────
+
+async function apiPost(path, body) {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers: baseHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`[${TAG}] POST ${path} → ${res.status} ${text.substring(0, 200)}`);
+  }
+  return res.json();
+}
+
+async function apiGet(path) {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "GET",
+    headers: {
+      "User-Agent": UA,
+      Accept: "application/json, text/html, */*",
+      Referer: `${BASE_URL}/`,
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`[${TAG}] GET ${path} → ${res.status} ${text.substring(0, 200)}`);
+  }
+  return res.json();
 }
 
 // ── Inbox reader ──────────────────────────────────────────────────────────────
 
-function buildReader({ address, cookies, xsrf }) {
-  let session = { cookies, xsrf };
-
-  // POSTs to an Emailnator endpoint; refreshes the session once on 401/419.
-  async function post(path, body) {
-    let res = await fetch(`${BASE_URL}${path}`, {
-      method: "POST",
-      headers: authHeaders(session),
-      body: JSON.stringify(body),
-    });
-
-    if (res.status === 401 || res.status === 419) {
-      logger.warn(`[${TAG}] Session expired (${res.status}), re-acquiring...`);
-      session = await acquireSession();
-      res = await fetch(`${BASE_URL}${path}`, {
-        method: "POST",
-        headers: authHeaders(session),
-        body: JSON.stringify(body),
-      });
-    }
-
-    if (!res.ok) throw new Error(`[${TAG}] POST ${path} → ${res.status}`);
-    return res;
-  }
-
+function buildReader({ address }) {
   return {
-    // Fetches the inbox; filters out the synthetic "ADSVPN" ad entry.
+    // Fetches the inbox message list.
     async fetchMessages() {
-      const data = await (
-        await post("/message-list", { email: address })
-      ).json();
-      return (data?.messageData ?? [])
-        .filter((m) => m.messageID !== "ADSVPN")
+      const data = await apiPost("/api/message-list", { email: address });
+      return (data?.messages ?? [])
+        .filter((m) => !m.locked) // skip premium-locked entries
         .map((m) => ({
-          id: m.messageID,
+          id: m.id,
           preview: [m.from ?? "", m.subject ?? ""].join(" ").trim(),
         }));
     },
 
-    // Fetches the full message HTML by ID.
+    // Fetches the full message content by ID.
+    // The new API returns JSON: { id, from, subject, date, content (HTML string) }
     async readMessage(id) {
-      return (
-        await post("/message-list", { email: address, messageID: id })
-      ).text();
+      const data = await apiGet(`/api/message/${encodeURIComponent(id)}`);
+      return data?.content ?? "";
     },
   };
 }
@@ -118,24 +114,16 @@ export default {
   },
 
   async createEmail(page) {
-    logger.info(`[${TAG}] Acquiring session...`);
-    const session = await acquireSession();
-
-    logger.info(`[${TAG}] Generating GoogleMail address...`);
-    const res = await fetch(`${BASE_URL}/generate-email`, {
-      method: "POST",
-      headers: authHeaders(session),
-      body: JSON.stringify({ email: ["dotGmail"] }), // ["googleMail", "dotGmail", "plusGmail", "domain"]
+    logger.info(`[${TAG}] Generating dotGmail address...`);
+    const data = await apiPost("/api/generate-email", {
+      ids: [EMAIL_TYPES.dotGmail],
     });
 
-    if (!res.ok) throw new Error(`[${TAG}] generate-email → ${res.status}`);
-
-    const data = await res.json();
-    const address = Array.isArray(data?.email) ? data.email[0] : null;
+    const address = typeof data?.email === "string" ? data.email : null;
     if (!address)
       throw new Error(`[${TAG}] No address returned from generate-email.`);
 
-    page._emailnatorCredential = { address, ...session };
+    page._emailnatorCredential = { address };
 
     logger.info(`[${TAG}] Email ready: ${address}`);
     return address;
