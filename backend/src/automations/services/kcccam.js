@@ -1,5 +1,16 @@
 /**
- * KccCam — Reseller Registration, Login & Line Generation
+ * KccCam — Full 10-step account flow
+ *
+ * 1.  Read the last account from kcccam_accounts.json
+ * 2.  Login to the existing (last) account
+ * 3.  Generate a random LINE_USER / LINE_PASS (once, reused throughout)
+ * 4.  Update LINE credentials on the existing account
+ * 5.  Logout
+ * 6.  Navigate to the registration page
+ * 7.  Register a brand-new account
+ * 8.  Login to the new account
+ * 9.  Update LINE credentials on the new account with the hardcoded values
+ * 10. Save the new account to kcccam_accounts.json
  */
 import fs from "fs";
 import path from "path";
@@ -15,8 +26,11 @@ const REGISTER_URL = "https://buy.kcccam.org/reseller/register";
 const LOGIN_URL = "https://buy.kcccam.org/reseller/login";
 const CCCAM_URL = "https://buy.kcccam.org/reseller/cccam";
 const PASSWORD = "123456";
-const LINE_USER = "be123456789zz"; // change it no user with same user and password same
-const LINE_PASS = "123456zx";
+
+// Fixed LINE credentials assigned to every newly registered account (step 9)
+const NEW_ACCOUNT_LINE_USER = "fhggfhgfghfhgfghf";
+const NEW_ACCOUNT_LINE_PASS = "12345546445";
+
 const GOTO_OPTS = { waitUntil: "domcontentloaded", timeout: 30_000 };
 
 const ACCOUNTS_FILE = path.resolve(
@@ -53,17 +67,16 @@ const SELECTORS = {
   editClose: 'button.btn-default[data-dismiss="modal"]',
   lineUser: 'input[name="lineuser"]',
   linePass: 'input[name="linepass"]',
+  logoutLink: 'a[href*="/reseller/login/logout/"]',
 };
 
 // ── Shared utilities ──────────────────────────────────────────────────────────
 
-// Waits for a selector and returns the element or null (never throws).
 const waitFor = (page, sel, timeout = 8_000) =>
   page.waitForSelector(sel, { state: "visible", timeout }).catch(() => null);
 
 // ── CAPTCHA ───────────────────────────────────────────────────────────────────
 
-// OCRs the CAPTCHA image; returns the 4-char alphanumeric code or null.
 async function readCaptcha(page, log) {
   const code = await solveImageCaptcha(page, SELECTORS.captchaImg, log);
   if (/^[a-zA-Z0-9]{4}$/.test(code)) return code;
@@ -76,15 +89,83 @@ async function readCaptcha(page, log) {
 
 // ── Account persistence ───────────────────────────────────────────────────────
 
-function saveAccount(entry) {
-  let accounts = [];
-  if (fs.existsSync(ACCOUNTS_FILE)) {
-    try {
-      accounts = JSON.parse(fs.readFileSync(ACCOUNTS_FILE, "utf8"));
-    } catch (_) {}
+function readAccounts() {
+  if (!fs.existsSync(ACCOUNTS_FILE)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(ACCOUNTS_FILE, "utf8"));
+  } catch (_) {
+    return [];
   }
+}
+
+function saveAccount(entry) {
+  const accounts = readAccounts();
   accounts.push({ ...entry, savedAt: new Date().toISOString() });
   fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2), "utf8");
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+
+async function login(page, email, password, log) {
+  let attempt = 0;
+  while (true) {
+    attempt++;
+    log(`[${TAG}] Login attempt ${attempt} for ${email}…`);
+
+    await page.goto(LOGIN_URL, GOTO_OPTS).catch(() => {});
+    await waitFor(page, SELECTORS.captchaImg, 15_000);
+
+    const code = await readCaptcha(page, log);
+    if (!code) continue;
+
+    await fillInstant(page, {
+      [SELECTORS.loginEmail]: email,
+      [SELECTORS.loginPass]: password,
+      [SELECTORS.captchaInput]: code,
+    });
+
+    const submitted = Promise.race([
+      page.waitForNavigation(GOTO_OPTS),
+      waitFor(page, SELECTORS.loginError, 15_000),
+    ]).catch(() => {});
+    await page.click(SELECTORS.loginSubmit).catch(() => {});
+    await submitted;
+
+    const invalid = await page
+      .evaluate((sel) => {
+        const el = document.querySelector(sel);
+        return !!(el && /invalid\s*captcha\s*code/i.test(el.innerText));
+      }, SELECTORS.loginError)
+      .catch(() => false);
+
+    if (invalid) {
+      log(`[${TAG}] Invalid captcha code — retrying…`, "warn");
+      continue;
+    }
+    if (page.url().includes("/login")) {
+      log(`[${TAG}] Still on login page — retrying…`, "warn");
+      continue;
+    }
+
+    log(`[${TAG}] ✅ Login succeeded for ${email}.`);
+    return;
+  }
+}
+
+// ── Logout ────────────────────────────────────────────────────────────────────
+
+async function logout(page, log) {
+  // Click logout (fire-and-forget) then immediately navigate to register.
+  // Avoids waiting for the logout redirect which can take 30 s.
+  const link = await page.$(SELECTORS.logoutLink).catch(() => null);
+  if (link) {
+    await link.click().catch(() => {});
+  }
+
+  // Go straight to register — the server will have already invalidated the
+  // session by the time this request lands.
+  await page.goto(REGISTER_URL, GOTO_OPTS).catch(() => {});
+  log(`[${TAG}] ✅ Logged out → navigated to registration page.`);
 }
 
 // ── Registration ──────────────────────────────────────────────────────────────
@@ -93,7 +174,7 @@ async function register(page, email, username, log) {
   let attempt = 0;
   while (true) {
     attempt++;
-    log(`[${TAG}] Register attempt ${attempt}…`);
+    log(`[${TAG}] Register attempt ${attempt} (${username})…`);
 
     await page.goto(REGISTER_URL, GOTO_OPTS).catch(() => {});
     await waitFor(page, SELECTORS.captchaImg, 15_000);
@@ -138,102 +219,24 @@ async function register(page, email, username, log) {
       continue;
     }
 
-    log(`[${TAG}] ✅ Registration done.`);
-    saveAccount({
-      username,
-      email,
-      password: PASSWORD,
-      lineUser: LINE_USER,
-      linePass: LINE_PASS,
-    });
-    log(`[${TAG}] Account saved.`);
+    log(`[${TAG}] ✅ Registration done (${username}).`);
     return;
   }
 }
 
-// ── Login ─────────────────────────────────────────────────────────────────────
+// ── Update LINE credentials ───────────────────────────────────────────────────
 
-async function login(page, email, log) {
-  let attempt = 0;
-  while (true) {
-    attempt++;
-    log(`[${TAG}] Login attempt ${attempt}…`);
-
-    await page.goto(LOGIN_URL, GOTO_OPTS).catch(() => {});
-    await waitFor(page, SELECTORS.captchaImg, 15_000);
-
-    const code = await readCaptcha(page, log);
-    if (!code) continue;
-
-    await fillInstant(page, {
-      [SELECTORS.loginEmail]: email,
-      [SELECTORS.loginPass]: PASSWORD,
-      [SELECTORS.captchaInput]: code,
-    });
-
-    const submitted = Promise.race([
-      page.waitForNavigation(GOTO_OPTS),
-      waitFor(page, SELECTORS.loginError, 15_000),
-    ]).catch(() => {});
-    await page.click(SELECTORS.loginSubmit).catch(() => {});
-    await submitted;
-
-    const invalid = await page
-      .evaluate((sel) => {
-        const el = document.querySelector(sel);
-        return !!(el && /invalid\s*captcha\s*code/i.test(el.innerText));
-      }, SELECTORS.loginError)
-      .catch(() => false);
-
-    if (invalid) {
-      log(`[${TAG}] Invalid captcha code — retrying…`, "warn");
-      continue;
-    }
-    if (page.url().includes("/login")) {
-      log(`[${TAG}] Still on login page — retrying…`, "warn");
-      continue;
-    }
-
-    log(`[${TAG}] ✅ Login done.`);
-    return;
-  }
-}
-
-// ── Line generation ───────────────────────────────────────────────────────────
-
-async function generateLine(page, log) {
+async function updateLineCredentials(page, lineUser, linePass, log) {
   await page.goto(CCCAM_URL, GOTO_OPTS).catch(() => {});
 
-  // Close tutorial popup
+  // Close tutorial/welcome popup if present
   const tutorialClose = await waitFor(page, SELECTORS.modalClose);
   if (tutorialClose) {
     await tutorialClose.click();
-    log(`[${TAG}] Tutorial closed.`);
+    log(`[${TAG}] Tutorial modal closed.`);
   }
 
-  // Select port and generate
-  const radio = await waitFor(page, SELECTORS.radioPort);
-  if (!radio) {
-    log(`[${TAG}] CCCAM 12003 radio not found.`, "warn");
-    return;
-  }
-  await radio.click();
-
-  const generateBtn = await waitFor(page, SELECTORS.generateBtn);
-  if (!generateBtn) {
-    log(`[${TAG}] Generate button not found.`, "warn");
-    return;
-  }
-  await generateBtn.click();
-  log(`[${TAG}] Line generated.`);
-
-  // Close post-generate modal
-  const generateClose = await waitFor(page, SELECTORS.generateClose, 10_000);
-  if (generateClose) {
-    await generateClose.click();
-  }
-
-  // Find the new line's Edit URL from the first row
+  // Find the first line's Edit link
   await page.waitForTimeout(1_000);
   const onclick = await page
     .$$eval(
@@ -242,23 +245,54 @@ async function generateLine(page, log) {
     )
     .catch(() => null);
 
-  const match = onclick?.match(/ajax_request_dialog\('([^']+)'\)/);
+  if (!onclick) {
+    // No existing line — generate one first, then edit it
+    log(`[${TAG}] No existing line found; generating one…`);
+
+    const radio = await waitFor(page, SELECTORS.radioPort);
+    if (!radio) {
+      log(`[${TAG}] CCCAM 12003 radio not found.`, "warn");
+      return;
+    }
+    await radio.click();
+
+    const generateBtn = await waitFor(page, SELECTORS.generateBtn);
+    if (!generateBtn) {
+      log(`[${TAG}] Generate button not found.`, "warn");
+      return;
+    }
+    await generateBtn.click();
+    log(`[${TAG}] Line generated.`);
+
+    const generateClose = await waitFor(page, SELECTORS.generateClose, 10_000);
+    if (generateClose) await generateClose.click();
+
+    await page.waitForTimeout(1_000);
+  }
+
+  // Re-fetch the edit link (covers both "line already existed" and "just generated" cases)
+  const onclickFinal = await page
+    .$$eval(
+      SELECTORS.editLink,
+      (links) => links[0]?.getAttribute("onclick") ?? null,
+    )
+    .catch(() => null);
+
+  const match = onclickFinal?.match(/ajax_request_dialog\('([^']+)'\)/);
   if (!match) {
-    log(`[${TAG}] Edit link not found.`, "warn");
+    log(`[${TAG}] Edit link not found after generation.`, "warn");
     return;
   }
 
   const editUrl = match[1].replace(/&amp;/g, "&");
   await page.evaluate((url) => ajax_request_dialog(url), editUrl); // eslint-disable-line no-undef
 
-  // Wait for the Edit popup to appear, then let it fully render
   await waitFor(page, SELECTORS.editSubmit, 10_000);
   await fillInstant(page, {
-    [SELECTORS.lineUser]: LINE_USER,
-    [SELECTORS.linePass]: LINE_PASS,
+    [SELECTORS.lineUser]: lineUser,
+    [SELECTORS.linePass]: linePass,
   });
 
-  // Click Update — dispatch directly to handle type="Submit" capitalisation
   await page.waitForTimeout(500);
   await page.evaluate(
     (sel) => document.querySelector(sel)?.click(),
@@ -266,11 +300,11 @@ async function generateLine(page, log) {
   );
 
   const editClose = await waitFor(page, SELECTORS.editClose, 10_000);
-  if (editClose) {
-    await editClose.click();
-  }
+  if (editClose) await editClose.click();
 
-  log(`[${TAG}] ✅ Line updated (user=${LINE_USER}, pass=${LINE_PASS}).`);
+  log(
+    `[${TAG}] ✅ LINE credentials updated (user=${lineUser}, pass=${linePass}).`,
+  );
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -280,22 +314,73 @@ export default {
     id: "kcccam",
     name: "KccCam",
     url: REGISTER_URL,
-    description: "KccCam reseller registration + login + line generation",
+    description: "KccCam reseller — full 10-step account rotation flow",
   },
 
   async execute({ page, log = () => {} }) {
-    const username = generateUsername();
-    const email = `${username}@gmail.com`;
+    // ── Step 1: Read the last account ────────────────────────────────────────
+    const accounts = readAccounts();
+    if (accounts.length === 0) {
+      throw new Error(
+        `[${TAG}] kcccam_accounts.json is empty or missing — cannot continue.`,
+      );
+    }
+    const lastAccount = accounts[accounts.length - 1];
+    log(`[${TAG}] Last account: ${lastAccount.email}`);
 
-    log(`[${TAG}] Email: ${email}  Password: ${PASSWORD}`);
+    // ── Step 3: Generate random LINE credentials ONCE ────────────────────────
+    // Generated here so they are reused for step 4 (existing account update).
+    const tempLineUser = generateUsername();
+    const tempLinePass = generateUsername();
+    log(
+      `[${TAG}] Generated temp LINE creds — user: ${tempLineUser}, pass: ${tempLinePass}`,
+    );
 
-    await register(page, email, username, log);
+    // ── Step 2: Login to the existing (last) account ─────────────────────────
+    log(`[${TAG}] ── Step 2: Login to existing account ──`);
+    await login(page, lastAccount.email, lastAccount.password ?? PASSWORD, log);
+
+    // ── Step 4: Update LINE credentials on the existing account ─────────────
+    log(`[${TAG}] ── Step 4: Update LINE creds on existing account ──`);
+    await updateLineCredentials(page, tempLineUser, tempLinePass, log);
+
+    // ── Step 5: Logout ───────────────────────────────────────────────────────
+    log(`[${TAG}] ── Step 5: Logout ──`);
+    await logout(page, log);
+
+    // ── Steps 6 & 7: Register a brand-new account ────────────────────────────
+    const newUsername = generateUsername();
+    const newEmail = `${newUsername}@gmail.com`;
+    log(`[${TAG}] ── Step 7: Registering new account ${newEmail} ──`);
+    await register(page, newEmail, newUsername, log);
     await page.waitForTimeout(1_500);
-    await login(page, email, log);
-    await generateLine(page, log);
+
+    // ── Step 8: Login to the new account ────────────────────────────────────
+    log(`[${TAG}] ── Step 8: Login to new account ──`);
+    await login(page, newEmail, PASSWORD, log);
+
+    // ── Step 9: Update LINE credentials on the new account (hardcoded) ──────
+    log(`[${TAG}] ── Step 9: Update LINE creds on new account ──`);
+    await updateLineCredentials(
+      page,
+      NEW_ACCOUNT_LINE_USER,
+      NEW_ACCOUNT_LINE_PASS,
+      log,
+    );
+
+    // ── Step 10: Save the new account ────────────────────────────────────────
+    log(`[${TAG}] ── Step 10: Saving new account ──`);
+    saveAccount({
+      username: newUsername,
+      email: newEmail,
+      password: PASSWORD,
+      lineUser: NEW_ACCOUNT_LINE_USER,
+      linePass: NEW_ACCOUNT_LINE_PASS,
+    });
+    log(`[${TAG}] ✅ New account saved: ${newEmail}`);
 
     return {
-      username: email,
+      username: newEmail,
       password: PASSWORD,
       tvPlaylist: null,
       vodPlaylist: null,
@@ -303,7 +388,7 @@ export default {
       duration: null,
       expiresAt: null,
       status: "success",
-      note: `KccCam account registered. Email: ${email}`,
+      note: `KccCam: existing account ${lastAccount.email} LINE creds rotated; new account ${newEmail} created.`,
     };
   },
 };

@@ -5,7 +5,7 @@
  * Used by all services so each one doesn't need its own generation logic.
  *
  * Exports:
- *   generateUsername()         – random lowercase username (4 letters + 4 digits)
+ *   generateUsername()         – random lowercase username (6 letters + 6 digits)
  *   generatePassword()         – random mixed-case alphanumeric password (10 chars)
  *   generatePhone()            – random 10-digit phone number (non-zero leading digit)
  *   computeExpiresAt(ms)       – formatted expiry timestamp, ms from now
@@ -23,9 +23,9 @@ function rand(charset, n) {
   ).join("");
 }
 
-// Generates a random username: 4 lowercase letters + 4 digits (e.g. "abcd1234")
+// Generates a random username: 10 lowercase letters + 10 digits (e.g. "abcdef123456")
 export function generateUsername() {
-  return rand(LOWERCASE, 4) + rand(DIGITS, 4);
+  return rand(LOWERCASE, 10) + rand(DIGITS, 10);
 }
 
 // Generates a random password: 6 mixed-case letters + 4 digits (e.g. "AbCdEf2389")
