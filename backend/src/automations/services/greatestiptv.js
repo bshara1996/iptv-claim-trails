@@ -48,8 +48,7 @@ export default {
     id: "greatestiptv",
     name: "GreatestIPTV",
     url: TRIAL_URL,
-    description:
-      "GreatestIPTV 36-hour free trial — email submission + M3U playlist",
+    description: "36 Hours",
   },
 
   async execute({

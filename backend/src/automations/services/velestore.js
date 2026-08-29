@@ -157,7 +157,7 @@ export default {
     id: "velestore",
     name: "VeleStore",
     url: `${BASE_URL}/?do=register`,
-    description: "VeleStore IPTV free trial registration",
+    description: "3 Days",
   },
 
   async execute({ page, email, log = () => {} }) {

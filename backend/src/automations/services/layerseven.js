@@ -40,8 +40,7 @@ export default {
     id: "layerseven",
     name: "LayerSeven",
     url: PANEL.signUp,
-    description:
-      "LayerSeven 24-hour free trial — panel sign-up + M3U extraction",
+    description: "24 Hours",
   },
 
   async execute({ page, email, log = () => {} }) {

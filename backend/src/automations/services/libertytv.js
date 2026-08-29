@@ -39,10 +39,9 @@ const waitFor = (page, sel, timeout = 15_000) =>
 export default {
   meta: {
     id: "libertytv",
-    name: "LibertyTV",
+    name: "LibertyTV (Gmails)",
     url: REGISTER_URL,
-    description:
-      "LibertyTV free trial — email OTP verification + Arabic Package + M3U extraction",
+    description: "24 Hours",
   },
 
   async execute({

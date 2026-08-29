@@ -279,7 +279,7 @@ export default {
     id: "kcccam",
     name: "KccCam",
     url: REGISTER_URL,
-    description: "KccCam reseller — account rotation and CCCAM line renewal",
+    description: "24 Hours",
   },
 
   async execute({ page, log = () => {} }) {

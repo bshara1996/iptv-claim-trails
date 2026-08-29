@@ -36,7 +36,7 @@ export default {
     id: "streamingelbrus",
     name: "Yosso TV",
     url: REGISTER_URL,
-    description: "Yosso TV registration — reCAPTCHA + email link verification",
+    description: "24 Hours",
   },
 
   async execute({

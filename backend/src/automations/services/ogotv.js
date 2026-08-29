@@ -58,9 +58,9 @@ async function bypassSpeedCheck(page, secondsAgo = 30) {
 export default {
   meta: {
     id: "ogotv",
-    name: "OgoTV",
+    name: "OgoTV (Gmails)",
     url: LOGIN_URL,
-    description: "OgoTV free trial — email verification + trial activation",
+    description: "24 Hours",
   },
 
   async execute({

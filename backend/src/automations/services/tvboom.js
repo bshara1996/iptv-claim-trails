@@ -59,7 +59,7 @@ export default {
     id: "tvboom",
     name: "TVBoom",
     url: `${BASE_URL}/register`,
-    description: "TVBoom 24-hour IPTV trial registration & activation",
+    description: "24 Hours",
   },
 
   async execute({
