@@ -14,14 +14,15 @@ import DisposeLolProvider from "./providers/disposelol.js";
 import Y6TvRegistration from "./services/y6tv.js";
 import TvBoomRegistration from "./services/tvboom.js";
 import VeleStoreRegistration from "./services/velestore.js";
+import OgoTvRegistration from "./services/ogotv.js";
+import StreamingElbrusRegistration from "./services/streamingelbrus.js";
 import OneIptv4kRegistration from "./services/oneiptv4k.js";
-import GreatestIptvRegistration from "./services/greatestiptv.js";
-import LayerSevenRegistration from "./services/layerseven.js";
 import TvCornRegistration from "./services/tvcorn.js";
+import LibertyTvRegistration from "./services/libertytv.js";
+import LayerSevenRegistration from "./services/layerseven.js";
+import GreatestIptvRegistration from "./services/greatestiptv.js";
 import KookaRegistration from "./services/kooka.js";
 import KccCamRegistration from "./services/kcccam.js";
-import LibertyTvRegistration from "./services/libertytv.js";
-import StreamingElbrusRegistration from "./services/streamingelbrus.js";
 
 export const emailProviders = [
   EmailnatorProvider,
@@ -36,6 +37,7 @@ export const registrationServices = [
   Y6TvRegistration,
   TvBoomRegistration,
   VeleStoreRegistration,
+  OgoTvRegistration,
   StreamingElbrusRegistration,
 
   OneIptv4kRegistration,

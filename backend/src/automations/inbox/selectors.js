@@ -9,6 +9,9 @@ export const INBOX_SELECTORS = {
   messageRow: [
     // ── dispose.lol ──────────────────────────────────────────────────────────
     'section[aria-labelledby="inbox-heading"] button[aria-label^="View "]',
+    'button[aria-label^="View "]',
+    'section[aria-labelledby="inbox-heading"] button:has(time)',
+    'section[aria-labelledby="inbox-heading"] button',
 
     // ── tmaily.com ────────────────────────────────────────────────────────────
     "#email-list .email-item",
@@ -29,7 +32,9 @@ export const INBOX_SELECTORS = {
 
   refreshBtn: [
     // ── dispose.lol ──────────────────────────────────────────────────────────
+    'section[aria-labelledby="inbox-heading"] button:has-text("Refresh")',
     "#inbox-heading + button",
+    'button:has-text("Refresh")',
 
     // ── tmaily.com ────────────────────────────────────────────────────────────
     "#refresh-btn",
@@ -38,12 +43,12 @@ export const INBOX_SELECTORS = {
     // ── Generic fallbacks ─────────────────────────────────────────────────────
     "[data-refresh]",
     '[aria-label*="refresh" i]',
-    'button:has-text("Refresh")',
   ].join(", "),
 
   backToInbox: [
     // ── dispose.lol ──────────────────────────────────────────────────────────
     'button[aria-label="Close message detail"]',
+    'button[aria-label*="Close" i]',
 
     // ── tmaily.com ────────────────────────────────────────────────────────────
     'a:has-text("Back to Inbox")',

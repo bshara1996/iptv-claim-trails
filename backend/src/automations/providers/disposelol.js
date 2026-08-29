@@ -1,64 +1,148 @@
 /**
- * Dispose.lol disposable email provider.
+ * Dispose.lol disposable email provider (REST API).
  *
- * Opens dispose.lol, waits for a temporary email address to be generated,
- * then exposes inbox polling via the shared browser poller helpers.
- * Swapping providers only requires updating the import in registry.js.
+ * Generates temporary Gmail addresses and polls messages via SvelteKit Remote RPCs:
+ *   POST /_app/remote/1i1fsx0/getOrCreateMailbox  → Creates mailbox and issues session JWT cookie
+ *   GET  /_app/remote/1i1fsx0/getMailboxMessages  → Lists received mailbox messages
+ *   POST /_app/remote/1i1fsx0/getMailboxMessage   → Fetches full message content (HTML/Text)
  */
-import {
-  createBrowserProvider,
-  readEmailFromBody,
-} from "./base/browserProvider.js";
+import logger from "../../logger.js";
+import { makeGetReader, createProviderMethods } from "./base/apiProvider.js";
 
-// ── Config ────────────────────────────────────────────────────────────────────
+const BASE_URL = "https://dispose.lol";
+const RPC = `${BASE_URL}/_app/remote/1i1fsx0`;
+const TAG = "Dispose.lol";
+const UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36";
 
-const CONFIG = {
-  url: "https://dispose.lol/",
+const headers = (cookie = "", json = false) => ({
+  "User-Agent": UA,
+  Origin: BASE_URL,
+  Referer: `${BASE_URL}/`,
+  "Sec-Fetch-Site": "same-origin",
+  "Sec-Fetch-Mode": "cors",
+  "x-sveltekit-pathname": "/",
+  "x-sveltekit-search": "",
+  Accept: "*/*",
+  ...(json ? { "Content-Type": "application/json" } : {}),
+  ...(cookie ? { Cookie: cookie } : {}),
+});
 
-  selectors: {
-    // The generated address lives in a <p> inside this aria-live container.
-    // The same container shows "Loading" while the address is still being generated.
-    addressContainer: '[aria-live="polite"] p',
+const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString("base64url");
 
-    // Sentinel text visible while the address is still loading.
-    loadingText: "Loading",
-  },
-
-  timeouts: {
-    pageLoad: 20_000,
-    addressPoll: 15_000,
-    pollInterval: 800,
-  },
-};
-
-// ── DOM reader ────────────────────────────────────────────────────────────────
-
-// Reads the address from the aria-live container, skipping it while "Loading" is shown.
-// Falls back to a full body scan if the container is missing or still loading.
-async function readEmailFromPage(page) {
+// Unflattens SvelteKit/Devalue serialized payloads
+function unflatten(data) {
   try {
-    const el = await page.$(CONFIG.selectors.addressContainer);
-    if (!el) return null;
-    const text = (await el.innerText().catch(() => "")).trim();
-    if (
-      text &&
-      !text.toLowerCase().startsWith(CONFIG.selectors.loadingText.toLowerCase())
-    )
-      return text;
-  } catch (_) {}
-
-  return readEmailFromBody(page);
+    const list = typeof data === "string" ? JSON.parse(data) : data;
+    if (!Array.isArray(list) || !list.length) return list;
+    const hydrate = (i) => {
+      const v = typeof i === "number" ? list[i] : i;
+      if (!v || typeof v !== "object") return v;
+      return Array.isArray(v)
+        ? v.map(hydrate)
+        : Object.fromEntries(
+            Object.entries(v).map(([k, idx]) => [k, hydrate(idx)]),
+          );
+    };
+    return hydrate(0);
+  } catch {
+    return data;
+  }
 }
 
-// ── Provider ──────────────────────────────────────────────────────────────────
+// ── Inbox Reader ──────────────────────────────────────────────────────────────
 
-export default createBrowserProvider(
-  {
+function buildReader({ address, cookie }) {
+  const payload = b64([{ assignmentId: -1 }]);
+
+  return {
+    async fetchMessages() {
+      const res = await fetch(`${RPC}/getMailboxMessages?payload=${payload}`, {
+        headers: headers(cookie),
+      });
+      if (!res.ok)
+        throw new Error(`[${TAG}] getMailboxMessages → ${res.status}`);
+
+      const data = unflatten((await res.json()).result);
+      return (data?.messages ?? []).map((m) => ({
+        id: m.id,
+        preview: [m.sender, m.subject, m.receivedAt]
+          .filter(Boolean)
+          .join(" ")
+          .trim(),
+        subject: m.subject ?? "",
+        sender: m.sender ?? "",
+      }));
+    },
+
+    async readMessage(id) {
+      try {
+        const res = await fetch(`${RPC}/getMailboxMessage`, {
+          method: "POST",
+          headers: headers(cookie, true),
+          body: JSON.stringify({
+            payload: b64([{ id: 1, refresh: 2 }, id, true]),
+            refreshes: [],
+          }),
+        });
+        if (!res.ok) return "";
+        const data = unflatten((await res.json()).result);
+        const m = data?.message || data;
+        return (
+          m?.htmlBodySrcdoc ||
+          m?.textBody ||
+          m?.html ||
+          m?.text ||
+          m?.subject ||
+          ""
+        );
+      } catch {
+        return "";
+      }
+    },
+  };
+}
+
+const getReader = makeGetReader("_disposeLolCredential", TAG, buildReader);
+const FAST = { pollDelay: 800, readDelay: 300 };
+
+// ── Provider Interface ────────────────────────────────────────────────────────
+
+export default {
+  meta: {
     id: "disposelol",
     name: "Dispose.lol",
-    url: CONFIG.url,
-    description: "Disposable temporary email via dispose.lol",
+    url: BASE_URL,
+    description: "Disposable temporary Gmail via dispose.lol (API)",
+    apiOnly: true,
   },
-  readEmailFromPage,
-  CONFIG.timeouts,
-);
+
+  async createEmail(page) {
+    logger.info(`[${TAG}] Generating disposable Gmail address via API...`);
+    const res = await fetch(`${RPC}/getOrCreateMailbox`, {
+      method: "POST",
+      headers: headers("", true),
+      body: JSON.stringify([{ assignmentId: -1 }]),
+    });
+    if (!res.ok)
+      throw new Error(`[${TAG}] getOrCreateMailbox failed: ${res.status}`);
+
+    const data = unflatten((await res.json()).result);
+    const address = data?.address;
+    if (!address)
+      throw new Error(`[${TAG}] No address returned from getOrCreateMailbox.`);
+
+    const match = (res.headers.get("set-cookie") || "").match(
+      /dispose_mailbox=(eyJ[a-zA-Z0-9_\-\.]+)/,
+    );
+    page._disposeLolCredential = {
+      address,
+      cookie: match ? `dispose_mailbox=${match[1]}` : "",
+    };
+
+    logger.info(`[${TAG}] Email ready: ${address}`);
+    return address;
+  },
+
+  ...createProviderMethods(TAG, getReader, FAST),
+};

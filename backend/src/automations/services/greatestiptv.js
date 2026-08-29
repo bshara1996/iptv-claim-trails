@@ -13,7 +13,7 @@ import { findVisible, clickFirst, fillInstant } from "../utils/pageUtils.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const TRIAL_URL = "https://www.greatestiptv.com/free-trial/";
+const TRIAL_URL = "https://www.greatestiptv.com/free-trial/?trial=true";
 const TAG = "GreatestIPTV";
 const MAX_RETRIES = 10;
 const TRIAL_HOURS = 36;
@@ -22,9 +22,9 @@ const GOTO_OPTS = { waitUntil: "domcontentloaded", timeout: 20_000 };
 // ── Selectors ─────────────────────────────────────────────────────────────────
 
 const SELECTORS = {
-  email: "#trial_email",
+  email: 'input[name="email"]',
   trialTypeM3u: ".sc-card-opt",
-  submit: "#trial_submit",
+  submit: 'button[type="submit"]',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
