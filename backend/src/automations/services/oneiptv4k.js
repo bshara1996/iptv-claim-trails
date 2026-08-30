@@ -242,10 +242,9 @@ export default {
 // export default {
 //   meta: {
 //     id: "oneiptv4k",
-//     name: "OneIPTV4K",
+//     name: "OneIPTV4K (Not Ml.tm)",
 //     url: TRIAL_URL,
-//     description:
-//       "OneIPTV4K 24-hour free trial — email code verification + M3U playlist",
+//     description: "24 Hours",
 //   },
 
 //   async execute({

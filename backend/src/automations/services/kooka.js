@@ -167,8 +167,7 @@ export default {
 //     id: "kooka",
 //     name: "Kooka.TV",
 //     url: BASE_URL,
-//     description:
-//       "kooka.tv 12-hour free trial — registration + M3U extraction from website",
+//     description: "12 Hours",
 //   },
 
 //   async execute({ page, email, log = () => {} }) {

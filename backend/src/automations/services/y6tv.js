@@ -158,22 +158,22 @@ export default {
   },
 };
 
-////////////////////////////
+// //////////////////////////
 
 // /**
 //  * Y6TV free trial registration service.
 //  *
-//  * Navigates to the registration page, fills the email field, solves the
-//  * reCAPTCHA, then polls the inbox for a confirmation email containing
-//  * the M3U playlist links. Trial duration is 3 days (72 hours).
+//  * Navigates to the registration page with the email pre-filled via URL
+//  * query parameter, solves the reCAPTCHA, then polls the inbox for a
+//  * confirmation email containing the M3U playlist links. Trial duration
+//  * is 3 days (72 hours).
 //  */
 // import { solveAndSubmit } from "../utils/captcha.js";
 // import { computeTrialExpiry } from "../utils/generators.js";
-// import { fillInstant } from "../utils/pageUtils.js";
 
 // // ── Config ────────────────────────────────────────────────────────────────────
 
-// const TRIAL_URL = "https://rg.y6tv.me/regfm.php?devTypeID=100";
+// const TRIAL_BASE_URL = "https://rg.y6tv.me/regfm.php?devTypeID=100&email=";
 // const TAG = "Y6TV";
 // const TRIAL_HOURS = 72;
 // const GOTO_OPTS = { waitUntil: "domcontentloaded", timeout: 10_000 };
@@ -181,27 +181,21 @@ export default {
 // // ── Selectors ─────────────────────────────────────────────────────────────────
 
 // const SELECTORS = {
-//   email: 'input[name="email"]',
 //   submit: "#regBtn",
 //   error: ".regFormErrInf",
 // };
 
 // // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// // Navigates to the registration page, fills the email field, solves the
-// // CAPTCHA, submits the form, and throws if the server returns a validation error.
+// // Navigates to the registration page with email pre-filled via URL param,
+// // solves the CAPTCHA, submits the form, and throws if the server returns
+// // a validation error.
 // async function submitRegistration(page, email, log) {
 //   await page
-//     .goto(TRIAL_URL, GOTO_OPTS)
+//     .goto(`${TRIAL_BASE_URL}${encodeURIComponent(email)}`, GOTO_OPTS)
 //     .catch(() =>
 //       log(`[${TAG}] Page load timeout — proceeding with current DOM.`, "warn"),
 //     );
-
-//   await page
-//     .waitForSelector(SELECTORS.email, { timeout: 5_000, state: "visible" })
-//     .catch(() => {});
-
-//   await fillInstant(page, { [SELECTORS.email]: email });
 
 //   // Start waiting for navigation BEFORE the submit click so we don't miss it.
 //   const navPromise = page.waitForNavigation(GOTO_OPTS).catch(() => {});
@@ -231,8 +225,8 @@ export default {
 //   meta: {
 //     id: "y6tv",
 //     name: "Y6TV",
-//     url: TRIAL_URL,
-//     description: "Y6TV IPTV free trial registration",
+//     url: TRIAL_BASE_URL,
+//     description: "24 Hours",
 //   },
 
 //   async execute({
@@ -243,7 +237,7 @@ export default {
 //     inboxSeenIds = new Set(),
 //     log = () => {},
 //   }) {
-//     // Step 1: Fill and submit the registration form
+//     // Step 1: Submit the registration form (email pre-filled via URL)
 //     await submitRegistration(page, email, log);
 
 //     // Step 2: Poll the inbox for the confirmation email with M3U links

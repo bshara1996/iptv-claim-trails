@@ -267,9 +267,9 @@ export default {
 // export default {
 //   meta: {
 //     id: "tvcorn",
-//     name: "TVCorn",
+//     name: "TVCorn (Not Ml.tm)",
 //     url: TRIAL_URL,
-//     description: "TVCorn free trial — email OTP verification + M3U extraction",
+//     description: "24 Hours",
 //   },
 
 //   async execute({
