@@ -9,16 +9,10 @@
  *   GET  /results/:taskId   – returns final status and results
  */
 import { Router } from "express";
-import {
-  emailProviders,
-  registrationServices,
-} from "./automations/registry.js";
-import {
-  createTask,
-  runTask,
-  cancelTask,
-  getTask,
-} from "./automations/engine/index.js";
+import { emailProviders, registrationServices } from "./engine/registry.js";
+import { createTask, getTask, cancelTask } from "./engine/taskStore.js";
+import { runTask } from "./engine/runner.js";
+import { resolvePendingCaptcha } from "./engine/taskStore.js";
 import logger from "./logger.js";
 
 const router = Router();
@@ -100,7 +94,22 @@ router.get("/stream/:taskId", (req, res) => {
   });
 });
 
-// ── Results ──────────────────────────────────────────────────────────────────
+// ── Captcha relay ─────────────────────────────────────────────────────────────
+// The frontend solves the reCAPTCHA widget and POSTs the token here.
+// Body: { token: string }
+
+router.post("/captcha/:taskId", (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: "`token` is required." });
+
+  const ok = resolvePendingCaptcha(req.params.taskId, token);
+  if (!ok)
+    return res.status(404).json({ error: "No captcha pending for this task." });
+
+  res.json({ ok: true });
+});
+
+// ── Results ───────────────────────────────────────────────────────────────────
 
 router.get("/results/:taskId", (req, res) => {
   const task = getTask(req.params.taskId);

@@ -1,4 +1,4 @@
-const BASE = '/api/automation';
+const BASE = "/api/automation";
 
 export async function fetchInfo() {
   const res = await fetch(`${BASE}/info`);
@@ -8,8 +8,8 @@ export async function fetchInfo() {
 
 export async function startAutomation(providerId, serviceIds, options = {}) {
   const res = await fetch(`${BASE}/start`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       providerId,
       serviceIds,
@@ -20,7 +20,20 @@ export async function startAutomation(providerId, serviceIds, options = {}) {
 }
 
 export async function stopAutomation(taskId) {
-  const res = await fetch(`${BASE}/stop/${taskId}`, { method: 'POST' });
+  const res = await fetch(`${BASE}/stop/${taskId}`, { method: "POST" });
+  return res.json();
+}
+
+/**
+ * Submits the solved reCAPTCHA token back to the backend so the paused
+ * service can resume. Called by the CaptchaModal after the user solves it.
+ */
+export async function submitCaptchaToken(taskId, token) {
+  const res = await fetch(`${BASE}/captcha/${taskId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
   return res.json();
 }
 
@@ -28,25 +41,50 @@ export async function stopAutomation(taskId) {
  * Open an SSE stream for a task and call handlers for each event type.
  * @returns {Function} unsubscribe — call to close the stream
  */
-export function subscribeToTask(taskId, { onLog, onResult, onEmail, onDone, onError } = {}) {
+export function subscribeToTask(
+  taskId,
+  { onLog, onResult, onEmail, onCaptcha, onDone, onError } = {},
+) {
   const es = new EventSource(`${BASE}/stream/${taskId}`);
 
   es.onmessage = (e) => {
     let event;
-    try { event = JSON.parse(e.data); } catch { return; }
+    try {
+      event = JSON.parse(e.data);
+    } catch {
+      return;
+    }
 
     switch (event.type) {
-      case 'log':           onLog?.(event.data, event.timestamp);  break;
-      case 'result':        onResult?.(event.data);                break;
-      case 'email_created': onEmail?.(event.data);                 break;
-      case 'error':         onError?.(event.data);                 break;
-      case 'done':
-      case 'stream_end':    es.close(); onDone?.(event.data);      break;
-      default: break;
+      case "log":
+        onLog?.(event.data, event.timestamp);
+        break;
+      case "result":
+        onResult?.(event.data);
+        break;
+      case "email_created":
+        onEmail?.(event.data);
+        break;
+      case "error":
+        onError?.(event.data);
+        break;
+      case "captcha_challenge":
+        onCaptcha?.(event.data);
+        break;
+      case "done":
+      case "stream_end":
+        es.close();
+        onDone?.(event.data);
+        break;
+      default:
+        break;
     }
   };
 
-  es.onerror = () => { es.close(); onDone?.(); };
+  es.onerror = () => {
+    es.close();
+    onDone?.();
+  };
 
   return () => es.close();
 }
