@@ -15,7 +15,6 @@ import DisposeLolProvider from "../email/disposelol.js";
 import HioMailProvider from "../email/hiomail.js";
 
 import Y6TvService from "../services/y6tv.js";
-import TvBoomService from "../services/tvboom.js";
 import OgoTvService from "../services/ogotv.js";
 import OneIptv4kService from "../services/oneiptv4k.js";
 import TvCornService from "../services/tvcorn.js";
@@ -23,6 +22,11 @@ import LibertyTvService from "../services/libertytv.js";
 import LayerSevenService from "../services/layerseven.js";
 import GreatestIptvService from "../services/greatestiptv.js";
 import KookaService from "../services/kooka.js";
+import EmeraldIptvService from "../services/emeraldiptv.js";
+import VeleStoreService from "../services/velestore.js";
+import TvBoomService from "../services/tvboom.js";
+import UspehService from "../services/uspeh.js";
+import RuTvService from "../services/rutv.js";
 
 export const emailProviders = [
   EmailnatorProvider,
@@ -35,7 +39,6 @@ export const emailProviders = [
 
 export const registrationServices = [
   Y6TvService,
-  TvBoomService,
   OgoTvService,
   OneIptv4kService,
   TvCornService,
@@ -43,6 +46,11 @@ export const registrationServices = [
   LayerSevenService,
   GreatestIptvService,
   KookaService,
+  EmeraldIptvService,
+  VeleStoreService,
+  TvBoomService,
+  UspehService,
+  RuTvService,
 ];
 
 // Looks up a provider by its meta.id. Returns null if not found.

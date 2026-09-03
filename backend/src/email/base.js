@@ -57,13 +57,14 @@ export function createProviderMethods(tag, getReader, defaultOpts = {}) {
         seenIds = new Set(),
         codeRe = /\b(\d{6})\b/,
         timeout = 120_000,
+        signal = null,
       } = {},
     ) {
       return _run(
         store,
         "Polling inbox for verification code...",
         "Timed out waiting for verification code.",
-        { filterText, seenIds, timeout },
+        { filterText, seenIds, timeout, signal },
         (content, preview) => {
           // Strip tags so codes inside <b>/<span> are visible to the regex.
           const plain = content
@@ -90,6 +91,7 @@ export function createProviderMethods(tag, getReader, defaultOpts = {}) {
         pattern = null,
         seenIds = new Set(),
         timeout = 120_000,
+        signal = null,
       } = {},
     ) {
       const label = filterText ? ` matching "${filterText}"` : "";
@@ -97,7 +99,7 @@ export function createProviderMethods(tag, getReader, defaultOpts = {}) {
         store,
         `Waiting for link email${label}...`,
         `Timed out waiting for email${label}.`,
-        { filterText, seenIds, timeout },
+        { filterText, seenIds, timeout, signal },
         (content, preview) => {
           const links = extractLinks(content);
           const match =
@@ -116,14 +118,19 @@ export function createProviderMethods(tag, getReader, defaultOpts = {}) {
     // Never returns null — callers expect a destructurable object.
     async waitForEmailAndExtractPlaylists(
       store,
-      { filterText = "", seenIds = new Set(), timeout = 120_000 } = {},
+      {
+        filterText = "",
+        seenIds = new Set(),
+        timeout = 120_000,
+        signal = null,
+      } = {},
     ) {
       const label = filterText ? ` matching "${filterText}"` : "";
       const result = await _run(
         store,
         `Polling inbox for playlist email${label}...`,
         "Timed out waiting for playlist email.",
-        { filterText, seenIds, timeout },
+        { filterText, seenIds, timeout, signal },
         (content, preview) => {
           const playlists = extractPlaylists(content);
           if (!playlists) {

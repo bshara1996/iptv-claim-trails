@@ -55,6 +55,25 @@ export async function runTask(taskId, providerId, serviceIds) {
     // here in createEmail() and read them back in polling methods.
     const credentialStore = {};
 
+    // Wrap the provider so every inbox-polling call automatically receives the
+    // task's abort signal — services pass options as a plain object, so we
+    // intercept those three methods and merge { signal } in before forwarding.
+    const POLL_METHODS = [
+      "waitForVerificationCodeEmail",
+      "waitForEmailAndExtractLink",
+      "waitForEmailAndExtractPlaylists",
+    ];
+    const cancelableProvider = new Proxy(provider, {
+      get(target, prop) {
+        if (POLL_METHODS.includes(prop)) {
+          return (store, opts = {}) => target[prop](store, { ...opts, signal });
+        }
+        return typeof target[prop] === "function"
+          ? target[prop].bind(target)
+          : target[prop];
+      },
+    });
+
     const email = await provider.createEmail(credentialStore);
     emit(emitter, "email_created", { email, provider: provider.meta.name });
     log(emitter, `Temporary email ready: ${email}`);
@@ -74,7 +93,7 @@ export async function runTask(taskId, providerId, serviceIds) {
 
       try {
         const result = await service.execute({
-          provider,
+          provider: cancelableProvider,
           credentialStore,
           email,
           inboxSeenIds,

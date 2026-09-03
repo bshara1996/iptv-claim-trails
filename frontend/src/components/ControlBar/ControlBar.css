@@ -9,29 +9,6 @@
   gap: 14px;
 }
 
-.control-label-title {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1.2px;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.control-icon-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-xs);
-  background: rgba(0, 168, 255, 0.1);
-  color: var(--accent);
-  border: 1px solid rgba(0, 168, 255, 0.2);
-}
-
 /* Status Indicator */
 .status-pill-container {
   display: flex;
@@ -104,69 +81,6 @@
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--text-primary);
-}
-
-/* Browser toggle row */
-.browser-toggle-box {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  background: var(--bg-input);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  user-select: none;
-  transition: all 0.2s ease;
-}
-
-.browser-toggle-box:hover:not(.disabled) {
-  border-color: var(--border-glow);
-  background: rgba(0, 168, 255, 0.03);
-}
-
-.browser-toggle-box.disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.browser-toggle-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.82rem;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.toggle-switch-track {
-  width: 36px;
-  height: 20px;
-  border-radius: 20px;
-  background: var(--border-default);
-  position: relative;
-  transition: background 0.25s ease;
-  flex-shrink: 0;
-}
-
-.toggle-switch-track.on {
-  background: var(--accent);
-  box-shadow: 0 0 10px rgba(0, 168, 255, 0.4);
-}
-
-.toggle-switch-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #fff;
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.toggle-switch-track.on .toggle-switch-thumb {
-  transform: translateX(16px);
 }
 
 /* Active Email Box */
@@ -270,11 +184,24 @@
 }
 
 @keyframes pulse-glow-kf {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.5; transform: scale(0.75); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.75);
+  }
 }
 
 @keyframes fadeIn-kf {
-  from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

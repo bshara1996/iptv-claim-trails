@@ -23,6 +23,7 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Polls the inbox repeatedly until onRow returns a non-null value or timeout expires.
 // Skips messages already in seenIds and those whose preview doesn't match filterText.
+// Pass signal (AbortSignal) to exit immediately when the task is cancelled.
 export async function pollApi(
   { fetchMessages, readMessage },
   {
@@ -31,12 +32,15 @@ export async function pollApi(
     timeout = 120_000,
     pollDelay = DEFAULT_POLL_DELAY,
     readDelay = DEFAULT_READ_DELAY,
+    signal = null,
   },
   onRow,
 ) {
   const deadline = Date.now() + timeout;
 
   while (Date.now() < deadline) {
+    if (signal?.aborted) return null;
+
     let messages = [];
     try {
       messages = await fetchMessages();
@@ -47,6 +51,7 @@ export async function pollApi(
     logger.info(`[poller] Inbox: ${messages.length} message(s).`);
 
     for (const { id, preview } of messages) {
+      if (signal?.aborted) return null;
       if (seenIds.has(id)) continue;
       seenIds.add(id);
 
@@ -58,6 +63,7 @@ export async function pollApi(
 
       // Brief pause before reading to stay within provider rate limits.
       await delay(readDelay);
+      if (signal?.aborted) return null;
 
       let content = "";
       try {
@@ -72,6 +78,7 @@ export async function pollApi(
     }
 
     await delay(pollDelay);
+    if (signal?.aborted) return null;
   }
 
   return null;

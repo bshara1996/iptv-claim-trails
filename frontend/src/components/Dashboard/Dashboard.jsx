@@ -19,8 +19,6 @@ export default function Dashboard() {
     logs,
     results,
     email,
-    showBrowser,
-    setShowBrowser,
     backendError,
     captchaChallenge,
     onCaptchaSolved,
@@ -107,8 +105,6 @@ export default function Dashboard() {
             <ControlBar
               status={status}
               email={email}
-              showBrowser={showBrowser}
-              onToggleShowBrowser={setShowBrowser}
               onStart={start}
               onStop={stop}
               canStart={canStart}

@@ -16,7 +16,6 @@ export function useAutomation() {
   const [results, setResults] = useState([]);
   const [email, setEmail] = useState(null);
   const [taskId, setTaskId] = useState(null);
-  const [showBrowser, setShowBrowser] = useState(true);
   const [backendError, setBackendError] = useState(null);
   // captchaChallenge: null | { taskId, sitekey, pageUrl }
   const [captchaChallenge, setCaptchaChallenge] = useState(null);
@@ -93,9 +92,7 @@ export function useAutomation() {
 
     let data;
     try {
-      data = await startAutomation(selectedProvider, selectedServices, {
-        headless: !showBrowser,
-      });
+      data = await startAutomation(selectedProvider, selectedServices);
     } catch (err) {
       pushLog(`Failed to start: ${err.message}`, "error");
       setStatus("error");
@@ -127,7 +124,7 @@ export function useAutomation() {
       },
       onDone: () => setStatus((prev) => (prev === "running" ? "done" : prev)),
     });
-  }, [selectedProvider, selectedServices, showBrowser, pushLog]);
+  }, [selectedProvider, selectedServices, pushLog]);
 
   // ── Stop automation ───────────────────────────────────────────────────────
   const stop = useCallback(async () => {
@@ -158,9 +155,6 @@ export function useAutomation() {
     results,
     email,
     taskId,
-    // Options
-    showBrowser,
-    setShowBrowser,
     // Error
     backendError,
     // Captcha

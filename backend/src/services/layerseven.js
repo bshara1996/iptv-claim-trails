@@ -20,6 +20,7 @@ import {
   cookieStr,
   errSnippet,
   extractCsrfToken,
+  DEFAULT_UA,
 } from "../http/cookieClient.js";
 import { awaitCaptcha } from "../engine/captcha.js";
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -80,8 +81,7 @@ async function register(jar, email, password, taskId, emitter, log) {
 async function signIn(jar, email, password, taskId, emitter, log) {
   const res = await fetch(`${BASE}/sign-in`, {
     headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "User-Agent": DEFAULT_UA,
       Accept: "text/html",
       Cookie: cookieStr(jar),
     },

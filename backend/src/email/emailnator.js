@@ -11,13 +11,12 @@
  */
 import logger from "../logger.js";
 import { makeGetReader, createProviderMethods } from "./base.js";
+import { DEFAULT_UA } from "../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const BASE = "https://www.emailnator.com";
 const TAG = "Emailnator";
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 const EMAIL_TYPES = { domain: 1, plusGmail: 2, dotGmail: 3, googleMail: 8 };
 
@@ -30,7 +29,7 @@ async function apiFetch(method, path, body) {
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json, */*",
-      "User-Agent": UA,
+      "User-Agent": DEFAULT_UA,
       Referer: `${BASE}/`,
       Origin: BASE,
     },

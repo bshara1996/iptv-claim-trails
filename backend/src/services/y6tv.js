@@ -7,15 +7,13 @@
  */
 import { computeExpiresAt } from "../parsing/generators.js";
 import { buildResult } from "../parsing/result.js";
-import { post } from "../http/cookieClient.js";
+import { post, DEFAULT_UA } from "../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const TRIAL_URL = "https://rg.y6tv.me/regfm.php?devTypeID=100";
 const TAG = "Y6TV";
 const TRIAL_HOURS = 72;
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -33,7 +31,7 @@ async function submitRegistration(email, log) {
       regBtn: "Зарегистрировать",
     },
     TRIAL_URL,
-    { ua: UA, timeout: 15_000 },
+    { ua: DEFAULT_UA, timeout: 15_000 },
   );
 
   if (status >= 400)
@@ -55,7 +53,7 @@ async function submitRegistration(email, log) {
     if (!scriptUrl.startsWith("http")) scriptUrl = `https:${scriptUrl}`;
     try {
       const scriptRes = await fetch(scriptUrl, {
-        headers: { "User-Agent": UA, Referer: "https://rg.y6tv.me/" },
+        headers: { "User-Agent": DEFAULT_UA, Referer: "https://rg.y6tv.me/" },
         signal: AbortSignal.timeout(10_000),
       });
       const scriptText = await scriptRes.text();
