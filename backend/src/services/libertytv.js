@@ -14,8 +14,11 @@
  * every hop, collecting Set-Cookie at each 302 — fetch() with redirect:"follow"
  * would silently drop cookies set on intermediate redirects.
  */
-import { generateUsername, generatePassword } from "../parsing/generators.js";
-import { buildResult } from "../parsing/result.js";
+import {
+  generateUsername,
+  generatePassword,
+  buildResult,
+} from "../parsing/generators.js";
 import { extractPlaylists } from "../parsing/extractors.js";
 import {
   createJar,
@@ -253,10 +256,8 @@ export default {
       username,
       password,
       tvPlaylist: m3uLink ?? null,
-      hours: TRIAL_HOURS,
-      note: m3uLink
-        ? "LibertyTV trial activated successfully (Arabic Package)."
-        : "Trial registered — M3U link not found on dashboard.",
+      trialHours: TRIAL_HOURS,
+      serviceName: "LibertyTV",
     });
   },
 };

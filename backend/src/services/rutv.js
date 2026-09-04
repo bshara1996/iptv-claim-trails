@@ -28,7 +28,7 @@
  *     is read back from /user/profile after login.
  */
 
-import { buildResult } from "../parsing/result.js";
+import { buildResult } from "../parsing/generators.js";
 import { DEFAULT_UA } from "../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -260,10 +260,9 @@ export default {
       password,
       tvPlaylist,
       vodPlaylist,
-      ...(expiryDate ? { expiryDate } : { hours: 720 }), // fallback 30 days
-      note: tvPlaylist
-        ? "RuTV VIP trial activated successfully."
-        : "Registration complete — M3U link not found in playlist response.",
+      expiryDate,
+      trialHours: 720,
+      serviceName: "RuTV VIP",
     });
   },
 };

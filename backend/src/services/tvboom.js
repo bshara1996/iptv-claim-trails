@@ -17,9 +17,8 @@
 import {
   generateUsername,
   generatePassword,
-  computeExpiresAt,
+  buildResult,
 } from "../parsing/generators.js";
-import { buildResult } from "../parsing/result.js";
 import { extractPlaylists } from "../parsing/extractors.js";
 import { createJar, get, post, stripHtml } from "../http/cookieClient.js";
 import { awaitCaptcha } from "../engine/captcha.js";
@@ -183,13 +182,8 @@ export default {
       username,
       password,
       tvPlaylist,
-      duration: `${TRIAL_HOURS} Hours`,
-      expiresAt: computeExpiresAt(TRIAL_HOURS * 3_600_000, {
-        timeZone: "Asia/Jerusalem",
-      }),
-      note: tvPlaylist
-        ? "TVBoom 24-hour trial activated successfully."
-        : "Registration submitted — M3U link not found on profile page.",
+      trialHours: TRIAL_HOURS,
+      serviceName: "TVBoom",
     });
   },
 };

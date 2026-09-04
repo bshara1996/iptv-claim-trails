@@ -8,8 +8,8 @@ import {
   generateUsername,
   generatePhone,
   buildM3u,
+  buildResult,
 } from "../parsing/generators.js";
-import { buildResult } from "../parsing/result.js";
 import { jsonPost } from "../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -76,9 +76,7 @@ export default {
       tvPlaylist: allM3uLinks.join("\n") || null,
       allM3uLinks,
       expiryDate,
-      note: allM3uLinks.length
-        ? "kooka.tv 12-hour trial activated successfully."
-        : "Registration submitted — M3U link not found in API response.",
+      serviceName: "Kooka.TV",
     });
   },
 };

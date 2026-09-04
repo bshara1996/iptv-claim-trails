@@ -62,8 +62,11 @@ export async function pollApi(
         continue;
 
       // Brief pause before reading to stay within provider rate limits.
-      await delay(readDelay);
-      if (signal?.aborted) return null;
+      // Skip entirely when the provider sets readDelay to 0.
+      if (readDelay > 0) {
+        await delay(readDelay);
+        if (signal?.aborted) return null;
+      }
 
       let content = "";
       try {

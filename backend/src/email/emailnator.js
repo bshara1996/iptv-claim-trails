@@ -98,6 +98,6 @@ export default {
     return address;
   },
 
-  // Faster poll timings — Emailnator has no rate limit.
-  ...createProviderMethods(TAG, getReader, { pollDelay: 300, readDelay: 500 }),
+  // Aggressive poll timings — Emailnator has no documented rate limit.
+  ...createProviderMethods(TAG, getReader, { pollDelay: 100, readDelay: 0 }),
 };

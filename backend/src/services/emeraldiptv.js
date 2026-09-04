@@ -14,8 +14,7 @@
  *   - The server validates clientName looks like a real name (First Last)
  *     and clientPhone matches Irish mobile format (08X XXXXXXX or +353 8X...).
  */
-import { buildM3u } from "../parsing/generators.js";
-import { buildResult } from "../parsing/result.js";
+import { buildM3u, buildResult } from "../parsing/generators.js";
 import { jsonPost } from "../http/cookieClient.js";
 
 // ── Config ───────────────────────────────────────────────────────────────────
@@ -199,10 +198,8 @@ export default {
       password,
       tvPlaylist,
       allM3uLinks,
-      hours: TRIAL_HOURS,
-      note: tvPlaylist
-        ? `Emerald IPTV 24-hour trial activated successfully.${noteExtra}`
-        : `Registration submitted -- M3U link not found in API response.${noteExtra}`,
+      trialHours: TRIAL_HOURS,
+      note: `${allM3uLinks.length ? "Emerald IPTV trial activated successfully." : "Emerald IPTV trial registered — M3U link not found."}${noteExtra}`,
     });
   },
 };

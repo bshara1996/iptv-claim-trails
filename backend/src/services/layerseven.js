@@ -9,8 +9,11 @@
  *   5. GET /checkout?free-trial=1 → claim trial
  *   6. Extract credentials from dashboard/accounts/checkout pages
  */
-import { generatePassword, buildM3u } from "../parsing/generators.js";
-import { buildResult } from "../parsing/result.js";
+import {
+  generatePassword,
+  buildM3u,
+  buildResult,
+} from "../parsing/generators.js";
 import { extractCredentials } from "../parsing/extractors.js";
 import {
   createJar,
@@ -190,10 +193,8 @@ export default {
       username: creds?.user ?? email,
       password: creds?.pass ?? password,
       tvPlaylist: m3uLink,
-      hours: TRIAL_HOURS,
-      note: m3uLink
-        ? `LayerSeven trial activated. Server: ${M3U_HOST}`
-        : "Trial registered — credentials not found",
+      trialHours: TRIAL_HOURS,
+      serviceName: "LayerSeven",
     });
   },
 };

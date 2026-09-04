@@ -5,8 +5,7 @@
  * for a confirmation email containing M3U playlist links.
  * Trial duration: 3 days (72 hours).
  */
-import { computeExpiresAt } from "../parsing/generators.js";
-import { buildResult } from "../parsing/result.js";
+import { buildResult } from "../parsing/generators.js";
 import { post, DEFAULT_UA } from "../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -112,18 +111,9 @@ export default {
       );
 
     return buildResult({
-      tvPlaylist: playlists.tvPlaylist ?? null,
-      vodPlaylist: playlists.vodPlaylist ?? null,
-      allM3uLinks: playlists.allM3uLinks ?? [],
-      duration: playlists.duration ?? `${TRIAL_HOURS / 24} Days`,
-      expiresAt:
-        playlists.expiresAt ??
-        computeExpiresAt(TRIAL_HOURS * 3_600_000, {
-          timeZone: "Asia/Jerusalem",
-        }),
-      note: playlists.tvPlaylist
-        ? "M3U playlist links extracted from confirmation email."
-        : "Registered via API — no playlist links found in confirmation email.",
+      playlists,
+      trialHours: TRIAL_HOURS,
+      serviceName: "Y6TV",
     });
   },
 };

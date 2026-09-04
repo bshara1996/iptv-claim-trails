@@ -14,7 +14,7 @@
  * Note: Steps 2/3/5 POST JSON to /auth/email-step/ — handled by authPost().
  *       Steps 1/6/7 use the shared cookieClient helpers (form-encoded / GET).
  */
-import { buildResult } from "../parsing/result.js";
+import { buildResult } from "../parsing/generators.js";
 import {
   extractPlaylists,
   extractCredsFromM3u,
@@ -170,11 +170,8 @@ export default {
       password: creds?.pass ?? PASSWORD,
       tvPlaylist: m3uLink ?? null,
       vodPlaylist: vod,
-      allM3uLinks: [m3uLink, vod].filter(Boolean),
-      hours: 24,
-      note: m3uLink
-        ? "OgoTV 24-hour trial activated."
-        : "OgoTV registered — M3U not found.",
+      trialHours: 24,
+      serviceName: "OgoTV",
     });
   },
 };

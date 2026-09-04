@@ -26,8 +26,7 @@
  *     expirationDate from /user/profile shows when it ends.
  */
 
-import { generatePassword } from "../parsing/generators.js";
-import { buildResult } from "../parsing/result.js";
+import { buildResult } from "../parsing/generators.js";
 import { DEFAULT_UA } from "../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -262,10 +261,9 @@ export default {
       username,
       password,
       tvPlaylist,
-      ...(expiryDate ? { expiryDate } : { hours: 72 }), // fallback 3 days if not parsed
-      note: tvPlaylist
-        ? "USPEH TV trial activated successfully."
-        : "Registration complete — M3U link not found in playlist response.",
+      expiryDate,
+      trialHours: 72,
+      serviceName: "USPEH TV",
     });
   },
 };

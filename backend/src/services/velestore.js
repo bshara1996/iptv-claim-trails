@@ -14,9 +14,8 @@ import { createDecipheriv } from "crypto";
 import {
   generateUsername,
   generatePassword,
-  computeExpiresAt,
+  buildResult,
 } from "../parsing/generators.js";
-import { buildResult } from "../parsing/result.js";
 import { extractPlaylists } from "../parsing/extractors.js";
 import {
   createJar,
@@ -37,31 +36,68 @@ const TAG = "VeleStore";
 const TRIAL_HOURS = 72;
 const SITEKEY = "6LdxN2ElAAAAADqK4-H-y-EB7bcoqFjxDtZy7RFa";
 
-// AES-128-CBC constants embedded in every DDoS challenge page.
-const AES_KEY_HEX = "b36141b8d4a3085cfa41bd8d263f9118";
-const AES_IV_B64 = "ZGI4NDdlOTBlZWFjMWU2NWY4ZjExMWU1NWQ1NjgwODQ=";
-
-// Pre-compute Buffers once at module load (IV is base64 → utf8 hex string → Buffer).
-const AES_KEY = Buffer.from(AES_KEY_HEX, "hex");
-const AES_IV = Buffer.from(
-  Buffer.from(AES_IV_B64, "base64").toString("utf8"),
-  "hex",
-);
-
 // ── DDoS solver ───────────────────────────────────────────────────────────────
 
-// Extracts c3 from the DDoS inline JS, decrypts it with AES-128-CBC, and
-// writes the result into the jar as "LWvddos-oJ". Returns true if found.
+// Decrypts the AES-128-CBC DDoS challenge cookie from the page HTML and writes
+// it into jar. Traces key/IV variable names through the slowAES.decrypt call so
+// order is always correct regardless of key rotation or obfuscation style.
 function injectSolvedCookie(html, jar) {
-  const m = /c3=toNumbers\("([a-f0-9]+)"\)/i.exec(html);
-  if (!m) return false;
-  const dec = createDecipheriv("aes-128-cbc", AES_KEY, AES_IV);
+  const c3 = /c3=toNumbers\("([a-f0-9]+)"\)/i.exec(html)?.[1];
+  const dc =
+    /slowAES\.decrypt\s*\(\s*\w+\s*,\s*\d+\s*,\s*(\w+)\s*,\s*(\w+)\s*\)/.exec(
+      html,
+    );
+  if (!c3 || !dc) return false;
+
+  // Given a variable name like "a1", trace: a1=toNumbers(a2), a2=atob(<src>)
+  // <src> is either a plain literal or an array dereference (_0xf20d[7]).
+  // Decode \xNN escapes, then interpret as base64 → 32-char hex → Buffer.
+  function resolve(name) {
+    const mid = new RegExp(
+      String.raw`\b${name}\s*=\s*toNumbers\s*\(\s*(\w+)\s*\)`,
+    ).exec(html)?.[1];
+    if (!mid) return null;
+    let b64 = new RegExp(String.raw`\b${mid}\s*=\s*atob\s*\(\s*([^)]+?)\s*\)`)
+      .exec(html)?.[1]
+      ?.trim();
+    if (!b64) return null;
+
+    // Array dereference: _0xf20d[7] — look up the entry and decode \xNN escapes.
+    const ref = /^(\w+)\[(?:\w+\[)?(\d+)\]?\]$/.exec(b64);
+    if (ref) {
+      const arr = new RegExp(
+        String.raw`\bvar\s+${ref[1]}\s*=\s*\[([^\]]+)\]`,
+      ).exec(html);
+      if (!arr) return null;
+      const entry = [...arr[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)][+ref[2]]?.[1];
+      if (!entry) return null;
+      b64 = entry.replace(/\\x([0-9a-f]{2})/gi, (_, h) =>
+        String.fromCharCode(parseInt(h, 16)),
+      );
+    } else {
+      // Plain literal: strip surrounding quotes.
+      b64 = b64.replace(/^["']|["']$/g, "");
+    }
+
+    try {
+      const hex = Buffer.from(b64, "base64").toString("utf8");
+      if (/^[a-f0-9]{32}$/i.test(hex)) return Buffer.from(hex, "hex");
+    } catch {}
+    return null;
+  }
+
+  const KEY = resolve(dc[1]);
+  const IV = resolve(dc[2]);
+  if (!KEY || !IV) return false;
+
+  const name =
+    /document\.cookie\s*=\s*["']([^"'=]+)=["']/i.exec(html)?.[1] ?? "LWvddos";
+  const dec = createDecipheriv("aes-128-cbc", KEY, IV);
   dec.setAutoPadding(false);
-  const out = Buffer.concat([
-    dec.update(Buffer.from(m[1], "hex")),
+  jar[name] = Buffer.concat([
+    dec.update(Buffer.from(c3, "hex")),
     dec.final(),
-  ]);
-  jar["LWvddos-oJ"] = out.toString("hex");
+  ]).toString("hex");
   return true;
 }
 
@@ -219,11 +255,8 @@ export default {
       username,
       password,
       tvPlaylist,
-      duration: `${TRIAL_HOURS / 24} Days`,
-      expiresAt: computeExpiresAt(TRIAL_HOURS * 3_600_000),
-      note: tvPlaylist
-        ? "VeleStore 3-day IPTV trial activated successfully."
-        : "Registration succeeded — M3U link not found on profile page.",
+      trialHours: TRIAL_HOURS,
+      serviceName: "VeleStore",
     });
   },
 };

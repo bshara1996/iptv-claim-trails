@@ -9,11 +9,13 @@
  *   5. POST /free-trial/verify → submit CSRF + OTP code
  *   6. Poll inbox              → wait for playlist email, extract M3U links
  */
-import { generateUsername, generatePhone } from "../parsing/generators.js";
-import { buildResult } from "../parsing/result.js";
+import {
+  generateUsername,
+  generatePhone,
+  buildResult,
+} from "../parsing/generators.js";
 import {
   createJar,
-  mergeCookies,
   get,
   post,
   extractCsrfToken,
@@ -138,15 +140,9 @@ export default {
 
     return buildResult({
       username: name,
-      tvPlaylist: playlists.tvPlaylist ?? null,
-      vodPlaylist: playlists.vodPlaylist ?? null,
-      allM3uLinks: playlists.allM3uLinks ?? [],
-      duration: playlists.duration ?? `${TRIAL_HOURS} Hours`,
-      expiresAt: playlists.expiresAt ?? null,
-      hours: playlists.expiresAt ? undefined : TRIAL_HOURS,
-      note: playlists.tvPlaylist
-        ? "24-hour IPTV trial activated successfully."
-        : "Registered — M3U links not found in confirmation email.",
+      playlists,
+      trialHours: TRIAL_HOURS,
+      serviceName: "OneIPTV4K",
     });
   },
 };

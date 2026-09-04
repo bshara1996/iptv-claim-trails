@@ -8,8 +8,12 @@
  *   4. POST /trial/verifyOtp → submit OTP, triggers async account generation
  *   5. Poll /trial/status    → every 3s until status === "completed" or timeout
  */
-import { generateUsername, parseExpiryDate } from "../parsing/generators.js";
-import { buildResult } from "../parsing/result.js";
+import {
+  generateUsername,
+  parseExpiryDate,
+  buildResult,
+  TVCORN_ALL_COUNTRIES,
+} from "../parsing/generators.js";
 import {
   createJar,
   mergeCookies,
@@ -23,69 +27,6 @@ const BASE_URL = "https://en.tvcorn.com";
 const TAG = "TVCorn";
 const POLL_INTERVAL = 3_000;
 const POLL_TIMEOUT = 180_000;
-
-// All country codes selected by default in the TVCorn trial UI.
-const ALL_COUNTRIES = [
-  "de",
-  "at",
-  "ch",
-  "tr",
-  "al",
-  "xk",
-  "mk",
-  "rs",
-  "hr",
-  "ba",
-  "me",
-  "si",
-  "bg",
-  "ro",
-  "gr",
-  "it",
-  "es",
-  "fr",
-  "gb",
-  "us",
-  "ca",
-  "mx",
-  "nl",
-  "be",
-  "pt",
-  "pl",
-  "cz",
-  "sk",
-  "hu",
-  "se",
-  "no",
-  "dk",
-  "fi",
-  "ru",
-  "ua",
-  "ar",
-  "in",
-  "pk",
-  "kr",
-  "cn",
-  "jp",
-  "th",
-  "ph",
-  "id",
-  "br",
-  "ar2",
-  "co",
-  "cl",
-  "pe",
-  "eg",
-  "ng",
-  "za",
-  "ke",
-  "ae",
-  "iq",
-  "ir",
-  "az",
-  "ge",
-  "world",
-];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -156,7 +97,7 @@ export default {
       name: username,
       email,
     });
-    ALL_COUNTRIES.forEach((c) => otpBody.append("countries[]", c));
+    TVCORN_ALL_COUNTRIES.forEach((c) => otpBody.append("countries[]", c));
     const otpRes = await apiFetch("/trial/sendOtp", { ...POST, body: otpBody });
     mergeCookies(jar, otpRes);
     const otpJson = await otpRes.json();
@@ -200,9 +141,7 @@ export default {
       password: data.password,
       tvPlaylist: m3uLink,
       expiryDate,
-      note: m3uLink
-        ? "TVCorn trial activated successfully."
-        : "Trial registered — M3U link not found in the response.",
+      serviceName: "TVCorn",
     });
   },
 };

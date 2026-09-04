@@ -12,6 +12,8 @@
  *   computeTrialExpiry(hours)  — shorthand: computeExpiresAt(hours * 3_600_000)
  *   parseExpiryDate(raw)       — parses "DD.MM.YYYY HH:mm" UTC string into a Date
  *   formatDuration(expiryDate) — remaining time from a Date as "N Hours"
+ *   buildResult(fields)        — builds the standardised service result object
+ *   TVCORN_ALL_COUNTRIES       — all country codes selected by default in TVCorn's trial UI
  */
 
 const LOWERCASE = "abcdefghijklmnopqrstuvwxyz";
@@ -85,3 +87,128 @@ export const buildM3u = (host, username, password) =>
   host && username && password
     ? `${host}/get.php?username=${username}&password=${password}&type=m3u_plus&output=ts`
     : null;
+
+// Builds the standardised service result.
+// serviceName — auto-note: "<name> trial activated/registered. (duration)"
+// trialHours  — auto duration + expiresAt from fixed hours
+// expiryDate  — auto duration + expiresAt from a Date (takes priority)
+// playlists   — bag from waitForEmailAndExtractPlaylists(), merged as defaults
+export function buildResult({
+  username = null,
+  password = null,
+  serviceName,
+  tvPlaylist,
+  vodPlaylist,
+  allM3uLinks,
+  trialHours,
+  expiryDate,
+  duration,
+  expiresAt,
+  playlists,
+  status = "success",
+  note,
+} = {}) {
+  const tv = tvPlaylist ?? playlists?.tvPlaylist ?? null;
+  const vod = vodPlaylist ?? playlists?.vodPlaylist ?? null;
+  const links = Array.isArray(allM3uLinks)
+    ? allM3uLinks
+    : playlists?.allM3uLinks?.length
+      ? playlists.allM3uLinks
+      : [tv, vod].filter(Boolean);
+
+  let dur = duration ?? playlists?.duration ?? null;
+  let exp = expiresAt ?? playlists?.expiresAt ?? null;
+  if (!dur || !exp) {
+    if (expiryDate instanceof Date && !isNaN(expiryDate)) {
+      dur ??= formatDuration(expiryDate);
+      exp ??= computeExpiresAt(expiryDate, { timeZone: "Asia/Jerusalem" });
+    } else if (trialHours) {
+      dur ??=
+        trialHours % 24 === 0 && trialHours >= 48
+          ? `${trialHours / 24} Days`
+          : `${trialHours} Hours`;
+      exp ??= computeExpiresAt(trialHours * 3_600_000, {
+        timeZone: "Asia/Jerusalem",
+      });
+    }
+  }
+
+  const autoNote = serviceName
+    ? `${serviceName} trial ${links.length ? "activated successfully" : "registered — M3U link not found"}. (${dur})`
+    : "";
+
+  return {
+    username,
+    password,
+    tvPlaylist: tv,
+    vodPlaylist: vod,
+    allM3uLinks: links,
+    duration: dur,
+    expiresAt: exp,
+    status,
+    note: note ?? autoNote,
+  };
+}
+
+// All country codes selected by default in the TVCorn trial UI.
+export const TVCORN_ALL_COUNTRIES = [
+  "de",
+  "at",
+  "ch",
+  "tr",
+  "al",
+  "xk",
+  "mk",
+  "rs",
+  "hr",
+  "ba",
+  "me",
+  "si",
+  "bg",
+  "ro",
+  "gr",
+  "it",
+  "es",
+  "fr",
+  "gb",
+  "us",
+  "ca",
+  "mx",
+  "nl",
+  "be",
+  "pt",
+  "pl",
+  "cz",
+  "sk",
+  "hu",
+  "se",
+  "no",
+  "dk",
+  "fi",
+  "ru",
+  "ua",
+  "ar",
+  "in",
+  "pk",
+  "kr",
+  "cn",
+  "jp",
+  "th",
+  "ph",
+  "id",
+  "br",
+  "ar2",
+  "co",
+  "cl",
+  "pe",
+  "eg",
+  "ng",
+  "za",
+  "ke",
+  "ae",
+  "iq",
+  "ir",
+  "az",
+  "ge",
+  "world",
+];

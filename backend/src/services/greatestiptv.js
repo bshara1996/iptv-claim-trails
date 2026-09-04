@@ -5,8 +5,7 @@
  * 2. Poll the inbox for the confirmation email containing M3U playlist links.
  * Trial duration: 36 hours.
  */
-import { computeExpiresAt } from "../parsing/generators.js";
-import { buildResult } from "../parsing/result.js";
+import { buildResult } from "../parsing/generators.js";
 import { jsonPost } from "../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -64,18 +63,9 @@ export default {
       );
 
     return buildResult({
-      tvPlaylist: playlists.tvPlaylist ?? null,
-      vodPlaylist: playlists.vodPlaylist ?? null,
-      allM3uLinks: playlists.allM3uLinks,
-      duration: playlists.duration ?? `${TRIAL_HOURS} Hours`,
-      expiresAt:
-        playlists.expiresAt ??
-        computeExpiresAt(TRIAL_HOURS * 3_600_000, {
-          timeZone: "Asia/Jerusalem",
-        }),
-      note: playlists.tvPlaylist
-        ? "36-hour GreatestIPTV trial activated successfully."
-        : "Trial activated — M3U link not found in confirmation email.",
+      playlists,
+      trialHours: TRIAL_HOURS,
+      serviceName: "GreatestIPTV",
     });
   },
 };
