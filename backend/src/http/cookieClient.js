@@ -23,7 +23,7 @@
 export const DEFAULT_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const MAX_REDIRECTS = 10;
-const DEFAULT_TIMEOUT = 30_000; // Increased from 25s to 30s for Vercel
+const DEFAULT_TIMEOUT = 25_000;
 
 // ── Jar helpers ───────────────────────────────────────────────────────────────
 
@@ -90,18 +90,6 @@ export async function request(method, url, jar, opts = {}) {
           : undefined,
       redirect: "manual",
       signal: AbortSignal.timeout(timeout),
-    }).catch((err) => {
-      // Better error messages for common fetch failures
-      if (err.name === "AbortError" || err.name === "TimeoutError") {
-        throw new Error(`Request timeout after ${timeout}ms for ${currentUrl}`);
-      }
-      if (
-        err.message.includes("ENOTFOUND") ||
-        err.message.includes("getaddrinfo")
-      ) {
-        throw new Error(`DNS resolution failed for ${currentUrl}`);
-      }
-      throw err;
     });
 
     mergeCookies(resolvedJar, res);

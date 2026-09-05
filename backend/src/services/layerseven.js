@@ -29,7 +29,7 @@ import { awaitCaptcha } from "../engine/captcha.js";
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const BASE = "https://panel.layerseven.ai";
-const M3U_HOST = "http://cf.shark-cdn.me";
+const M3U_HOST = "http://cf.layersevenw.com";
 const SITEKEY = "6Ldwf7wqAAAAANb7Y2mzgutgMalTDWxSf3v0gQQh";
 const TAG = "LayerSeven";
 const TRIAL_HOURS = 24;

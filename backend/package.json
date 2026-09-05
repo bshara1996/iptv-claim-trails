@@ -10,12 +10,8 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "ddddocr-node": "^2.3.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "puppeteer": "^25.9.0",
-    "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "uuid": "^10.0.0",
     "winston": "^3.13.0"
   },

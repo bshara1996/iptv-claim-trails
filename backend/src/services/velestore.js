@@ -11,6 +11,7 @@
  * reCAPTCHA v2 sitekey: 6LdxN2ElAAAAADqK4-H-y-EB7bcoqFjxDtZy7RFa
  */
 import { createDecipheriv } from "crypto";
+import { runInNewContext } from "vm";
 import {
   generateUsername,
   generatePassword,
@@ -27,87 +28,92 @@ import {
 } from "../http/cookieClient.js";
 import { awaitCaptcha } from "../engine/captcha.js";
 
-// ── Config ────────────────────────────────────────────────────────────────────
-
 const BASE_URL = "https://velestore.su";
 const REG_URL = `${BASE_URL}/?do=register`;
 const TEST_URL = `${BASE_URL}/index.php?do=test`;
 const TAG = "VeleStore";
 const TRIAL_HOURS = 72;
 const SITEKEY = "6LdxN2ElAAAAADqK4-H-y-EB7bcoqFjxDtZy7RFa";
+const OPTS = { referer: REG_URL, origin: BASE_URL };
 
 // ── DDoS solver ───────────────────────────────────────────────────────────────
 
-// Decrypts the AES-128-CBC DDoS challenge cookie from the page HTML and writes
-// it into jar. Traces key/IV variable names through the slowAES.decrypt call so
-// order is always correct regardless of key rotation or obfuscation style.
+// Executes the challenge <script> in a VM sandbox instead of parsing it.
+// Immune to obfuscation rotations — works regardless of how KEY/IV are encoded.
 function injectSolvedCookie(html, jar) {
-  const c3 = /c3=toNumbers\("([a-f0-9]+)"\)/i.exec(html)?.[1];
-  const dc =
-    /slowAES\.decrypt\s*\(\s*\w+\s*,\s*\d+\s*,\s*(\w+)\s*,\s*(\w+)\s*\)/.exec(
-      html,
-    );
-  if (!c3 || !dc) return false;
-
-  // Given a variable name like "a1", trace: a1=toNumbers(a2), a2=atob(<src>)
-  // <src> is either a plain literal or an array dereference (_0xf20d[7]).
-  // Decode \xNN escapes, then interpret as base64 → 32-char hex → Buffer.
-  function resolve(name) {
-    const mid = new RegExp(
-      String.raw`\b${name}\s*=\s*toNumbers\s*\(\s*(\w+)\s*\)`,
-    ).exec(html)?.[1];
-    if (!mid) return null;
-    let b64 = new RegExp(String.raw`\b${mid}\s*=\s*atob\s*\(\s*([^)]+?)\s*\)`)
-      .exec(html)?.[1]
-      ?.trim();
-    if (!b64) return null;
-
-    // Array dereference: _0xf20d[7] — look up the entry and decode \xNN escapes.
-    const ref = /^(\w+)\[(?:\w+\[)?(\d+)\]?\]$/.exec(b64);
-    if (ref) {
-      const arr = new RegExp(
-        String.raw`\bvar\s+${ref[1]}\s*=\s*\[([^\]]+)\]`,
-      ).exec(html);
-      if (!arr) return null;
-      const entry = [...arr[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)][+ref[2]]?.[1];
-      if (!entry) return null;
-      b64 = entry.replace(/\\x([0-9a-f]{2})/gi, (_, h) =>
-        String.fromCharCode(parseInt(h, 16)),
-      );
-    } else {
-      // Plain literal: strip surrounding quotes.
-      b64 = b64.replace(/^["']|["']$/g, "");
+  const re = /<script[^>]*>\s*([\s\S]*?)\s*<\/script>/gi;
+  let m, challengeScript;
+  while ((m = re.exec(html))) {
+    if (/slowAES/i.test(m[1])) {
+      challengeScript = m[1];
+      break;
     }
+  }
+  if (!challengeScript) return false;
 
-    try {
-      const hex = Buffer.from(b64, "base64").toString("utf8");
-      if (/^[a-f0-9]{32}$/i.test(hex)) return Buffer.from(hex, "hex");
-    } catch {}
-    return null;
+  let solvedName, solvedValue;
+
+  // slowAES.decrypt returns a sentinel with the pre-computed hex so the
+  // patched toHex wrapper can return it directly, bypassing the cross-realm
+  // Array constructor check in the challenge's own toHex implementation.
+  const slowAES = {
+    decrypt(c3Arr, _mode, keyArr, ivArr) {
+      const dec = createDecipheriv(
+        "aes-128-cbc",
+        Buffer.from(keyArr.map(Number)),
+        Buffer.from(ivArr.map(Number)),
+      );
+      dec.setAutoPadding(false);
+      const out = Buffer.concat([
+        dec.update(Buffer.from(c3Arr.map(Number))),
+        dec.final(),
+      ]);
+      return { _hex: out.toString("hex"), _isResult: true };
+    },
+  };
+
+  // Prepend a toHex shim so our sentinel is handled before the challenge's
+  // own toHex tries to iterate the byte array.
+  const patchedScript = `
+    var __origToHex = toHex;
+    toHex = function() {
+      var a = arguments[0];
+      if (a && a._isResult) return a._hex;
+      return __origToHex.apply(this, arguments);
+    };
+    ${challengeScript}
+  `;
+
+  const sandbox = {
+    slowAES,
+    atob: (b64) => Buffer.from(b64, "base64").toString("utf8"),
+    document: {
+      set cookie(raw) {
+        const [pair] = raw.split(";");
+        const eq = pair.indexOf("=");
+        if (eq > 0) {
+          solvedName = pair.slice(0, eq).trim();
+          solvedValue = pair.slice(eq + 1).trim();
+        }
+      },
+    },
+    location: { href: "" },
+  };
+
+  try {
+    runInNewContext(patchedScript, sandbox, { timeout: 2000 });
+  } catch {
+    return false;
   }
 
-  const KEY = resolve(dc[1]);
-  const IV = resolve(dc[2]);
-  if (!KEY || !IV) return false;
-
-  const name =
-    /document\.cookie\s*=\s*["']([^"'=]+)=["']/i.exec(html)?.[1] ?? "LWvddos";
-  const dec = createDecipheriv("aes-128-cbc", KEY, IV);
-  dec.setAutoPadding(false);
-  jar[name] = Buffer.concat([
-    dec.update(Buffer.from(c3, "hex")),
-    dec.final(),
-  ]).toString("hex");
+  if (!solvedName || !solvedValue) return false;
+  jar[solvedName] = solvedValue;
   return true;
 }
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
 
-// Shared request options passed to cookieClient for all site requests.
-const OPTS = { referer: REG_URL, origin: BASE_URL };
-
-// Single no-redirect POST to REG_URL — needed to capture the DDoS challenge
-// cookie that the server sets before issuing a redirect on POST requests.
+// No-redirect POST — captures the DDoS challenge cookie set on POST responses.
 async function rawPost(jar, body) {
   const res = await fetch(REG_URL, {
     method: "POST",
@@ -123,11 +129,10 @@ async function rawPost(jar, body) {
     signal: AbortSignal.timeout(25_000),
   });
   mergeCookies(jar, res);
-  return res.text();
+  return { text: await res.text(), status: res.status };
 }
 
 // Redirect-following fetch that auto-solves any DDoS challenge and retries.
-// Each retry injects the newly solved cookie and re-issues the request.
 async function fetch$(method, url, jar, body) {
   for (let i = 0; i < 4; i++) {
     const { text, status } = await request(method, url, jar, { body, ...OPTS });
@@ -138,7 +143,6 @@ async function fetch$(method, url, jar, body) {
 
 // ── Steps ─────────────────────────────────────────────────────────────────────
 
-// Dummy POST body used only to trigger and capture the POST-specific DDoS cookie.
 const DUMMY_BODY = {
   name: "x",
   password1: "x",
@@ -149,17 +153,29 @@ const DUMMY_BODY = {
   "g-recaptcha-response": "dummy",
 };
 
-// Primes both GET and POST DDoS cookies before the real registration POST.
-// The site issues different c3 ciphertexts for GET vs POST requests.
+// Primes GET and POST DDoS cookies. GET fires first; dummy POST captures any
+// POST-specific challenge and confirms it, unless the server already redirects.
 async function primeDDosCookies(jar, log) {
   log(`[${TAG}] Priming DDoS cookies...`);
   await fetch$("GET", REG_URL, jar, null);
-  const challengeHtml = await rawPost(jar, DUMMY_BODY);
-  if (injectSolvedCookie(challengeHtml, jar)) await rawPost(jar, DUMMY_BODY);
-  log(`[${TAG}] DDoS cookies ready.`);
+
+  const { text, status } = await rawPost(jar, DUMMY_BODY);
+  log(`[${TAG}] Dummy POST status: ${status}`);
+
+  if (status >= 300 && status < 400) {
+    log(`[${TAG}] POST challenge already satisfied.`);
+  } else if (injectSolvedCookie(text, jar)) {
+    log(`[${TAG}] POST DDoS solved, confirming...`);
+    const { status: s2 } = await rawPost(jar, DUMMY_BODY);
+    log(`[${TAG}] Confirmation POST status: ${s2}`);
+  } else {
+    log(`[${TAG}] No POST challenge found — proceeding.`);
+  }
+
+  log(`[${TAG}] DDoS cookies ready: ${Object.keys(jar).join(", ")}`);
 }
 
-// Submits the registration form and checks the DLE CMS response for errors.
+// Submits the registration form and throws on DLE CMS errors.
 async function register(jar, { username, password, email }, captchaToken, log) {
   log(`[${TAG}] Registering ${username}...`);
   const { text } = await fetch$("POST", REG_URL, jar, {
@@ -185,19 +201,21 @@ async function register(jar, { username, password, email }, captchaToken, log) {
   log(`[${TAG}] Registration submitted.`);
 }
 
-// Hits the trial-activation endpoint (mirrors the "Получить тест" button AJAX
-// call), then loads the profile page and scrapes the M3U playlist URL.
+// Activates the trial then scrapes the M3U URL from the profile page.
 async function activateAndGetM3u(jar, username, log) {
   log(`[${TAG}] Activating trial...`);
   await get(TEST_URL, jar, OPTS);
 
   log(`[${TAG}] Fetching profile page...`);
-  const profileUrl = `${BASE_URL}/user/${encodeURIComponent(username)}/`;
-  const { text, status } = await fetch$("GET", profileUrl, jar, null);
+  const { text, status } = await fetch$(
+    "GET",
+    `${BASE_URL}/user/${encodeURIComponent(username)}/`,
+    jar,
+    null,
+  );
   log(`[${TAG}] Profile page status: ${status}`);
 
-  const isLoggedIn = /Привет[,\s]/i.test(text) || /playlist\.m3u/i.test(text);
-  if (!isLoggedIn) {
+  if (!/Привет[,\s]/i.test(text) && !/playlist\.m3u/i.test(text)) {
     log(
       `[${TAG}] Not authenticated. Jar: ${Object.keys(jar).join(", ")}`,
       "warn",
@@ -239,9 +257,14 @@ export default {
     await register(jar, { username, password, email }, captchaToken, log);
 
     const cookieKeys = Object.keys(jar);
-    log(`[${TAG}] Cookies: ${cookieKeys.join(", ") || "(none)"}`);
+    log(
+      `[${TAG}] Cookies after registration: ${cookieKeys.join(", ") || "(none)"}`,
+    );
 
-    const session = cookieKeys.find((k) => /phpsessid|sess|sid|auth/i.test(k));
+    // DLE CMS sets PHPSESSID, dle_user_id, dle_password, or similar on successful login.
+    const session = cookieKeys.find((k) =>
+      /phpsessid|dle_user|user_hash|sess|sid|auth/i.test(k),
+    );
     if (!session)
       throw new Error(
         `[${TAG}] No session cookie — captcha may have been rejected.`,
