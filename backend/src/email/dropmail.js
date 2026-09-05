@@ -53,7 +53,7 @@ export default {
     id: "dropmail",
     name: "DropMail",
     url: "https://dropmail.click",
-    description: "Disposable temporary email via DropMail public API",
+    description: "@dropmail.click",
     apiOnly: true,
   },
 

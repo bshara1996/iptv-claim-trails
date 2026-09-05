@@ -5,12 +5,15 @@
  * Each task holds its EventEmitter, AbortController, status, and results.
  *
  * Exports:
- *   tasks                                — the underlying Map (used by runner.js)
- *   createTask()                         — registers a new task, returns { taskId, emitter }
- *   getTask(taskId)                      — retrieves a task by id, or null
- *   cancelTask(taskId)                   — aborts a running/pending task
- *   setPendingCaptcha(taskId, resolve)   — registers a waiting captcha resolver
- *   resolvePendingCaptcha(taskId, token) — fulfils the waiting captcha promise
+ *   tasks                                          — the underlying Map (used by runner.js)
+ *   createTask()                                   — registers a new task, returns { taskId, emitter }
+ *   getTask(taskId)                                — retrieves a task by id, or null
+ *   cancelTask(taskId)                             — aborts a running/pending task
+ *   setPendingCaptcha(taskId, resolve)             — registers a waiting captcha resolver
+ *   resolvePendingCaptcha(taskId, token)           — fulfils the waiting captcha promise
+ *   setPendingTvboomDone(taskId, resolve, reject)  — registers a waiting TVBoom registration resolver
+ *   resolvePendingTvboomDone(taskId)               — signals that the user completed registration
+ *   rejectPendingTvboomDone(taskId)                — signals that the user cancelled registration
  */
 
 import { v4 as uuidv4 } from "uuid";
@@ -64,3 +67,30 @@ export async function cancelTask(taskId) {
   task.abortController.abort();
   task.status = "cancelling";
 }
+
+// ── TVBoom manual-registration pause/resume ───────────────────────────────────
+
+const pendingTvboomDone = new Map();
+
+// Stores resolve/reject so the route can unblock the waiting service.
+export const setPendingTvboomDone = (taskId, resolve, reject) =>
+  pendingTvboomDone.set(taskId, { resolve, reject });
+
+// Retrieves and removes the pending entry, then calls fn with it. Returns false if none exists.
+const settleTvboom = (taskId, fn) => {
+  const entry = pendingTvboomDone.get(taskId);
+  if (!entry) return false;
+  pendingTvboomDone.delete(taskId);
+  fn(entry);
+  return true;
+};
+
+// Called when the user confirms registration is complete.
+export const resolvePendingTvboomDone = (taskId) =>
+  settleTvboom(taskId, ({ resolve }) => resolve());
+
+// Called when the user cancels the registration popup.
+export const rejectPendingTvboomDone = (taskId) =>
+  settleTvboom(taskId, ({ reject }) =>
+    reject(new Error("[TVBoom] Registration cancelled by user.")),
+  );

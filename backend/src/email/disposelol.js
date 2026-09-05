@@ -116,7 +116,7 @@ export default {
     id: "disposelol",
     name: "Dispose.lol",
     url: BASE_URL,
-    description: "Disposable temporary Gmail via dispose.lol (API)",
+    description: "Gmail",
     apiOnly: true,
   },
 

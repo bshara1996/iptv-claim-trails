@@ -9,6 +9,7 @@
  */
 import logger from "../logger.js";
 import { makeGetReader, createProviderMethods } from "./base.js";
+import { DEFAULT_UA } from "../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -17,8 +18,7 @@ const TAG = "HioMail";
 const PROVIDER = "gmail";
 
 const BASE_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36",
+  "User-Agent": DEFAULT_UA,
   Origin: BASE_URL,
   Referer: `${BASE_URL}/`,
 };
@@ -93,7 +93,7 @@ export default {
     id: "hiomail",
     name: "HioMail",
     url: BASE_URL,
-    description: "Disposable temporary Gmail alias via hiomail.com (API)",
+    description: "dotGmail",
     apiOnly: true,
   },
 

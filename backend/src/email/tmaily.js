@@ -9,13 +9,12 @@
  */
 import logger from "../logger.js";
 import { makeGetReader, createProviderMethods } from "./base.js";
+import { DEFAULT_UA } from "../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const BASE_URL = "https://tmaily.com";
 const TAG = "TMaily";
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36";
 
 // Set to a specific domain string to skip the /domains fetch.
 export const STATIC_DOMAIN = null;
@@ -24,7 +23,7 @@ export const STATIC_DOMAIN = null;
 
 // Builds common request headers, optionally injecting the session cookie.
 const headers = (cookie = "") => ({
-  "User-Agent": UA,
+  "User-Agent": DEFAULT_UA,
   Accept: "application/json, text/plain, */*",
   Referer: `${BASE_URL}/`,
   "sec-ch-ua-platform": '"Windows"',
@@ -114,7 +113,7 @@ export default {
     id: "tmaily",
     name: "TMaily",
     url: BASE_URL,
-    description: "Disposable temporary email via tmaily.com (API)",
+    description: "aiqseo/hqpdf/manglgih ...",
     apiOnly: true,
   },
 

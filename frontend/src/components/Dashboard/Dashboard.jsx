@@ -5,6 +5,7 @@ import ControlBar from "../ControlBar/ControlBar.jsx";
 import LogPanel from "../LogPanel/LogPanel.jsx";
 import ResultsTable from "../ResultsTable/ResultsTable.jsx";
 import CaptchaModal from "../CaptchaModal/CaptchaModal.jsx";
+import TvboomRegisterModal from "../TvboomRegisterModal/TvboomRegisterModal.jsx";
 import "./Dashboard.css";
 
 export default function Dashboard() {
@@ -23,6 +24,9 @@ export default function Dashboard() {
     captchaChallenge,
     onCaptchaSolved,
     onCaptchaDismiss,
+    tvboomRegisterChallenge,
+    onTvboomRegisterDone,
+    onTvboomRegisterDismiss,
     start,
     stop,
   } = useAutomation();
@@ -124,6 +128,13 @@ export default function Dashboard() {
         challenge={captchaChallenge}
         onSolved={onCaptchaSolved}
         onDismiss={onCaptchaDismiss}
+      />
+
+      {/* ── TVBoom Registration Modal (opens real tvboom.vip/register) ── */}
+      <TvboomRegisterModal
+        challenge={tvboomRegisterChallenge}
+        onDone={onTvboomRegisterDone}
+        onDismiss={onTvboomRegisterDismiss}
       />
     </>
   );

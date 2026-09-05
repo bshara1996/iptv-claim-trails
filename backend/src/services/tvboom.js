@@ -1,183 +1,96 @@
 /**
- * TVBoom (tvboom.vip) — free 24-hour IPTV trial via registration.
+ * TVBoom (tvboom.vip) — free 24-hour IPTV trial.
  *
- * The site runs DataLife Engine (DLE), the same PHP CMS used by velestore.su.
- *
- * Flow:
- *   1. GET  /register              → PHPSESSID cookie + ToS acceptance form
- *   2. POST /register              → accept ToS (do=register&dle_rules_accept=yes)
- *                                    → actual registration form with reCAPTCHA v2
- *   3. Emit captcha_challenge      → await reCAPTCHA token from frontend
- *   4. POST /register              → submit name / email / password / captcha token
- *   5. GET  /index.php?do=test     → activate 24-hour trial (mirrors in-page button)
- *   6. GET  /user/<username>/      → scrape M3U playlist URL from profile page
- *
- * reCAPTCHA v2 sitekey: 6LdDnVUqAAAAADwIxsZPYsDmLDdEsR979dxwhYyc
+ * Flow (after user fills the iframe and clicks Done):
+ *   1. Poll inbox → extract DLE validation link.
+ *   2. GET validation link → scrape & follow the step=2 link.
+ *   3. GET /main, GET /index.php?do=test (activates trial), GET /main again.
+ *   4. Parse `playlistUrl` JS variable → return M3U link.
  */
 import {
   generateUsername,
   generatePassword,
   buildResult,
 } from "../parsing/generators.js";
-import { extractPlaylists } from "../parsing/extractors.js";
-import { createJar, get, post, stripHtml } from "../http/cookieClient.js";
-import { awaitCaptcha } from "../engine/captcha.js";
+import { createJar, get } from "../http/cookieClient.js";
+import { emit } from "../engine/events.js";
+import { setPendingTvboomDone } from "../engine/taskStore.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const BASE_URL = "https://tvboom.vip";
-const REGISTER_URL = `${BASE_URL}/register`;
-const TEST_URL = `${BASE_URL}/index.php?do=test`;
+const BASE = "https://tvboom.vip";
 const TAG = "TVBoom";
 const TRIAL_HOURS = 24;
-const SITEKEY = "6LdDnVUqAAAAADwIxsZPYsDmLDdEsR979dxwhYyc";
 
-// ── Steps ─────────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Step 1+2: GET the register page to pick up PHPSESSID, then POST the ToS
-// acceptance to advance to the actual registration form.
-async function acceptTos(jar, log) {
-  log(`[${TAG}] Loading registration page…`);
-  await get(REGISTER_URL, jar);
-
-  log(`[${TAG}] Accepting terms of service…`);
-  const { text } = await post(
-    REGISTER_URL,
-    jar,
-    { do: "register", dle_rules_accept: "yes" },
-    REGISTER_URL,
-  );
-  return text;
-}
-
-// Step 4: POST the real registration form with the reCAPTCHA token.
-// Returns the response HTML so callers can check for errors.
-async function register(jar, { username, password, email }, captchaToken, log) {
-  log(`[${TAG}] Submitting registration for ${email}…`);
-  const { text } = await post(
-    REGISTER_URL,
-    jar,
-    {
-      name: username,
-      email,
-      password1: password,
-      password2: password,
-      submit_reg: "submit_reg",
-      do: "register",
-      "g-recaptcha-response": captchaToken,
-    },
-    REGISTER_URL,
-  );
-
-  // DLE embeds inline error messages in a span with class "inform-1".
-  const errMatch = /class="inform-1">([\s\S]{0,400}?)<\/span>/i.exec(text);
-  if (errMatch) {
-    const errText = errMatch[1]
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (!/успешно|success/i.test(errText))
-      throw new Error(`[${TAG}] Registration error: ${errText}`);
+// GETs the validation link then scrapes and follows the step=2 continuation link.
+async function confirmEmail(jar, link, log) {
+  const { text } = await get(link, jar);
+  const m = /href=["']([^"']*do=register[^"']*step=2[^"']*)/i.exec(text);
+  if (!m) {
+    log(`[${TAG}] Step-2 link not found — may already be confirmed.`, "warn");
+    return;
   }
-
-  if (/уже (зарег|существует)|already (exist|reg)/i.test(text))
-    throw new Error(`[${TAG}] Username or email already registered.`);
-
-  if (/reCAPTCHA|captcha.*invalid|неверн.*капч/i.test(text))
-    throw new Error(`[${TAG}] reCAPTCHA rejected — please try again.`);
-
-  log(`[${TAG}] ✅ Registration submitted.`);
-  return text;
-}
-
-// Step 5: Hit the trial-activation endpoint — mirrors the "Получить тест"
-// button AJAX call on the dashboard.
-async function activateTrial(jar, log) {
-  log(`[${TAG}] Activating 24-hour trial…`);
-  await get(TEST_URL, jar);
-  log(`[${TAG}] ✅ Trial activation request sent.`);
-}
-
-// Step 6: Fetch the user profile page and extract the M3U playlist URL.
-// DLE profiles live at /user/<username>/ — same pattern as velestore.su.
-async function fetchM3u(jar, username, log) {
-  const profileUrl = `${BASE_URL}/user/${encodeURIComponent(username)}/`;
-  log(`[${TAG}] Fetching profile page: ${profileUrl}`);
-  const { text, status } = await get(profileUrl, jar);
-  log(`[${TAG}] Profile status: ${status}`);
-
-  // Primary: shared M3U / playlist extractor.
-  const playlists = extractPlaylists(text);
-  if (playlists?.tvPlaylist) return playlists.tvPlaylist;
-
-  // Fallback: DLE billing panel often embeds the M3U in a data attribute or
-  // inline table cell — scan for any http(s) URL ending in .m3u or .m3u8.
-  const directMatch = /https?:\/\/[^\s"'<>]+\.m3u8?(?:[?#][^\s"'<>]*)?/i.exec(
-    text,
-  );
-  if (directMatch) return directMatch[0];
-
-  // Log relevant lines to help diagnose if the M3U is present but unparsed.
-  const relevantLines = text
-    .split("\n")
-    .filter((l) =>
-      /http|url|link|playlist|stream|server|port|user|pass|trial|m3u|xtream/i.test(
-        l,
-      ),
-    )
-    .map((l) => stripHtml(l).slice(0, 300))
-    .filter((l) => l.length > 3)
-    .join("\n");
-
-  if (relevantLines)
-    log(
-      `[${TAG}] M3U not found. Relevant profile lines:\n${relevantLines}`,
-      "warn",
-    );
-  else
-    log(`[${TAG}] M3U not found — profile page has no relevant URLs.`, "warn");
-
-  return null;
+  const step2 = m[1].startsWith("http")
+    ? m[1]
+    : new URL(m[1].replace(/&amp;/gi, "&"), BASE).href;
+  log(`[${TAG}] ✅ Following step-2: ${step2}`);
+  await get(step2, jar);
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export default {
-  meta: {
-    id: "tvboom",
-    name: "TVBoom",
-    description: "24 Hours",
-  },
+  meta: { id: "tvboom", name: "TVBoom", description: "24 Hours" },
 
-  async execute({ email, taskId, emitter, log = () => {} }) {
+  async execute({
+    provider,
+    credentialStore,
+    email,
+    inboxSeenIds = new Set(),
+    taskId,
+    emitter,
+    log = () => {},
+  }) {
     const username = generateUsername();
     const password = generatePassword();
     const jar = createJar();
 
-    // Steps 1+2: Load the registration page and accept ToS.
-    await acceptTos(jar, log);
-
-    // Step 3: Pause and ask the frontend to solve the reCAPTCHA.
-    const captchaToken = await awaitCaptcha(
-      taskId,
-      emitter,
-      REGISTER_URL,
-      SITEKEY,
-      TAG,
-      log,
+    // Step 1: Wait for the user to complete the iframe registration and click Done.
+    log(`[${TAG}] Waiting for user to complete registration…`);
+    emit(emitter, "tvboom_register", { taskId, username, password, email });
+    await new Promise((resolve, reject) =>
+      setPendingTvboomDone(taskId, resolve, reject),
     );
-    log(`[${TAG}] reCAPTCHA solved — proceeding with registration…`);
+    log(`[${TAG}] ✅ Registration confirmed — proceeding…`);
 
-    // Step 4: Submit the registration form.
-    await register(jar, { username, password, email }, captchaToken, log);
+    // Step 2: Poll inbox for the DLE validation link, then confirm the email.
+    log(`[${TAG}] Polling inbox for verification email…`);
+    const link = await provider.waitForEmailAndExtractLink(credentialStore, {
+      filterText: "tvboom",
+      pattern: /tvboom\.vip.*doaction=validating/i,
+      seenIds: new Set(inboxSeenIds),
+      timeout: 120_000,
+    });
+    if (!link) throw new Error(`[${TAG}] Verification email not received.`);
+    log(`[${TAG}] ✅ Verification link: ${link}`);
+    await confirmEmail(jar, link, log);
 
-    // Step 5: Activate the trial.
-    await activateTrial(jar, log);
+    // Step 3: Enter the dashboard and activate the 24-hour trial.
+    await get(`${BASE}/main`, jar);
+    await get(`${BASE}/index.php?do=test`, jar, { referer: `${BASE}/main` });
+    log(`[${TAG}] ✅ Trial activated.`);
 
-    // Step 6: Scrape the profile page for the M3U link.
-    const tvPlaylist = await fetchM3u(jar, username, log);
+    // Step 4: Fetch /main and parse the M3U URL from the inline JS playlistUrl variable.
+    // Template: https://tvboom.vip/{user}/{pass}/%type/playlist.m3u8 → %type = 'hls'.
+    const { text } = await get(`${BASE}/main`, jar);
+    const mu = /const\s+playlistUrl\s*=\s*['"]([^'"]+)['"]/i.exec(text);
+    const tvPlaylist = mu
+      ? mu[1].replace("%type", "hls")
+      : (/href=["']([^"']*\.m3u8[^"']*)['"]/i.exec(text)?.[1] ?? null);
+
     if (tvPlaylist) log(`[${TAG}] ✅ M3U: ${tvPlaylist}`);
-
     return buildResult({
       username,
       password,

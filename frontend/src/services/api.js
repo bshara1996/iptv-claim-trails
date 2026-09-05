@@ -34,12 +34,44 @@ export async function submitCaptchaToken(taskId, token) {
 }
 
 /**
+ * Signals the backend that the user finished registering on tvboom.vip,
+ * unblocking the paused TVBoom service execution.
+ */
+export async function signalTvboomDone(taskId) {
+  const res = await fetch(`${BASE}/tvboom-done/${taskId}`, { method: "POST" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `Unexpected response: ${res.status}`);
+  }
+  return res.json();
+}
+
+/**
+ * Signals the backend that the user cancelled TVBoom registration,
+ * causing the service to throw a cancellation error.
+ */
+export async function signalTvboomCancel(taskId) {
+  const res = await fetch(`${BASE}/tvboom-cancel/${taskId}`, {
+    method: "POST",
+  });
+  return res.json().catch(() => ({}));
+}
+
+/**
  * Open an SSE stream for a task and call handlers for each event type.
  * @returns {Function} unsubscribe — call to close the stream
  */
 export function subscribeToTask(
   taskId,
-  { onLog, onResult, onEmail, onCaptcha, onDone, onError } = {},
+  {
+    onLog,
+    onResult,
+    onEmail,
+    onCaptcha,
+    onTvboomRegister,
+    onDone,
+    onError,
+  } = {},
 ) {
   const es = new EventSource(`${BASE}/stream/${taskId}`);
 
@@ -66,6 +98,9 @@ export function subscribeToTask(
         break;
       case "captcha_challenge":
         onCaptcha?.(event.data);
+        break;
+      case "tvboom_register":
+        onTvboomRegister?.(event.data);
         break;
       case "done":
       case "stream_end":

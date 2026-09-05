@@ -67,7 +67,7 @@ export default {
     id: "mailtm",
     name: "Mail.tm",
     url: BASE_URL,
-    description: "Disposable temporary email via Mail.tm API",
+    description: "@uberip.com",
     apiOnly: true,
   },
 

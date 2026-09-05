@@ -79,8 +79,7 @@ export default {
     id: "emailnator",
     name: "Emailnator",
     url: BASE,
-    description:
-      "Disposable dotGmail (@gmail.com) address via Emailnator (API)",
+    description: "dot/plus Gmail ",
     apiOnly: true,
   },
 

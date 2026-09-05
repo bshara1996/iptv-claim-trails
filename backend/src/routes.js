@@ -10,9 +10,15 @@
  */
 import { Router } from "express";
 import { emailProviders, registrationServices } from "./engine/registry.js";
-import { createTask, getTask, cancelTask } from "./engine/taskStore.js";
+import {
+  createTask,
+  getTask,
+  cancelTask,
+  resolvePendingCaptcha,
+  resolvePendingTvboomDone,
+  rejectPendingTvboomDone,
+} from "./engine/taskStore.js";
 import { runTask } from "./engine/runner.js";
-import { resolvePendingCaptcha } from "./engine/taskStore.js";
 import logger from "./logger.js";
 
 const router = Router();
@@ -108,6 +114,19 @@ router.post("/captcha/:taskId", (req, res) => {
 
   res.json({ ok: true });
 });
+
+// ── TVBoom registration relay ─────────────────────────────────────────────────
+// Frontend POSTs here after the user completes (done) or cancels (cancel) the iframe registration.
+
+const tvboomRelay = (fn) => (req, res) => {
+  const ok = fn(req.params.taskId);
+  return ok
+    ? res.json({ ok: true })
+    : res.status(404).json({ error: "No TVBoom registration pending." });
+};
+
+router.post("/tvboom-done/:taskId", tvboomRelay(resolvePendingTvboomDone));
+router.post("/tvboom-cancel/:taskId", tvboomRelay(rejectPendingTvboomDone));
 
 // ── Results ───────────────────────────────────────────────────────────────────
 

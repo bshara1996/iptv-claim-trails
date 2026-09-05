@@ -19,6 +19,8 @@ export function useAutomation() {
   const [backendError, setBackendError] = useState(null);
   // captchaChallenge: null | { taskId, sitekey, pageUrl }
   const [captchaChallenge, setCaptchaChallenge] = useState(null);
+  // tvboomRegisterChallenge: null | { taskId, registrationUrl, username, password, email }
+  const [tvboomRegisterChallenge, setTvboomRegisterChallenge] = useState(null);
 
   const unsubRef = useRef(null);
 
@@ -59,17 +61,33 @@ export function useAutomation() {
   const onCaptchaSolved = useCallback(
     (solvedTaskId) => {
       setCaptchaChallenge(null);
-      pushLog("[LayerSeven] ✅ CAPTCHA solved — resuming automation…");
+      pushLog("✅ CAPTCHA solved — resuming automation…");
     },
     [pushLog],
   );
 
-  // Called when the user clicks "Cancel Task" inside the modal.
+  // Called when the user clicks "Cancel Task" inside the captcha modal.
   const onCaptchaDismiss = useCallback(() => {
     setCaptchaChallenge(null);
     if (taskId) stopAutomation(taskId).catch(console.error);
     setStatus("cancelled");
     pushLog("Task cancelled by user (CAPTCHA dismissed).", "warn");
+  }, [taskId, pushLog]);
+
+  // ── TVBoom registration handlers ──────────────────────────────────────────
+
+  // Called by TvboomRegisterModal after the backend confirmed "done".
+  const onTvboomRegisterDone = useCallback(() => {
+    setTvboomRegisterChallenge(null);
+    pushLog("[TVBoom] ✅ Registration confirmed — resuming automation…");
+  }, [pushLog]);
+
+  // Called when the user clicks "Cancel Task" inside the TVBoom modal.
+  const onTvboomRegisterDismiss = useCallback(() => {
+    setTvboomRegisterChallenge(null);
+    if (taskId) stopAutomation(taskId).catch(console.error);
+    setStatus("cancelled");
+    pushLog("Task cancelled by user (TVBoom registration dismissed).", "warn");
   }, [taskId, pushLog]);
 
   // ── Start automation ──────────────────────────────────────────────────────
@@ -83,6 +101,7 @@ export function useAutomation() {
     setEmail(null);
     setTaskId(null);
     setCaptchaChallenge(null);
+    setTvboomRegisterChallenge(null);
     if (unsubRef.current) {
       unsubRef.current();
       unsubRef.current = null;
@@ -114,13 +133,18 @@ export function useAutomation() {
       onEmail: (d) => setEmail(d.email),
       onResult: (d) => setResults((prev) => [...prev, d]),
       onError: (d) => pushLog(d.message, "error"),
-      // captcha_challenge: pause the task and show the modal
+      // captcha_challenge: pause the task and show the captcha modal
       onCaptcha: (d) => {
+        pushLog("🛡️ CAPTCHA required — solve it in the pop-up…", "warn");
+        setCaptchaChallenge(d); // { taskId, sitekey, pageUrl }
+      },
+      // tvboom_register: open the real registration page in a popup
+      onTvboomRegister: (d) => {
         pushLog(
-          "[LayerSeven] 🛡️ CAPTCHA required — solve it in the pop-up…",
+          "[TVBoom] 📋 Manual registration required — fill in the popup…",
           "warn",
         );
-        setCaptchaChallenge(d); // { taskId, sitekey, pageUrl }
+        setTvboomRegisterChallenge(d); // { taskId, registrationUrl, username, password, email }
       },
       onDone: () => setStatus((prev) => (prev === "running" ? "done" : prev)),
     });
@@ -132,6 +156,7 @@ export function useAutomation() {
     unsubRef.current?.();
     unsubRef.current = null;
     setCaptchaChallenge(null);
+    setTvboomRegisterChallenge(null);
     await stopAutomation(taskId).catch(console.error);
     setStatus("cancelled");
     pushLog("Automation stopped by user.", "warn");
@@ -161,6 +186,10 @@ export function useAutomation() {
     captchaChallenge,
     onCaptchaSolved,
     onCaptchaDismiss,
+    // TVBoom manual registration
+    tvboomRegisterChallenge,
+    onTvboomRegisterDone,
+    onTvboomRegisterDismiss,
     // Actions
     start,
     stop,
