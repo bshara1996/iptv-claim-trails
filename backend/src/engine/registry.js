@@ -26,6 +26,7 @@ import LayerSevenService from "../services/layerseven.js";
 import KookaService from "../services/kooka-kiwi-platform/kooka.js";
 import MyKiwiTvService from "../services/kooka-kiwi-platform/mykiwitv.js";
 import GreatestIptvService from "../services/greatestiptv.js";
+import VocoIptvService from "../services/vocoiptv.js";
 
 import EmeraldIptvService from "../services/emeraldiptv.js";
 import UspehService from "../services/uspeh.js";
@@ -53,6 +54,7 @@ export const registrationServices = [
   KookaService,
   MyKiwiTvService,
   GreatestIptvService,
+  VocoIptvService,
 
   EmeraldIptvService,
   UspehService,
