@@ -23,7 +23,8 @@ import LibertyTvService from "../services/libertytv.js";
 import OneIptv4kService from "../services/oneiptv4k.js";
 import TvCornService from "../services/tvcorn.js";
 import LayerSevenService from "../services/layerseven.js";
-import KookaService from "../services/kooka.js";
+import KookaService from "../services/kooka-kiwi-platform/kooka.js";
+import MyKiwiTvService from "../services/kooka-kiwi-platform/mykiwitv.js";
 import GreatestIptvService from "../services/greatestiptv.js";
 
 import EmeraldIptvService from "../services/emeraldiptv.js";
@@ -50,6 +51,7 @@ export const registrationServices = [
   TvCornService,
   LayerSevenService,
   KookaService,
+  MyKiwiTvService,
   GreatestIptvService,
 
   EmeraldIptvService,
