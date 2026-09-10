@@ -28,6 +28,7 @@ import MyKiwiTvService from "../services/kooka-kiwi-platform/mykiwitv.js";
 import GreatestIptvService from "../services/greatestiptv.js";
 import VocoIptvService from "../services/vocoiptv.js";
 
+import FosTvService from "../services/fostv.js";
 import EmeraldIptvService from "../services/emeraldiptv.js";
 import UspehService from "../services/uspeh.js";
 import RuTvService from "../services/rutv.js";
@@ -56,6 +57,7 @@ export const registrationServices = [
   GreatestIptvService,
   VocoIptvService,
 
+  FosTvService,
   EmeraldIptvService,
   UspehService,
   RuTvService,
