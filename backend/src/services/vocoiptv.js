@@ -22,7 +22,7 @@ export default {
   meta: {
     id: "vocoiptv",
     name: "VocoIPTV",
-    description: "24 Hours",
+    description: `${TRIAL_HOURS} Hours`,
   },
 
   async execute({

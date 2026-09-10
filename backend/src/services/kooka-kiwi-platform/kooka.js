@@ -15,7 +15,7 @@ export default createKookaKiwiService({
   // Always generates a fresh Kooka-specific email to avoid conflicts when running alongside MyKiwiTV
   buildPayload: (_email) => ({
     email: `${generateUsername()}@gmail.com`,
-    whatsappNumber: `generatePhone()`,
+    whatsappNumber: generatePhone(),
     fpComponents: [],
   }),
 });

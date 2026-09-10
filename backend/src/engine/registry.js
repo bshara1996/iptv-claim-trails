@@ -30,6 +30,8 @@ import VocoIptvService from "../services/vocoiptv.js";
 
 import FosTvService from "../services/fostv.js";
 import EmeraldIptvService from "../services/emeraldiptv.js";
+import RevoIptvService from "../services/revoiptv.js";
+
 import UspehService from "../services/uspeh.js";
 import RuTvService from "../services/rutv.js";
 
@@ -59,6 +61,8 @@ export const registrationServices = [
 
   FosTvService,
   EmeraldIptvService,
+  RevoIptvService,
+
   UspehService,
   RuTvService,
 ];
