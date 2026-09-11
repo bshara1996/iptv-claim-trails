@@ -1,15 +1,18 @@
 /**
- * submit-trial-platform/base.js
+ * voco-fos-layer-platform/base.js
  *
  * Shared registration engine for services running on the submit-trial REST platform
  * (Fos TV, LayerSeven TV, VocoIPTV, etc.).
  *
  * Flow:
- *   1. POST <baseUrl>/api/submit-trial — no captcha, no OTP required.
+ *   1. POST <domain>/api/submit-trial — no captcha, no OTP required.
  *   2. Poll inbox for the welcome email containing M3U credentials.
  *
  * Each service file calls `createSubmitTrialService(config)` and exports the result.
  */
+
+// ── Imports ───────────────────────────────────────────────────────────────────
+
 import {
   generateUsername,
   generatePhone,
@@ -17,28 +20,22 @@ import {
 } from "../../parsing/generators.js";
 import { jsonPost } from "../../http/cookieClient.js";
 
-/**
- * Creates a standardized service definition for submit-trial providers.
- *
- * @param {Object} config
- * @param {string} config.id - Service identifier (e.g. "fostv")
- * @param {string} config.name - Display name (e.g. "Fos TV")
- * @param {string} config.domain - Website domain (e.g. "fostv.io")
- * @param {string} config.websiteId - Static website UUID from <meta name="website-id">
- * @param {string} [config.filterText] - Keyword to match confirmation email
- * @param {number} [config.trialHours=24] - Trial duration in hours
- * @param {number} [config.timeout=300000] - Inbox polling timeout in ms
- */
+// ── Config ────────────────────────────────────────────────────────────────────
+
+// All services on this platform offer a 24-hour free trial.
 const DEFAULT_TRIAL_HOURS = 24;
 
+// ── Factory ───────────────────────────────────────────────────────────────────
+
+// Builds a service object for any provider using the /api/submit-trial → inbox-poll flow.
 export function createSubmitTrialService({
   id,
   name,
   domain,
   websiteId,
-  filterText = domain.split(".")[0],
+  filterText = domain.split(".")[0], // default: first part of domain (e.g. "fostv" from "fostv.io")
   trialHours = DEFAULT_TRIAL_HOURS,
-  timeout = 300_000,
+  timeout = 300_000, // 5-minute inbox polling window
 }) {
   const trialUrl = `https://${domain}/free-trial`;
   const apiUrl = `https://${domain}/api/submit-trial`;
@@ -51,6 +48,7 @@ export function createSubmitTrialService({
       description: `${trialHours} Hours`,
     },
 
+    // Submits the trial form and waits for the credential email.
     async execute({
       provider,
       credentialStore,
@@ -58,7 +56,7 @@ export function createSubmitTrialService({
       inboxSeenIds = new Set(),
       log = () => {},
     }) {
-      // Step 1: Submit the trial request — server queues the credential email.
+      // Step 1: POST trial request — server queues the credential email.
       await jsonPost(
         apiUrl,
         null,
@@ -73,7 +71,7 @@ export function createSubmitTrialService({
       );
       log(`[${tag}] Trial request submitted.`);
 
-      // Step 2: Poll inbox for the welcome email containing M3U/Xtream credentials.
+      // Step 2: Poll inbox until the welcome email with M3U links arrives.
       const playlists = await provider.waitForEmailAndExtractPlaylists(
         credentialStore,
         {
@@ -83,6 +81,7 @@ export function createSubmitTrialService({
         },
       );
 
+      // Step 3: Log outcome and return the standardised result.
       if (!playlists.allM3uLinks.length) {
         log(`[${tag}] No M3U links found in confirmation email.`, "warn");
       } else {
