@@ -74,20 +74,22 @@ export function useAutomation() {
     pushLog("Task cancelled by user (CAPTCHA dismissed).", "warn");
   }, [taskId, pushLog]);
 
-  // ── TVBoom registration handlers ──────────────────────────────────────────
+  // ── Registration modal handlers (TVBoom, LibertyTV) ──────────────────────────
 
-  // Called by TvboomRegisterModal after the backend confirmed "done".
-  const onTvboomRegisterDone = useCallback(() => {
+  // Called by registration modal after the backend confirmed "done".
+  const onTvboomRegisterDone = useCallback((challenge) => {
+    const sName = challenge?.serviceName || "Service";
     setTvboomRegisterChallenge(null);
-    pushLog("[TVBoom] ✅ Registration confirmed — resuming automation…");
+    pushLog(`[${sName}] ✅ Registration confirmed — resuming automation…`);
   }, [pushLog]);
 
-  // Called when the user clicks "Cancel Task" inside the TVBoom modal.
-  const onTvboomRegisterDismiss = useCallback(() => {
+  // Called when the user clicks "Cancel Task" inside the registration modal.
+  const onTvboomRegisterDismiss = useCallback((challenge) => {
+    const sName = challenge?.serviceName || "Service";
     setTvboomRegisterChallenge(null);
     if (taskId) stopAutomation(taskId).catch(console.error);
     setStatus("cancelled");
-    pushLog("Task cancelled by user (TVBoom registration dismissed).", "warn");
+    pushLog(`Task cancelled by user (${sName} registration dismissed).`, "warn");
   }, [taskId, pushLog]);
 
   // ── Start automation ──────────────────────────────────────────────────────
@@ -144,7 +146,32 @@ export function useAutomation() {
           "[TVBoom] 📋 Manual registration required — fill in the popup…",
           "warn",
         );
-        setTvboomRegisterChallenge(d); // { taskId, registrationUrl, username, password, email }
+        setTvboomRegisterChallenge({
+          serviceId: "tvboom",
+          serviceName: "TVBoom",
+          icon: "📺",
+          ...d,
+        });
+      },
+      // libertytv_register: open the registration page in the same popup
+      onLibertytvRegister: (d) => {
+        pushLog(
+          "[LibertyTV] 📋 Manual registration required — fill in the popup…",
+          "warn",
+        );
+        setTvboomRegisterChallenge({
+          serviceId: "libertytv",
+          serviceName: "LibertyTV",
+          icon: "🗽",
+          ...d,
+        });
+      },
+      // libertytv_code: verification code received for LibertyTV
+      onLibertytvCode: (d) => {
+        pushLog(`[LibertyTV] 🔑 Verification code: ${d.code}`, "info");
+        setTvboomRegisterChallenge((prev) =>
+          prev && prev.taskId === d.taskId ? { ...prev, code: d.code } : prev,
+        );
       },
       onDone: () => setStatus((prev) => (prev === "running" ? "done" : prev)),
     });

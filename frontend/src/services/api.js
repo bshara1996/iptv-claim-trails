@@ -34,11 +34,10 @@ export async function submitCaptchaToken(taskId, token) {
 }
 
 /**
- * Signals the backend that the user finished registering on tvboom.vip,
- * unblocking the paused TVBoom service execution.
+ * Signals backend that manual registration completed or was cancelled.
  */
-export async function signalTvboomDone(taskId) {
-  const res = await fetch(`${BASE}/tvboom-done/${taskId}`, { method: "POST" });
+export async function signalManualDone(taskId, serviceId = "tvboom") {
+  const res = await fetch(`${BASE}/${serviceId}-done/${taskId}`, { method: "POST" });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? `Unexpected response: ${res.status}`);
@@ -46,16 +45,16 @@ export async function signalTvboomDone(taskId) {
   return res.json();
 }
 
-/**
- * Signals the backend that the user cancelled TVBoom registration,
- * causing the service to throw a cancellation error.
- */
-export async function signalTvboomCancel(taskId) {
-  const res = await fetch(`${BASE}/tvboom-cancel/${taskId}`, {
-    method: "POST",
-  });
-  return res.json().catch(() => ({}));
+export async function signalManualCancel(taskId, serviceId = "tvboom") {
+  return fetch(`${BASE}/${serviceId}-cancel/${taskId}`, { method: "POST" })
+    .then((r) => r.json())
+    .catch(() => ({}));
 }
+
+export const signalTvboomDone = (id) => signalManualDone(id, "tvboom");
+export const signalTvboomCancel = (id) => signalManualCancel(id, "tvboom");
+export const signalLibertytvDone = (id) => signalManualDone(id, "libertytv");
+export const signalLibertytvCancel = (id) => signalManualCancel(id, "libertytv");
 
 /**
  * Open an SSE stream for a task and call handlers for each event type.
@@ -69,6 +68,8 @@ export function subscribeToTask(
     onEmail,
     onCaptcha,
     onTvboomRegister,
+    onLibertytvRegister,
+    onLibertytvCode,
     onDone,
     onError,
   } = {},
@@ -101,6 +102,12 @@ export function subscribeToTask(
         break;
       case "tvboom_register":
         onTvboomRegister?.(event.data);
+        break;
+      case "libertytv_register":
+        onLibertytvRegister?.(event.data);
+        break;
+      case "libertytv_code":
+        onLibertytvCode?.(event.data);
         break;
       case "done":
       case "stream_end":

@@ -11,9 +11,12 @@
  *   cancelTask(taskId)                             — aborts a running/pending task
  *   setPendingCaptcha(taskId, resolve)             — registers a waiting captcha resolver
  *   resolvePendingCaptcha(taskId, token)           — fulfils the waiting captcha promise
- *   setPendingTvboomDone(taskId, resolve, reject)  — registers a waiting TVBoom registration resolver
- *   resolvePendingTvboomDone(taskId)               — signals that the user completed registration
- *   rejectPendingTvboomDone(taskId)                — signals that the user cancelled registration
+ *   setPendingManualDone(taskId, resolve, reject)  — registers a waiting manual-registration resolver
+ *   resolvePendingManualDone(taskId)               — signals that the user completed registration
+ *   rejectPendingManualDone(taskId, name?)         — signals that the user cancelled registration
+ *
+ *   Legacy aliases (kept for backwards-compat): setPendingTvboomDone, resolvePendingTvboomDone,
+ *   rejectPendingTvboomDone — all delegate to the generic functions above.
  */
 
 import { v4 as uuidv4 } from "uuid";
@@ -68,29 +71,36 @@ export async function cancelTask(taskId) {
   task.status = "cancelling";
 }
 
-// ── TVBoom manual-registration pause/resume ───────────────────────────────────
+// ── Manual-registration pause/resume (ManualRegisterModal — TVBoom, LibertyTV, …) ────────────
 
-const pendingTvboomDone = new Map();
+const pendingManual = new Map();
 
-// Stores resolve/reject so the route can unblock the waiting service.
-export const setPendingTvboomDone = (taskId, resolve, reject) =>
-  pendingTvboomDone.set(taskId, { resolve, reject });
+export const setPendingManualDone = (taskId, resolve, reject) =>
+  pendingManual.set(taskId, { resolve, reject });
 
-// Retrieves and removes the pending entry, then calls fn with it. Returns false if none exists.
-const settleTvboom = (taskId, fn) => {
-  const entry = pendingTvboomDone.get(taskId);
+export const resolvePendingManualDone = (taskId) => {
+  const entry = pendingManual.get(taskId);
   if (!entry) return false;
-  pendingTvboomDone.delete(taskId);
-  fn(entry);
+  pendingManual.delete(taskId);
+  entry.resolve();
   return true;
 };
 
-// Called when the user confirms registration is complete.
-export const resolvePendingTvboomDone = (taskId) =>
-  settleTvboom(taskId, ({ resolve }) => resolve());
+export const rejectPendingManualDone = (taskId, name = "Registration") => {
+  const entry = pendingManual.get(taskId);
+  if (!entry) return false;
+  pendingManual.delete(taskId);
+  entry.reject(new Error(`[${name}] Registration cancelled by user.`));
+  return true;
+};
 
-// Called when the user cancels the registration popup.
+// Backwards-compatible aliases — kept so existing service modules (tvboom.js, libertytv.js)
+// don't need to be updated; they all delegate to the generic helpers above.
+export const setPendingTvboomDone = setPendingManualDone;
+export const resolvePendingTvboomDone = resolvePendingManualDone;
 export const rejectPendingTvboomDone = (taskId) =>
-  settleTvboom(taskId, ({ reject }) =>
-    reject(new Error("[TVBoom] Registration cancelled by user.")),
-  );
+  rejectPendingManualDone(taskId, "TVBoom");
+export const setPendingLibertytvDone = setPendingManualDone;
+export const resolvePendingLibertytvDone = resolvePendingManualDone;
+export const rejectPendingLibertytvDone = (taskId) =>
+  rejectPendingManualDone(taskId, "LibertyTV");

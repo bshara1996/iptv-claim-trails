@@ -1,7 +1,5 @@
 /**
- * submit-trial-platform/layerseventv.js
- *
- * LayerSeven TV (layerseven.tv) — free 24-hour trial (submit-trial platform).
+ * LayerSeven TV (layerseven.tv) — free 24-hour trial (voco-fos-layer-iptvs platform).
  */
 import { createSubmitTrialService } from "./base.js";
 

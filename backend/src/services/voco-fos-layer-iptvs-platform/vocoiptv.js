@@ -1,7 +1,5 @@
 /**
- * submit-trial-platform/vocoiptv.js
- *
- * VocoIPTV (vocoiptv.tv) — free 24-hour trial (submit-trial platform).
+ * VocoIPTV (vocoiptv.tv) — free 24-hour trial (voco-fos-layer-iptvs platform).
  */
 import { createSubmitTrialService } from "./base.js";
 

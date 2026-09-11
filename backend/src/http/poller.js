@@ -42,9 +42,11 @@ export async function pollApi(
     if (signal?.aborted) return null;
 
     let messages = [];
+    let hadError = false;
     try {
       messages = await fetchMessages();
     } catch (err) {
+      hadError = true;
       logger.warn(`[poller] fetchMessages failed: ${err.message}`);
     }
 
@@ -80,7 +82,9 @@ export async function pollApi(
       if (result != null) return result;
     }
 
-    await delay(pollDelay);
+    // On errors (such as 429 Too Many Requests), back off to let rate limits cool down
+    const nextDelay = hadError ? Math.max(pollDelay, 3_000) : pollDelay;
+    await delay(nextDelay);
     if (signal?.aborted) return null;
   }
 

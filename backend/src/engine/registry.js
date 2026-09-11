@@ -25,11 +25,12 @@ import TvCornService from "../services/tvcorn.js";
 import LayerSevenService from "../services/layerseven.js";
 import KookaService from "../services/kooka-kiwi-platform/kooka.js";
 import MyKiwiTvService from "../services/kooka-kiwi-platform/mykiwitv.js";
-import GreatestIptvService from "../services/greatestiptv.js";
-import VocoIptvService from "../services/voco-fos-layer-platform/vocoiptv.js";
+import GreatestIptvService from "../services/voco-fos-layer-iptvs-platform/greatestiptv.js";
 
-import FosTvService from "../services/voco-fos-layer-platform/fostv.js";
-import LayerSevenTvService from "../services/voco-fos-layer-platform/layerseventv.js";
+import VocoIptvService from "../services/voco-fos-layer-iptvs-platform/vocoiptv.js";
+import FosTvService from "../services/voco-fos-layer-iptvs-platform/fostv.js";
+import LayerSevenTvService from "../services/voco-fos-layer-iptvs-platform/layerseventv.js";
+import IPTVSubscribeService from "../services/voco-fos-layer-iptvs-platform/iptvsubscribe.js";
 import EmeraldIptvService from "../services/emeraldiptv.js";
 import RevoIptvService from "../services/revoiptv.js";
 
@@ -63,6 +64,7 @@ export const registrationServices = [
 
   FosTvService,
   LayerSevenTvService,
+  IPTVSubscribeService,
   EmeraldIptvService,
   RevoIptvService,
 

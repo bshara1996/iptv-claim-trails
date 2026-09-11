@@ -2,10 +2,10 @@
  * voco-fos-layer-platform/base.js
  *
  * Shared registration engine for services running on the submit-trial REST platform
- * (Fos TV, LayerSeven TV, VocoIPTV, etc.).
+ * (Fos TV, LayerSeven TV, VocoIPTV, GreatestIPTV, etc.).
  *
  * Flow:
- *   1. POST <domain>/api/submit-trial — no captcha, no OTP required.
+ *   1. POST <apiUrl>  — no captcha, no OTP required.
  *   2. Poll inbox for the welcome email containing M3U credentials.
  *
  * Each service file calls `createSubmitTrialService(config)` and exports the result.
@@ -22,31 +22,48 @@ import { jsonPost } from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-// All services on this platform offer a 24-hour free trial.
+// All services on this platform offer a 24-hour free trial by default.
 const DEFAULT_TRIAL_HOURS = 24;
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 
-// Builds a service object for any provider using the /api/submit-trial → inbox-poll flow.
+// Builds a service object for any provider using a POST → inbox-poll flow.
+//
+// Required for the default submit-trial shape:  domain, websiteId
+// Optional overrides for services with a different API:
+//   apiUrl       — custom POST endpoint (default: https://<domain>/api/submit-trial)
+//   referer      — custom Referer header  (default: https://<domain>/free-trial)
+//   buildPayload — (email) => payload object (default: standard submit-trial fields)
 export function createSubmitTrialService({
   id,
   name,
   domain,
   websiteId,
-  filterText = domain.split(".")[0], // default: first part of domain (e.g. "fostv" from "fostv.io")
+  filterText = domain?.split(".")?.[0] ?? name.toLowerCase(),
   trialHours = DEFAULT_TRIAL_HOURS,
   timeout = 300_000, // 5-minute inbox polling window
+  // ── Optional overrides ────────────────────────────────────────────────────
+  apiUrl,
+  referer,
+  buildPayload,
 }) {
-  const trialUrl = `https://${domain}/free-trial`;
-  const apiUrl = `https://${domain}/api/submit-trial`;
+  const trialUrl = referer ?? `https://${domain}/free-trial`;
+  const resolvedApiUrl = apiUrl ?? `https://${domain}/api/submit-trial`;
   const tag = name;
 
+  // Default payload matches the standard voco-fos-layer submit-trial API shape.
+  const resolvedBuildPayload =
+    buildPayload ??
+    ((email) => ({
+      website_id: websiteId,
+      website_url: domain,
+      customer_name: generateUsername(),
+      customer_email: email.trim(),
+      customer_phone: generatePhone(),
+    }));
+
   return {
-    meta: {
-      id,
-      name,
-      description: `${trialHours} Hours`,
-    },
+    meta: { id, name, description: `${trialHours} Hours` },
 
     // Submits the trial form and waits for the credential email.
     async execute({
@@ -57,18 +74,9 @@ export function createSubmitTrialService({
       log = () => {},
     }) {
       // Step 1: POST trial request — server queues the credential email.
-      await jsonPost(
-        apiUrl,
-        null,
-        {
-          website_id: websiteId,
-          website_url: domain,
-          customer_name: generateUsername(),
-          customer_email: email.trim(),
-          customer_phone: generatePhone(),
-        },
-        { referer: trialUrl },
-      );
+      await jsonPost(resolvedApiUrl, null, resolvedBuildPayload(email), {
+        referer: trialUrl,
+      });
       log(`[${tag}] Trial request submitted.`);
 
       // Step 2: Poll inbox until the welcome email with M3U links arrives.

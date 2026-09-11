@@ -1,7 +1,5 @@
 /**
- * submit-trial-platform/fostv.js
- *
- * Fos TV (fostv.io) — free 24-hour trial (submit-trial platform).
+ * Fos TV (fostv.io) — free 24-hour trial (voco-fos-layer-iptvs platform).
  */
 import { createSubmitTrialService } from "./base.js";
 

@@ -5,7 +5,7 @@ import ControlBar from "../ControlBar/ControlBar.jsx";
 import LogPanel from "../LogPanel/LogPanel.jsx";
 import ResultsTable from "../ResultsTable/ResultsTable.jsx";
 import CaptchaModal from "../CaptchaModal/CaptchaModal.jsx";
-import TvboomRegisterModal from "../TvboomRegisterModal/TvboomRegisterModal.jsx";
+import ManualRegisterModal from "../ManualRegisterModal/ManualRegisterModal.jsx";
 import "./Dashboard.css";
 
 export default function Dashboard() {
@@ -130,8 +130,8 @@ export default function Dashboard() {
         onDismiss={onCaptchaDismiss}
       />
 
-      {/* ── TVBoom Registration Modal (opens real tvboom.vip/register) ── */}
-      <TvboomRegisterModal
+      {/* ── Manual Registration Modal (TVBoom, LibertyTV, …) ── */}
+      <ManualRegisterModal
         challenge={tvboomRegisterChallenge}
         onDone={onTvboomRegisterDone}
         onDismiss={onTvboomRegisterDismiss}

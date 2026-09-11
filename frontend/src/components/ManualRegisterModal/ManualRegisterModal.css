@@ -118,6 +118,24 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 7px 10px;
+  transition: all 0.2s ease;
+}
+
+.tvboom-cred-row.highlighted {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.25);
+}
+
+.tvboom-cred-row.highlighted .tvboom-cred-label {
+  color: #34d399;
+}
+
+.tvboom-cred-row.highlighted .tvboom-cred-value {
+  color: #6ee7b7;
+  font-weight: 700;
+  font-size: 0.88rem;
+  letter-spacing: 0.1em;
 }
 
 .tvboom-cred-label {

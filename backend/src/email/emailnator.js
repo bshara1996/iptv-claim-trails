@@ -97,6 +97,6 @@ export default {
     return address;
   },
 
-  // Aggressive poll timings — Emailnator has no documented rate limit.
-  ...createProviderMethods(TAG, getReader, { pollDelay: 100, readDelay: 0 }),
+  // Emailnator enforces rate limits if polled too frequently (HTTP 429).
+  ...createProviderMethods(TAG, getReader, { pollDelay: 2500, readDelay: 500 }),
 };

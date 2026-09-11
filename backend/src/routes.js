@@ -15,9 +15,10 @@ import {
   getTask,
   cancelTask,
   resolvePendingCaptcha,
-  resolvePendingTvboomDone,
-  rejectPendingTvboomDone,
+  resolvePendingManualDone,
+  rejectPendingManualDone,
 } from "./engine/taskStore.js";
+import { DEFAULT_UA } from "./http/cookieClient.js";
 import { runTask } from "./engine/runner.js";
 import logger from "./logger.js";
 
@@ -115,18 +116,83 @@ router.post("/captcha/:taskId", (req, res) => {
   res.json({ ok: true });
 });
 
-// ── TVBoom registration relay ─────────────────────────────────────────────────
-// Frontend POSTs here after the user completes (done) or cancels (cancel) the iframe registration.
+// ── Manual registration relays (ManualRegisterModal — TVBoom, LibertyTV, …) ──────────────────
 
-const tvboomRelay = (fn) => (req, res) => {
-  const ok = fn(req.params.taskId);
-  return ok
+router.post(["/tvboom-done/:taskId", "/libertytv-done/:taskId"], (req, res) =>
+  resolvePendingManualDone(req.params.taskId)
     ? res.json({ ok: true })
-    : res.status(404).json({ error: "No TVBoom registration pending." });
-};
+    : res.status(404).json({ error: "No registration pending." })
+);
 
-router.post("/tvboom-done/:taskId", tvboomRelay(resolvePendingTvboomDone));
-router.post("/tvboom-cancel/:taskId", tvboomRelay(rejectPendingTvboomDone));
+router.post(["/tvboom-cancel/:taskId", "/libertytv-cancel/:taskId"], (req, res) =>
+  rejectPendingManualDone(req.params.taskId, req.path.includes("liberty") ? "LibertyTV" : "TVBoom")
+    ? res.json({ ok: true })
+    : res.status(404).json({ error: "No registration pending." })
+);
+
+// ── LibertyTV reverse proxy ───────────────────────────────────────────────────
+// Proxies account.libertytv.net inside an iframe without X-Frame-Options/CSP blocks.
+
+router.all("/libertytv-proxy*", async (req, res) => {
+  try {
+    const rawPath = (req.params[0] || "").replace(/^\//, "") || "register.php";
+    const qs = req.url.includes("?") ? `?${req.url.split("?")[1]}` : "";
+    const targetUrl = `https://account.libertytv.net/${rawPath}${qs}`;
+
+    const headers = {
+      "User-Agent": DEFAULT_UA,
+      Accept: req.headers.accept || "*/*",
+      "Accept-Language": req.headers["accept-language"] || "en-US,en;q=0.9",
+      ...(req.headers.cookie ? { Cookie: req.headers.cookie } : {}),
+    };
+
+    let body;
+    if (["POST", "PUT", "PATCH"].includes(req.method) && req.body && Object.keys(req.body).length) {
+      const isJson = req.headers["content-type"]?.includes("application/json");
+      headers["Content-Type"] = isJson ? "application/json" : "application/x-www-form-urlencoded";
+      body = isJson ? JSON.stringify(req.body) : new URLSearchParams(req.body).toString();
+    }
+
+    const upstream = await fetch(targetUrl, { method: req.method, headers, body, redirect: "manual" });
+
+    // Rewrite and forward Set-Cookie
+    for (const sc of upstream.headers.getSetCookie?.() || []) {
+      res.append("Set-Cookie", sc.replace(/Domain=[^;]+;?/gi, "").replace(/Secure;?/gi, "").replace(/Path=[^;]+;?/gi, "Path=/api/automation/libertytv-proxy;"));
+    }
+
+    // Strip frame-blocking headers & rewrite Location
+    const BLOCKED_HEADERS = ["x-frame-options", "content-security-policy", "content-security-policy-report-only", "content-length", "content-encoding", "transfer-encoding", "set-cookie"];
+    upstream.headers.forEach((val, key) => {
+      const k = key.toLowerCase();
+      if (BLOCKED_HEADERS.includes(k)) return;
+      if (k === "location") {
+        const loc = val.replace("https://account.libertytv.net/", "/api/automation/libertytv-proxy/");
+        return res.setHeader("location", loc.startsWith("/") ? `/api/automation/libertytv-proxy${loc}` : loc);
+      }
+      res.setHeader(key, val);
+    });
+
+    res.status(upstream.status);
+    const contentType = upstream.headers.get("content-type") || "";
+    if (contentType.includes("text/html")) {
+      let html = await upstream.text();
+      const autofill = `<script>
+window.addEventListener('DOMContentLoaded',()=>{try{
+  const p=new URLSearchParams(location.search);
+  for(const f of ['name','email','password']){const v=p.get(f),el=document.querySelector(\`input[name="\${f}"]\`);if(v&&el&&!el.value)el.value=v;}
+}catch(_){}});
+</script>`;
+      html = html.replace("<head>", `<head><base href="/api/automation/libertytv-proxy/">`)
+                 .replace("</head>", `${autofill}</head>`);
+      return res.send(html);
+    }
+
+    res.send(Buffer.from(await upstream.arrayBuffer()));
+  } catch (err) {
+    logger.error(`[LibertyTV Proxy] ${err.message}`);
+    res.status(500).send(`Proxy error: ${err.message}`);
+  }
+});
 
 // ── Results ───────────────────────────────────────────────────────────────────
 
