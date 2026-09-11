@@ -26,14 +26,16 @@ import LayerSevenService from "../services/layerseven.js";
 import KookaService from "../services/kooka-kiwi-platform/kooka.js";
 import MyKiwiTvService from "../services/kooka-kiwi-platform/mykiwitv.js";
 import GreatestIptvService from "../services/greatestiptv.js";
-import VocoIptvService from "../services/vocoiptv.js";
+import VocoIptvService from "../services/voco-fos-layer-platform/vocoiptv.js";
 
-import FosTvService from "../services/fostv.js";
+import FosTvService from "../services/voco-fos-layer-platform/fostv.js";
+import LayerSevenTvService from "../services/voco-fos-layer-platform/layerseventv.js";
 import EmeraldIptvService from "../services/emeraldiptv.js";
 import RevoIptvService from "../services/revoiptv.js";
 
 import UspehService from "../services/uspeh.js";
 import RuTvService from "../services/rutv.js";
+import VibeFlixtTvService from "../services/vibeflixtv.js";
 
 export const emailProviders = [
   EmailnatorProvider,
@@ -60,11 +62,13 @@ export const registrationServices = [
   VocoIptvService,
 
   FosTvService,
+  LayerSevenTvService,
   EmeraldIptvService,
   RevoIptvService,
 
   UspehService,
   RuTvService,
+  VibeFlixtTvService,
 ];
 
 // Looks up a provider by its meta.id. Returns null if not found.

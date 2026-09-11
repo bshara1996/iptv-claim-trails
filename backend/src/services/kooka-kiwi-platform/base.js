@@ -11,19 +11,31 @@
 
 // ─── Imports ─────────────────────────────────────────────────────────────────
 
-import { buildM3u, buildResult } from "../../parsing/generators.js";
+import {
+  generatePhone,
+  generateUsername,
+  buildM3u,
+  buildResult,
+} from "../../parsing/generators.js";
 import { jsonPost } from "../../http/cookieClient.js";
 
 // ─── Factory ──────────────────────────────────────────────────────────────────
+
+const DEFAULT_TRIAL_HOURS = 12;
 
 // Builds a reusable service object for any kooka-kiwi-platform provider using the shared signup API (createKookaKiwiService).
 export function createKookaKiwiService({
   id,
   name,
-  description,
+  trialHours = DEFAULT_TRIAL_HOURS,
+  description = `${trialHours} Hours`,
   baseUrl,
-  tag,
-  buildPayload,
+  tag = name,
+  buildPayload = () => ({
+    email: `${generateUsername()}@gmail.com`,
+    whatsappNumber: generatePhone(),
+    fpComponents: [],
+  }),
 }) {
   const signupUrl = `${baseUrl}/api/trial/signup`;
 
@@ -86,6 +98,7 @@ export function createKookaKiwiService({
         tvPlaylist: allM3uLinks.join("\n") || null,
         allM3uLinks,
         expiryDate,
+        trialHours,
         serviceName: name,
       });
     },
