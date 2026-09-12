@@ -13,13 +13,13 @@ import {
   parseExpiryDate,
   buildResult,
   TVCORN_ALL_COUNTRIES,
-} from "../parsing/generators.js";
+} from "../../parsing/generators.js";
 import {
   createJar,
   mergeCookies,
   cookieStr,
   extractCsrfInlineJs,
-} from "../http/cookieClient.js";
+} from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

@@ -71,7 +71,7 @@ export async function cancelTask(taskId) {
   task.status = "cancelling";
 }
 
-// ── Manual-registration pause/resume (ManualRegisterModal — TVBoom, LibertyTV, …) ────────────
+// ── Manual-registration pause/resume (ManualRegisterModal — TVBoom) ────────────
 
 const pendingManual = new Map();
 
@@ -94,13 +94,8 @@ export const rejectPendingManualDone = (taskId, name = "Registration") => {
   return true;
 };
 
-// Backwards-compatible aliases — kept so existing service modules (tvboom.js, libertytv.js)
-// don't need to be updated; they all delegate to the generic helpers above.
+// Backwards-compatible aliases — kept so existing service modules stay compatible.
 export const setPendingTvboomDone = setPendingManualDone;
 export const resolvePendingTvboomDone = resolvePendingManualDone;
 export const rejectPendingTvboomDone = (taskId) =>
   rejectPendingManualDone(taskId, "TVBoom");
-export const setPendingLibertytvDone = setPendingManualDone;
-export const resolvePendingLibertytvDone = resolvePendingManualDone;
-export const rejectPendingLibertytvDone = (taskId) =>
-  rejectPendingManualDone(taskId, "LibertyTV");

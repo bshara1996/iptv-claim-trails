@@ -11,14 +11,14 @@ import {
   generateUsername,
   generatePhone,
   buildResult,
-} from "../parsing/generators.js";
+} from "../../../parsing/generators.js";
 import {
   createJar,
   get,
   mergeCookies,
   cookieStr,
   DEFAULT_UA,
-} from "../http/cookieClient.js";
+} from "../../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

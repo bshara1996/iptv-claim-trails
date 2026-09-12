@@ -11,10 +11,10 @@ import {
   generateUsername,
   generatePassword,
   buildResult,
-} from "../parsing/generators.js";
-import { createJar, get } from "../http/cookieClient.js";
-import { emit } from "../engine/events.js";
-import { setPendingTvboomDone } from "../engine/taskStore.js";
+} from "../../parsing/generators.js";
+import { createJar, get } from "../../http/cookieClient.js";
+import { emit } from "../../engine/events.js";
+import { setPendingTvboomDone } from "../../engine/taskStore.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

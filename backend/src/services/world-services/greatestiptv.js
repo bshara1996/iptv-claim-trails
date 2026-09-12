@@ -4,7 +4,7 @@
  * Submits a JSON order to the /api/orders endpoint, then polls the inbox
  * for the confirmation email containing M3U playlist links.
  */
-import { createSubmitTrialService } from "./base.js";
+import { createSubmitTrialService } from "../rest-submit-trial-handler.js";
 
 export default createSubmitTrialService({
   id: "greatestiptv",

@@ -16,8 +16,8 @@ import {
   generateUsername,
   generatePassword,
   buildResult,
-} from "../parsing/generators.js";
-import { extractPlaylists } from "../parsing/extractors.js";
+} from "../../parsing/generators.js";
+import { extractPlaylists } from "../../parsing/extractors.js";
 import {
   createJar,
   mergeCookies,
@@ -25,8 +25,8 @@ import {
   get,
   request,
   DEFAULT_UA,
-} from "../http/cookieClient.js";
-import { awaitCaptcha } from "../engine/captcha.js";
+} from "../../http/cookieClient.js";
+import { awaitCaptcha } from "../../engine/captcha.js";
 
 const BASE_URL = "https://velestore.su";
 const REG_URL = `${BASE_URL}/?do=register`;

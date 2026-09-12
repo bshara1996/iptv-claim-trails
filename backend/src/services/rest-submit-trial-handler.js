@@ -1,8 +1,8 @@
 /**
- * voco-fos-layer-platform/base.js
+ * Shared submit-trial service factory.
  *
  * Shared registration engine for services running on the submit-trial REST platform
- * (Fos TV, LayerSeven TV, VocoIPTV, GreatestIPTV, etc.).
+ * (Fos TV, LayerSeven TV, VocoIPTV, etc.).
  *
  * Flow:
  *   1. POST <apiUrl>  — no captcha, no OTP required.
@@ -17,8 +17,8 @@ import {
   generateUsername,
   generatePhone,
   buildResult,
-} from "../../parsing/generators.js";
-import { jsonPost } from "../../http/cookieClient.js";
+} from "../parsing/generators.js";
+import { jsonPost } from "../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

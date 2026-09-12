@@ -12,8 +12,8 @@
  *   - "trial_limit" means all 7 days have already been claimed.
  *   - The "website" field is a honeypot -- must be left empty.
  */
-import { generatePhone, buildM3u, buildResult } from "../parsing/generators.js";
-import { jsonPost } from "../http/cookieClient.js";
+import { generatePhone, buildM3u, buildResult } from "../../../parsing/generators.js";
+import { jsonPost } from "../../../http/cookieClient.js";
 
 // ── Config ───────────────────────────────────────────────────────────────────
 

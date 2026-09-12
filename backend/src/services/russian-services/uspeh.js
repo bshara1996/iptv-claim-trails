@@ -26,8 +26,8 @@
  *     expirationDate from /user/profile shows when it ends.
  */
 
-import { buildResult } from "../parsing/generators.js";
-import { DEFAULT_UA } from "../http/cookieClient.js";
+import { buildResult } from "../../parsing/generators.js";
+import { DEFAULT_UA } from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

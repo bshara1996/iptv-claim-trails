@@ -5,8 +5,8 @@
  * for a confirmation email containing M3U playlist links.
  * Trial duration: 3 days (72 hours).
  */
-import { buildResult } from "../parsing/generators.js";
-import { post, DEFAULT_UA } from "../http/cookieClient.js";
+import { buildResult } from "../../parsing/generators.js";
+import { post, DEFAULT_UA } from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

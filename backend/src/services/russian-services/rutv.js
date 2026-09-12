@@ -28,8 +28,8 @@
  *     is read back from /user/profile after login.
  */
 
-import { buildResult } from "../parsing/generators.js";
-import { DEFAULT_UA } from "../http/cookieClient.js";
+import { buildResult } from "../../parsing/generators.js";
+import { DEFAULT_UA } from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

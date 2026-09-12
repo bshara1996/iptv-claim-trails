@@ -53,8 +53,6 @@ export async function signalManualCancel(taskId, serviceId = "tvboom") {
 
 export const signalTvboomDone = (id) => signalManualDone(id, "tvboom");
 export const signalTvboomCancel = (id) => signalManualCancel(id, "tvboom");
-export const signalLibertytvDone = (id) => signalManualDone(id, "libertytv");
-export const signalLibertytvCancel = (id) => signalManualCancel(id, "libertytv");
 
 /**
  * Open an SSE stream for a task and call handlers for each event type.
@@ -68,8 +66,6 @@ export function subscribeToTask(
     onEmail,
     onCaptcha,
     onTvboomRegister,
-    onLibertytvRegister,
-    onLibertytvCode,
     onDone,
     onError,
   } = {},
@@ -102,12 +98,6 @@ export function subscribeToTask(
         break;
       case "tvboom_register":
         onTvboomRegister?.(event.data);
-        break;
-      case "libertytv_register":
-        onLibertytvRegister?.(event.data);
-        break;
-      case "libertytv_code":
-        onLibertytvCode?.(event.data);
         break;
       case "done":
       case "stream_end":

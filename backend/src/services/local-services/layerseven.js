@@ -13,8 +13,8 @@ import {
   generatePassword,
   buildM3u,
   buildResult,
-} from "../parsing/generators.js";
-import { extractCredentials } from "../parsing/extractors.js";
+} from "../../parsing/generators.js";
+import { extractCredentials } from "../../parsing/extractors.js";
 import {
   createJar,
   get,
@@ -24,8 +24,8 @@ import {
   errSnippet,
   extractCsrfToken,
   DEFAULT_UA,
-} from "../http/cookieClient.js";
-import { awaitCaptcha } from "../engine/captcha.js";
+} from "../../http/cookieClient.js";
+import { awaitCaptcha } from "../../engine/captcha.js";
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const BASE = "https://panel.layerseven.ai";
@@ -166,7 +166,7 @@ async function findCredentials(jar, log) {
 export default {
   meta: {
     id: "layerseven",
-    name: "LayerSeven",
+    name: "LayerSeven [Local Host]",
     description: `${TRIAL_HOURS} Hours`,
   },
 

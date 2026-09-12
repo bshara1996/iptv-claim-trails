@@ -130,7 +130,7 @@ export default function Dashboard() {
         onDismiss={onCaptchaDismiss}
       />
 
-      {/* ── Manual Registration Modal (TVBoom, LibertyTV, …) ── */}
+      {/* ── Manual Registration Modal (TVBoom) ── */}
       <ManualRegisterModal
         challenge={tvboomRegisterChallenge}
         onDone={onTvboomRegisterDone}

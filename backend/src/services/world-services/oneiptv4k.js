@@ -13,13 +13,13 @@ import {
   generateUsername,
   generatePhone,
   buildResult,
-} from "../parsing/generators.js";
+} from "../../parsing/generators.js";
 import {
   createJar,
   get,
   post,
   extractCsrfToken,
-} from "../http/cookieClient.js";
+} from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

@@ -14,12 +14,12 @@
  * Note: Steps 2/3/5 POST JSON to /auth/email-step/ — handled by authPost().
  *       Steps 1/6/7 use the shared cookieClient helpers (form-encoded / GET).
  */
-import { buildResult } from "../parsing/generators.js";
+import { buildResult } from "../../parsing/generators.js";
 import {
   extractPlaylists,
   extractCredsFromM3u,
-} from "../parsing/extractors.js";
-import { createJar, get, post, jsonPost } from "../http/cookieClient.js";
+} from "../../parsing/extractors.js";
+import { createJar, get, post, jsonPost } from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

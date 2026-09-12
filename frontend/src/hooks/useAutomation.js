@@ -74,7 +74,7 @@ export function useAutomation() {
     pushLog("Task cancelled by user (CAPTCHA dismissed).", "warn");
   }, [taskId, pushLog]);
 
-  // ── Registration modal handlers (TVBoom, LibertyTV) ──────────────────────────
+  // ── Registration modal handlers (TVBoom) ───────────────────────────────
 
   // Called by registration modal after the backend confirmed "done".
   const onTvboomRegisterDone = useCallback((challenge) => {
@@ -153,27 +153,7 @@ export function useAutomation() {
           ...d,
         });
       },
-      // libertytv_register: open the registration page in the same popup
-      onLibertytvRegister: (d) => {
-        pushLog(
-          "[LibertyTV] 📋 Manual registration required — fill in the popup…",
-          "warn",
-        );
-        setTvboomRegisterChallenge({
-          serviceId: "libertytv",
-          serviceName: "LibertyTV",
-          icon: "🗽",
-          ...d,
-        });
-      },
-      // libertytv_code: verification code received for LibertyTV
-      onLibertytvCode: (d) => {
-        pushLog(`[LibertyTV] 🔑 Verification code: ${d.code}`, "info");
-        setTvboomRegisterChallenge((prev) =>
-          prev && prev.taskId === d.taskId ? { ...prev, code: d.code } : prev,
-        );
-      },
-      onDone: () => setStatus((prev) => (prev === "running" ? "done" : prev)),
+            onDone: () => setStatus((prev) => (prev === "running" ? "done" : prev)),
     });
   }, [selectedProvider, selectedServices, pushLog]);
 
