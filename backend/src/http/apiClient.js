@@ -7,7 +7,10 @@
  *   makeApi(baseUrl, defaultOpts?) — returns a fetch helper bound to baseUrl
  */
 
-// Fetches a JSON endpoint. Injects a Bearer token when provided,
+const DEFAULT_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+// Fetches a JSON endpoint. Injects a token when provided,
 // throws on non-2xx, and returns null on 204 No Content.
 async function apiFetch(baseUrl, path, opts = {}) {
   const {
@@ -17,7 +20,11 @@ async function apiFetch(baseUrl, path, opts = {}) {
     errorDetail = null,
   } = opts;
 
-  const headers = { "Content-Type": "application/json" };
+  const headers = {
+    "Content-Type": "application/json",
+    "User-Agent": DEFAULT_UA,
+    "Accept": "application/json, */*",
+  };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const res = await fetch(`${baseUrl}${path}`, {

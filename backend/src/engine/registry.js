@@ -10,7 +10,6 @@
 import EmailnatorProvider from "../email/emailnator.js";
 import DropMailProvider from "../email/dropmail.js";
 import MailTmProvider from "../email/mailtm.js";
-import TmailyProvider from "../email/tmaily.js";
 import DisposeLolProvider from "../email/disposelol.js";
 import HioMailProvider from "../email/hiomail.js";
 
@@ -41,7 +40,6 @@ export const emailProviders = [
   EmailnatorProvider,
   DropMailProvider,
   MailTmProvider,
-  TmailyProvider,
   DisposeLolProvider,
   HioMailProvider,
 ];
