@@ -2,7 +2,7 @@
  * Shared submit-trial service factory.
  *
  * Shared registration engine for services running on the submit-trial REST platform
- * (Fos TV, LayerSeven TV, VocoIPTV, etc.).
+ * (GreatestIPTV, IPTVSubscribe  etc.).
  *
  * Flow:
  *   1. POST <apiUrl>  — no captcha, no OTP required.

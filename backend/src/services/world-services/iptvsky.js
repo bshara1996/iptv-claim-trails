@@ -27,6 +27,7 @@ const NONCE_URL = `${BASE_URL}/wp-json/iptvsky-trial/v1/nonce`;
 const AJAX_URL = `${BASE_URL}/wp-admin/admin-ajax.php`;
 const TAG = "IPTVSky";
 const TRIAL_HOURS = 24;
+const MAX_ATTEMPTS = 3;
 
 // Parses an API response and adds a service-specific error message.
 function parseJson(text, error) {
@@ -37,9 +38,9 @@ function parseJson(text, error) {
   }
 }
 
-// Posts the trial form, retrying once when IPTVSky returns its browser gate.
+// Posts the trial form, retrying transient Cloudflare failures and browser gates.
 async function submitTrial(jar, form) {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
     const response = await fetch(AJAX_URL, {
       method: "POST",
       headers: {
@@ -50,21 +51,38 @@ async function submitTrial(jar, form) {
         Cookie: cookieStr(jar),
       },
       body: form,
-      signal: AbortSignal.timeout(25_000),
+      signal: AbortSignal.timeout(30_000),
     });
     mergeCookies(jar, response);
     const text = await response.text();
 
-    if (
-      jar.hc_js_gate === "1" ||
-      !text.includes("hc_js_gate=1") ||
-      !text.includes("Checking your browser")
-    )
-      return { response, text };
-    jar.hc_js_gate = "1";
+    const browserGate =
+      jar.hc_js_gate !== "1" &&
+      text.includes("hc_js_gate=1") &&
+      text.includes("Checking your browser");
+    const transientFailure = response.status === 522 || response.status >= 500;
+
+    if (!browserGate && !transientFailure) return { response, text };
+
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 750 * 2 ** attempt));
+      if (browserGate) jar.hc_js_gate = "1";
+      continue;
+    }
+
+    if (!browserGate) return { response, text };
   }
 
   throw new Error(`[${TAG}] Browser gate retry failed`);
+}
+
+// Requests the nonce, retrying temporary Cloudflare failures.
+async function requestNonce(jar) {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    const response = await get(NONCE_URL, jar, { referer: TRIAL_URL });
+    if (response.status < 500 || attempt === MAX_ATTEMPTS - 1) return response;
+    await new Promise((resolve) => setTimeout(resolve, 750 * 2 ** attempt));
+  }
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -76,7 +94,7 @@ export default {
     const jar = createJar();
 
     log(`[${TAG}] Requesting trial nonce...`);
-    const nonceResponse = await get(NONCE_URL, jar, { referer: TRIAL_URL });
+    const nonceResponse = await requestNonce(jar);
     if (nonceResponse.status >= 400)
       throw new Error(
         `[${TAG}] Failed to request trial nonce (HTTP ${nonceResponse.status}).`,
