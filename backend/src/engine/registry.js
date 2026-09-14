@@ -9,15 +9,18 @@
 
 import EmailnatorProvider from "../email/emailnator.js";
 import DropMailProvider from "../email/dropmail.js";
-import MailTmProvider from "../email/mailtm.js";
 import DisposeLolProvider from "../email/disposelol.js";
 import HioMailProvider from "../email/hiomail.js";
+import TempMailLolProvider from "../email/tempmailLol.js";
+import NoopmailProvider from "../email/noopmail.js";
+import PokemailProvider from "../email/pokemail.js";
 
 import Y6TvService from "../services/russian-services/y6tv.js";
 import OgoTvService from "../services/russian-services/ogotv.js";
 import VeleStoreService from "../services/russian-services/velestore.js";
 import TvBoomService from "../services/russian-services/tvboom.js";
 
+import LuxIptvService from "../services/world-services/luxiptv.js";
 import TvCornService from "../services/world-services/tvcorn.js";
 import OneIptv4kService from "../services/world-services/oneiptv4k.js";
 import KookaService from "../services/kooka-kiwi-platform/kooka.js";
@@ -39,9 +42,11 @@ import RuTvService from "../services/russian-services/rutv.js";
 export const emailProviders = [
   EmailnatorProvider,
   DropMailProvider,
-  MailTmProvider,
   DisposeLolProvider,
   HioMailProvider,
+  TempMailLolProvider,
+  NoopmailProvider,
+  PokemailProvider,
 ];
 
 export const registrationServices = [
@@ -50,6 +55,7 @@ export const registrationServices = [
   VeleStoreService,
   TvBoomService,
 
+  LuxIptvService,
   TvCornService,
   OneIptv4kService,
   KookaService,
