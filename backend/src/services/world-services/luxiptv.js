@@ -19,12 +19,12 @@ const MESSAGE_URL = "https://va.tawk.to/v1/message/visitor";
 const TAG = "Lux IPTV";
 const TRIAL_HOURS = 24;
 const IDEMPOTENCY_ALPHABET =
-  "useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict";
+  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz-";
 
 function createVisitorKey() {
   const bytes = randomBytes(21);
   return [...bytes]
-    .map((_, index) => IDEMPOTENCY_ALPHABET[bytes[index] & 63])
+    .map((byte) => IDEMPOTENCY_ALPHABET[byte % IDEMPOTENCY_ALPHABET.length])
     .join("");
 }
 
@@ -172,8 +172,6 @@ async function startSession() {
       platform: "desktop",
       tzo: new Date().getTimezoneOffset(),
       url: PAGE_URL,
-      referrer: "",
-      vss: "",
       // Without a stored UUID, Tawk uses uik to issue a new visitor identity.
       // A new key prevents the session from inheriting an older transcript.
       uik: createVisitorKey(),
@@ -195,9 +193,7 @@ async function startSession() {
     );
 
   const session = data?.data;
-  // The first session is only used to reset any previous chat. Tawk may omit
-  // `n` when the visitor has no active conversation yet.
-  if (!session?.sk || !session?.vid)
+  if (!session?.sk || !session?.vid || !session?.n)
     throw new Error(`[${TAG}] Tawk session was not created.`);
   return { ...session, jar };
 }
@@ -238,10 +234,10 @@ export default {
     inboxSeenIds = new Set(),
     log = () => {},
   }) {
-    log(`[${TAG}] Starting Tawk chat for ${email}...`);
+    log(`[${TAG}] 💬 Starting Tawk chat for ${email}...`);
     const session = await startFreshSession();
     await submitChat(session, email);
-    log(`[${TAG}] Trial request submitted. Waiting for credentials email...`);
+    log(`[${TAG}] ✅ Trial request submitted. 📩 Waiting for credentials email...`);
 
     let playlists;
     try {
@@ -258,7 +254,7 @@ export default {
     }
 
     if (!playlists.allM3uLinks.length)
-      log(`[${TAG}] No M3U links found in confirmation email.`, "warn");
+      log(`[${TAG}] ⚠️ No M3U links found in confirmation email.`, "warn");
 
     return buildResult({
       playlists,

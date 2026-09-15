@@ -156,28 +156,28 @@ const DUMMY_BODY = {
 // Primes GET and POST DDoS cookies. GET fires first; dummy POST captures any
 // POST-specific challenge and confirms it, unless the server already redirects.
 async function primeDDosCookies(jar, log) {
-  log(`[${TAG}] Priming DDoS cookies...`);
+  log(`[${TAG}] 🍪 Priming DDoS cookies...`);
   await fetch$("GET", REG_URL, jar, null);
 
   const { text, status } = await rawPost(jar, DUMMY_BODY);
-  log(`[${TAG}] Dummy POST status: ${status}`);
+  log(`[${TAG}] 🔄 Dummy POST status: ${status}`);
 
   if (status >= 300 && status < 400) {
-    log(`[${TAG}] POST challenge already satisfied.`);
+    log(`[${TAG}] ✅ POST challenge already satisfied.`);
   } else if (injectSolvedCookie(text, jar)) {
-    log(`[${TAG}] POST DDoS solved, confirming...`);
+    log(`[${TAG}] ✅ POST DDoS solved, confirming...`);
     const { status: s2 } = await rawPost(jar, DUMMY_BODY);
-    log(`[${TAG}] Confirmation POST status: ${s2}`);
+    log(`[${TAG}] 🔄 Confirmation POST status: ${s2}`);
   } else {
-    log(`[${TAG}] No POST challenge found — proceeding.`);
+    log(`[${TAG}] ⚠️ No POST challenge found — proceeding.`);
   }
 
-  log(`[${TAG}] DDoS cookies ready: ${Object.keys(jar).join(", ")}`);
+  log(`[${TAG}] ✅ 🍪 DDoS cookies ready: ${Object.keys(jar).join(", ")}`);
 }
 
 // Submits the registration form and throws on DLE CMS errors.
 async function register(jar, { username, password, email }, captchaToken, log) {
-  log(`[${TAG}] Registering ${username}...`);
+  log(`[${TAG}] 📝 Registering ${username}...`);
   const { text } = await fetch$("POST", REG_URL, jar, {
     name: username,
     password1: password,
@@ -198,26 +198,26 @@ async function register(jar, { username, password, email }, captchaToken, log) {
   if (/уже (зарег|существует)|already (exist|reg)/i.test(text))
     throw new Error(`[${TAG}] Username or email already registered.`);
 
-  log(`[${TAG}] Registration submitted.`);
+  log(`[${TAG}] ✅ Registration submitted.`);
 }
 
 // Activates the trial then scrapes the M3U URL from the profile page.
 async function activateAndGetM3u(jar, username, log) {
-  log(`[${TAG}] Activating trial...`);
+  log(`[${TAG}] 🎁 Activating trial...`);
   await get(TEST_URL, jar, OPTS);
 
-  log(`[${TAG}] Fetching profile page...`);
+  log(`[${TAG}] 👤 Fetching profile page...`);
   const { text, status } = await fetch$(
     "GET",
     `${BASE_URL}/user/${encodeURIComponent(username)}/`,
     jar,
     null,
   );
-  log(`[${TAG}] Profile page status: ${status}`);
+  log(`[${TAG}] 📄 Profile page status: ${status}`);
 
   if (!/Привет[,\s]/i.test(text) && !/playlist\.m3u/i.test(text)) {
     log(
-      `[${TAG}] Not authenticated. Jar: ${Object.keys(jar).join(", ")}`,
+      `[${TAG}] ⚠️ Not authenticated. Jar: ${Object.keys(jar).join(", ")}`,
       "warn",
     );
     return null;
@@ -252,13 +252,13 @@ export default {
       TAG,
       log,
     );
-    log(`[${TAG}] reCAPTCHA solved — registering...`);
+    log(`[${TAG}] ✅ 🤖 reCAPTCHA solved — registering...`);
 
     await register(jar, { username, password, email }, captchaToken, log);
 
     const cookieKeys = Object.keys(jar);
     log(
-      `[${TAG}] Cookies after registration: ${cookieKeys.join(", ") || "(none)"}`,
+      `[${TAG}] 🍪 Cookies after registration: ${cookieKeys.join(", ") || "(none)"}`,
     );
 
     // DLE CMS sets PHPSESSID, dle_user_id, dle_password, or similar on successful login.
@@ -269,10 +269,10 @@ export default {
       throw new Error(
         `[${TAG}] No session cookie — captcha may have been rejected.`,
       );
-    log(`[${TAG}] Session via ${session}.`);
+    log(`[${TAG}] ✅ Session via ${session}.`);
 
     const tvPlaylist = await activateAndGetM3u(jar, username, log);
-    if (tvPlaylist) log(`[${TAG}] M3U: ${tvPlaylist}`);
+    if (tvPlaylist) log(`[${TAG}] ✅ 📺 M3U: ${tvPlaylist}`);
 
     return buildResult({
       username,

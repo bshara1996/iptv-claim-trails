@@ -15,7 +15,7 @@ import TempMailLolProvider from "../email/tempmailLol.js";
 import NoopmailProvider from "../email/noopmail.js";
 import PokemailProvider from "../email/pokemail.js";
 
-import Y6TvService from "../services/russian-services/y6tv.js";
+import Y666Service from "../services/russian-services/y666.js";
 import OgoTvService from "../services/russian-services/ogotv.js";
 import VeleStoreService from "../services/russian-services/velestore.js";
 import TvBoomService from "../services/russian-services/tvboom.js";
@@ -26,9 +26,13 @@ import OneIptv4kService from "../services/world-services/oneiptv4k.js";
 import KookaService from "../services/kooka-kiwi-platform/kooka.js";
 import MyKiwiTvService from "../services/kooka-kiwi-platform/mykiwitv.js";
 
-import RevoIptvService from "../services/world-services/revoiptv.js";
-import IPTVSubscribeService from "../services/world-services/iptvsubscribe.js";
-import EmeraldIptvService from "../services/world-services/emeraldiptv.js";
+import VocoIptvService from "../services/world-services/line-trxdnscloud/vocoiptv.js";
+import FosTvService from "../services/world-services/line-trxdnscloud/fostv.js";
+import LayerSevenTvService from "../services/world-services/line-trxdnscloud/layerseventv.js";
+import LayerSevenStvService from "../services/world-services/line-trxdnscloud/layersevenstv.js";
+import RevoIptvService from "../services/world-services/line-trxdnscloud/revoiptv.js";
+import IPTVSubscribeService from "../services/world-services/line-trxdnscloud/iptvsubscribe.js";
+import EmeraldIptvService from "../services/world-services/line-trxdnscloud/emeraldiptv.js";
 
 import IptvSkyService from "../services/world-services/iptvsky.js";
 import GreatestIptvService from "../services/world-services/greatestiptv.js";
@@ -50,7 +54,7 @@ export const emailProviders = [
 ];
 
 export const registrationServices = [
-  Y6TvService,
+  Y666Service,
   OgoTvService,
   VeleStoreService,
   TvBoomService,
@@ -62,6 +66,10 @@ export const registrationServices = [
   MyKiwiTvService,
 
   // http://line.trxdnscloud.ru
+  VocoIptvService,
+  FosTvService,
+  LayerSevenTvService,
+  LayerSevenStvService,
   RevoIptvService,
   IPTVSubscribeService,
   EmeraldIptvService,

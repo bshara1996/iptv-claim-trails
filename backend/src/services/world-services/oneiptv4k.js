@@ -60,7 +60,7 @@ export default {
     const jar = createJar();
 
     // Step 1: GET registration page — capture initial CSRF token and session cookies.
-    log(`[${TAG}] Requesting trial registration page via API...`);
+    log(`[${TAG}] 🌐 Requesting trial registration page via API...`);
     const { text: regPage, status: regStatus } = await get(TRIAL_URL, jar);
     if (regStatus >= 400)
       throw new Error(`HTTP ${regStatus}: Failed to load registration page`);
@@ -69,7 +69,7 @@ export default {
     if (!token) throw new Error("Could not extract CSRF token.");
 
     // Step 2: Submit registration form.
-    log(`[${TAG}] Submitting registration for ${email}...`);
+    log(`[${TAG}] 📝 Submitting registration for ${email}...`);
     const { text: regResult, status: regPostStatus } = await post(
       TRIAL_URL,
       jar,
@@ -90,22 +90,22 @@ export default {
       if (err) throw new Error(`Registration error: ${err}`);
     }
     log(
-      `[${TAG}] Registration accepted. Polling inbox for verification code...`,
+      `[${TAG}] ✅ Registration accepted. 📩 Polling inbox for verification code...`,
     );
 
     // Step 3: Poll inbox for the 6-digit verification code.
     const seenIds = new Set(inboxSeenIds);
     const code = await provider.waitForVerificationCodeEmail(credentialStore, {
-      filterText: "Digi Market",
+      filterText: "support@oneiptv4k.com",
       codeRe:
         /(?:code|verification|confirm(?:ation)?|otp)[^0-9]{0,60}(\d{6})(?!\d)/i,
       seenIds,
       timeout: 120_000,
     });
-    if (!code) throw new Error(`[${TAG}] Verification code not received.`);
+    if (!code) throw new Error(`[${TAG}] ⚠️ Verification code not received.`);
 
     // Step 4: GET verify page to obtain a fresh CSRF token.
-    log(`[${TAG}] Submitting verification code (${code}) via API...`);
+    log(`[${TAG}] 🔐 Submitting verification code (${code}) via API...`);
     const { text: verifyPage } = await get(VERIFY_URL, jar, {
       referer: TRIAL_URL,
     });
@@ -129,13 +129,13 @@ export default {
     const playlists = await provider.waitForEmailAndExtractPlaylists(
       credentialStore,
       {
-        filterText: "Digi Market",
+        filterText: "support@oneiptv4k.com",
         seenIds,
         timeout: 120_000,
       },
     );
     log(
-      `[${TAG}] ✅ Done. TV: ${playlists.tvPlaylist ?? "none"}, VOD: ${playlists.vodPlaylist ?? "none"}`,
+      `[${TAG}] ✅ Done. 📺 TV: ${playlists.tvPlaylist ?? "none"}, 🍿 VOD: ${playlists.vodPlaylist ?? "none"}`,
     );
 
     return buildResult({

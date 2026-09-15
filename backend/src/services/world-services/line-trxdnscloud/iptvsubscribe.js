@@ -2,7 +2,7 @@
  * line-trxdnscloud
  * IPTVSubscribe (iptvsubscribe.tv) — free 24-hour trial
  */
-import { createSubmitTrialService } from "../rest-submit-trial-handler.js";
+import { createSubmitTrialService } from "../../rest-submit-trial-handler.js";
 
 export default createSubmitTrialService({
   id: "iptvsubscribe",

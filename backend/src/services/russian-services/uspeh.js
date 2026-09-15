@@ -124,7 +124,7 @@ async function apiFetch(
 
 // Step 1: Register the account.
 async function register(username, email, password, log) {
-  log(`[${TAG}] Registering account for ${email}…`);
+  log(`[${TAG}] 📝 Registering account for ${email}…`);
   const data = await apiFetch("/auth/register", {
     method: "POST",
     body: { username, email, password, language: "en" },
@@ -137,7 +137,7 @@ async function register(username, email, password, log) {
 
 // Step 2+3: Poll inbox for the verification link and call the verify endpoint.
 async function verifyEmail(provider, credentialStore, seenIds, log) {
-  log(`[${TAG}] Polling inbox for verification link…`);
+  log(`[${TAG}] 📩 Polling inbox for verification link…`);
   const link = await provider.waitForEmailAndExtractLink(credentialStore, {
     filterText: "uspeh",
     pattern: /billing\.uspeh\.my.*verify/i,
@@ -154,14 +154,14 @@ async function verifyEmail(provider, credentialStore, seenIds, log) {
     throw new Error(`[${TAG}] Could not extract token from verification link.`);
 
   // Call the server-side verify endpoint directly (no browser needed).
-  log(`[${TAG}] Verifying token…`);
+  log(`[${TAG}] 🔐 Verifying token…`);
   await apiFetch(`/email/verify?token=${encodeURIComponent(token)}`);
   log(`[${TAG}] ✅ Email verified.`);
 }
 
 // Step 4: Login and obtain the JWT.
 async function login(username, password, log) {
-  log(`[${TAG}] Logging in as ${username}…`);
+  log(`[${TAG}] 🔑 Logging in as ${username}…`);
   const data = await apiFetch("/auth/login", {
     method: "POST",
     body: { username, password },
@@ -174,7 +174,7 @@ async function login(username, password, log) {
 
 // Step 5: Fetch the M3U playlist link.
 async function fetchPlaylistLink(jwt, log) {
-  log(`[${TAG}] Fetching playlist links…`);
+  log(`[${TAG}] 📺 Fetching playlist links…`);
   const data = await apiFetch("/user/playlist-links", { token: jwt });
 
   // Response shape: { eu: { main: { longUrl: "..." }, additional: [...] } }
@@ -185,16 +185,16 @@ async function fetchPlaylistLink(jwt, log) {
     const additional = data?.eu?.additional ?? [];
     const alt = additional.find((e) => e?.longUrl)?.longUrl ?? null;
     if (alt) {
-      log(`[${TAG}] M3U from additional links: ${alt}`);
+      log(`[${TAG}] 📺 M3U from additional links: ${alt}`);
       return alt;
     }
   }
 
-  if (mainUrl) log(`[${TAG}] ✅ M3U link: ${mainUrl}`);
+  if (mainUrl) log(`[${TAG}] ✅ 📺 M3U link: ${mainUrl}`);
   else {
     const raw = JSON.stringify(data).slice(0, 300);
     log(
-      `[${TAG}] M3U not found in playlist-links response. Raw: ${raw}`,
+      `[${TAG}] ⚠️ M3U not found in playlist-links response. Raw: ${raw}`,
       "warn",
     );
   }
@@ -204,14 +204,14 @@ async function fetchPlaylistLink(jwt, log) {
 // Step 6: Fetch the profile to get the expiration date.
 async function fetchProfile(jwt, log) {
   try {
-    log(`[${TAG}] Fetching profile…`);
+    log(`[${TAG}] 👤 Fetching profile…`);
     const data = await apiFetch("/user/profile", { token: jwt });
     const expiry =
       data?.expirationDate ?? data?.subscription?.expirationDate ?? null;
-    if (expiry) log(`[${TAG}] Trial expires: ${expiry}`);
+    if (expiry) log(`[${TAG}] ⏳ Trial expires: ${expiry}`);
     return expiry;
   } catch (e) {
-    log(`[${TAG}] Could not fetch profile (non-fatal): ${e.message}`, "warn");
+    log(`[${TAG}] ⚠️ Could not fetch profile (non-fatal): ${e.message}`, "warn");
     return null;
   }
 }

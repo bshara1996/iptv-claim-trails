@@ -47,7 +47,7 @@ export function createKookaKiwiService({
     async execute({ email, log = () => {} }) {
       // ─── Signup Request ──────────────────────────────────────────────────
 
-      log(`[${tag}] Submitting trial signup for ${email}...`);
+      log(`[${tag}] 📝 Submitting trial signup for ${email}...`);
       const data = await jsonPost(signupUrl, null, buildPayload(email), {
         referer: `${baseUrl}/`,
         throwOnError: false,
@@ -83,11 +83,11 @@ export function createKookaKiwiService({
         ...new Set([backupM3u, primaryM3u, m3uUrl].filter(Boolean)),
       ];
 
-      if (m3uUrl) log(`[${tag}] ✅ M3U URL    : ${m3uUrl}`);
-      if (primaryM3u) log(`[${tag}] ✅ M3U primary: ${primaryM3u}`);
-      if (backupM3u) log(`[${tag}] ✅ M3U backup : ${backupM3u}`);
+      if (m3uUrl) log(`[${tag}] ✅ 📺 M3U URL    : ${m3uUrl}`);
+      if (primaryM3u) log(`[${tag}] ✅ 📺 M3U primary: ${primaryM3u}`);
+      if (backupM3u) log(`[${tag}] ✅ 📺 M3U backup : ${backupM3u}`);
       if (!allM3uLinks.length)
-        log(`[${tag}] M3U link not found in API response.`, "warn");
+        log(`[${tag}] ⚠️ M3U link not found in API response.`, "warn");
 
       // ─── Result ──────────────────────────────────────────────────────────
 

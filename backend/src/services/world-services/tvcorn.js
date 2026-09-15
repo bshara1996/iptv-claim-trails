@@ -53,7 +53,7 @@ async function pollForAccount(jar, log) {
     const res = await apiFetch("/trial/status", { jar });
     mergeCookies(jar, res);
     const json = await res.json().catch(() => null);
-    log(`[${TAG}] poll → ${JSON.stringify(json)}`);
+    log(`[${TAG}] 🔄 Poll → ${JSON.stringify(json)}`);
     if (json?.status === "completed" && json.data) return json.data;
     if (json?.status === "failed")
       throw new Error(json.data?.message ?? "Account generation failed.");
@@ -106,7 +106,7 @@ export default {
       throw new Error(
         `OTP request failed: ${otpJson.message ?? "Unknown error"}`,
       );
-    log(`[${TAG}] ✅ OTP email sent to ${email}`);
+    log(`[${TAG}] ✅ 📩 OTP email sent to ${email}`);
 
     // Step 3: Wait for the OTP to arrive in the inbox.
     const code = await provider.waitForVerificationCodeEmail(credentialStore, {
@@ -115,7 +115,7 @@ export default {
       timeout: 120_000,
     });
     if (!code) throw new Error("Verification code was not received.");
-    log(`[${TAG}] ✅ Verification code received: ${code}`);
+    log(`[${TAG}] ✅ 🔐 Verification code received: ${code}`);
 
     // Step 4: Submit OTP — triggers async account generation on the server.
     const verifyRes = await apiFetch("/trial/verifyOtp", {
@@ -133,7 +133,7 @@ export default {
     // Step 5: Poll until the account is ready.
     const data = await pollForAccount(jar, log);
     const m3uLink = data.m3u ?? data.m3u_url ?? data.playlist ?? null;
-    log(`[${TAG}] ✅ Account ready — m3u: ${m3uLink ?? "not found"}`);
+    log(`[${TAG}] ✅ Account ready — 📺 M3U: ${m3uLink ?? "not found"}`);
 
     const expiryDate = parseExpiryDate(data.expiry);
 

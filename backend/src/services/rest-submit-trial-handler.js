@@ -77,7 +77,7 @@ export function createSubmitTrialService({
       await jsonPost(resolvedApiUrl, null, resolvedBuildPayload(email), {
         referer: trialUrl,
       });
-      log(`[${tag}] Trial request submitted.`);
+      log(`[${tag}] 📝 Trial request submitted.`);
 
       // Step 2: Poll inbox until the welcome email with M3U links arrives.
       const playlists = await provider.waitForEmailAndExtractPlaylists(
@@ -91,10 +91,10 @@ export function createSubmitTrialService({
 
       // Step 3: Log outcome and return the standardised result.
       if (!playlists.allM3uLinks.length) {
-        log(`[${tag}] No M3U links found in confirmation email.`, "warn");
+        log(`[${tag}] ⚠️ No M3U links found in confirmation email.`, "warn");
       } else {
         log(
-          `[${tag}] ✅ M3U extracted — TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
+          `[${tag}] ✅ 📺 M3U extracted — TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
         );
       }
 

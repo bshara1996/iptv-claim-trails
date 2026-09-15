@@ -51,7 +51,7 @@ async function register(jar, { name, email, password }, log) {
   if (!csrf)
     throw new Error(`[${TAG}] Could not extract CSRF from register.php.`);
 
-  log(`[${TAG}] Submitting registration for ${email}…`);
+  log(`[${TAG}] 📝 Submitting registration for ${email}…`);
   const { finalUrl, text } = await post(
     REGISTER_URL,
     jar,
@@ -77,7 +77,7 @@ async function register(jar, { name, email, password }, log) {
     if (errorMatch)
       throw new Error(`[${TAG}] Registration failed: ${errorMatch[0].trim()}`);
     if (text.includes("dashboard") || text.includes("Dashboard")) {
-      log(`[${TAG}] Server skipped verification — already on dashboard.`);
+      log(`[${TAG}] ✅ Server skipped verification — already on dashboard.`);
       return { status: "skip_verify", csrf: verifycsrf, emailFromPage };
     }
     // Strip scripts/styles to get a clean snippet for the error message.
@@ -104,7 +104,7 @@ async function getVerifyCsrf(jar) {
 // POSTs the OTP code to /verify-email.php.
 // Throws if the server stays on the verify page or returns an error message.
 async function submitOtp(jar, { emailFromPage, code, csrf }, log) {
-  log(`[${TAG}] Submitting OTP: ${code}`);
+  log(`[${TAG}] 🔐 Submitting OTP: ${code}`);
   const { finalUrl: otpLanded, text } = await post(
     VERIFY_URL,
     jar,
@@ -143,7 +143,7 @@ async function claimTrial(jar, log) {
   const csrf = extractInputValue(dash1, "csrf");
   if (!csrf) {
     log(
-      `[${TAG}] CSRF not found on dashboard — trial may already be active.`,
+      `[${TAG}] ⚠️ CSRF not found on dashboard — trial may already be active.`,
       "warn",
     );
     return dash1;
@@ -154,18 +154,18 @@ async function claimTrial(jar, log) {
     dash1.includes("trial-submit") ||
     dash1.includes("claim-trial");
   if (!hasTrialForm) {
-    log(`[${TAG}] Trial form not found — trial may already be active.`, "warn");
+    log(`[${TAG}] ⚠️ Trial form not found — trial may already be active.`, "warn");
     return dash1;
   }
 
-  log(`[${TAG}] Claiming trial (region ${TRIAL_REGION} — Arabic Package)…`);
+  log(`[${TAG}] 🎁 Claiming trial (region ${TRIAL_REGION} — Arabic Package)…`);
   await post(
     CLAIM_TRIAL_URL,
     jar,
     { csrf, region_id: TRIAL_REGION, "trial-submit": "1" },
     DASHBOARD_URL,
   );
-  log(`[${TAG}] ✅ Trial claimed.`);
+  log(`[${TAG}] ✅ 🎁 Trial claimed.`);
 
   const { text: dash2 } = await get(DASHBOARD_URL, jar);
   return dash2;
@@ -217,7 +217,7 @@ export default {
         },
       );
       if (!code) throw new Error(`[${TAG}] Verification code not received.`);
-      log(`[${TAG}] ✅ Verification code received: ${code}`);
+      log(`[${TAG}] ✅ 🔐 Verification code received: ${code}`);
 
       // Step 4: Submit OTP.
       await submitOtp(jar, { emailFromPage, code, csrf: verifyCsrf }, log);
@@ -234,7 +234,7 @@ export default {
     }
 
     const m3uLink = extractPlaylists(dashHtml)?.tvPlaylist ?? null;
-    if (m3uLink) log(`[${TAG}] ✅ M3U extracted: ${m3uLink}`);
+    if (m3uLink) log(`[${TAG}] ✅ 📺 M3U extracted: ${m3uLink}`);
     else {
       // Log relevant dashboard lines to help diagnose the URL format.
       const relevantLines = dashHtml
@@ -247,7 +247,7 @@ export default {
         .map((l) => l.trim().slice(0, 300))
         .join("\n");
       log(
-        `[${TAG}] M3U link not found on dashboard. Relevant lines:\n${relevantLines}`,
+        `[${TAG}] ⚠️ M3U link not found on dashboard. Relevant lines:\n${relevantLines}`,
         "warn",
       );
     }

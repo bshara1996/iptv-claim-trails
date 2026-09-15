@@ -93,7 +93,7 @@ export default {
   async execute({ email, log = () => {} }) {
     const jar = createJar();
 
-    log(`[${TAG}] Requesting trial nonce...`);
+    log(`[${TAG}] 🔐 Requesting trial nonce...`);
     const nonceResponse = await requestNonce(jar);
     if (nonceResponse.status >= 400)
       throw new Error(
@@ -119,7 +119,7 @@ export default {
       form.append(key, value);
     }
 
-    log(`[${TAG}] Submitting trial claim for ${email}...`);
+    log(`[${TAG}] 📝 Submitting trial claim for ${email}...`);
     const { response, text } = await submitTrial(jar, form);
 
     const result = parseJson(
@@ -138,7 +138,7 @@ export default {
       );
 
     const m3u = playlist ?? buildM3u(host, username, password);
-    log(`[${TAG}] ✅ Trial activated. M3U: ${m3u ?? "not returned"}`);
+    log(`[${TAG}] ✅ 🎁 Trial activated. 📺 M3U: ${m3u ?? "not returned"}`);
     return buildResult({
       username,
       password,

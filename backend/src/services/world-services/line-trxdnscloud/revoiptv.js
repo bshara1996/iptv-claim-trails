@@ -11,14 +11,14 @@ import {
   generateUsername,
   generatePhone,
   buildResult,
-} from "../../parsing/generators.js";
+} from "../../../parsing/generators.js";
 import {
   createJar,
   get,
   mergeCookies,
   cookieStr,
   DEFAULT_UA,
-} from "../../http/cookieClient.js";
+} from "../../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -97,7 +97,7 @@ export default {
     if (!token) throw new Error(`[${TAG}] WPForms data-token not found.`);
 
     await submitForm(jar, token, email.trim());
-    log(`[${TAG}] Form submitted.`);
+    log(`[${TAG}] ✅ 📝 Form submitted.`);
 
     // Shared options — both poll calls filter by "revo" and skip already-seen emails.
     const seenSet = new Set(inboxSeenIds);
@@ -116,7 +116,7 @@ export default {
       throw new Error(`[${TAG}] Confirmation link not received.`);
 
     await get(confirmLink, jar);
-    log(`[${TAG}] Subscription confirmed.`);
+    log(`[${TAG}] ✅ 🔗 Subscription confirmed.`);
 
     // After confirmation, the credentials email is sent automatically.
     const playlists = await provider.waitForEmailAndExtractPlaylists(
@@ -128,10 +128,10 @@ export default {
     );
 
     if (!playlists.allM3uLinks.length)
-      log(`[${TAG}] No M3U links found.`, "warn");
+      log(`[${TAG}] ⚠️ No M3U links found.`, "warn");
     else
       log(
-        `[${TAG}] ✅ TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
+        `[${TAG}] ✅ 📺 TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
       );
 
     return buildResult({

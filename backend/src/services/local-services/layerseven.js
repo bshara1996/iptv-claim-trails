@@ -70,7 +70,7 @@ async function register(jar, email, password, taskId, emitter, log) {
     emitter,
     log,
   );
-  log(`[${TAG}] reCAPTCHA solved — registering…`);
+  log(`[${TAG}] ✅ 🤖 reCAPTCHA solved — registering…`);
   if (finalUrl.includes("invalid-recaptcha"))
     throw new Error(`[${TAG}] reCAPTCHA rejected — please try again`);
   if (finalUrl.includes("sign-up"))
@@ -94,7 +94,7 @@ async function signIn(jar, email, password, taskId, emitter, log) {
   mergeCookies(jar, res);
 
   if (res.status >= 300 && res.status < 400) {
-    log(`[${TAG}] Session valid — skipping sign-in`);
+    log(`[${TAG}] ✅ Session valid — skipping sign-in`);
     return;
   }
 
@@ -108,7 +108,7 @@ async function signIn(jar, email, password, taskId, emitter, log) {
     TAG,
     log,
   );
-  log(`[${TAG}] reCAPTCHA solved — signing in…`);
+  log(`[${TAG}] ✅ 🤖 reCAPTCHA solved — signing in…`);
 
   const { finalUrl, text } = await post(
     `${BASE}/v1/sign-in/`,
@@ -134,7 +134,7 @@ async function claimTrial(jar, log) {
   const csrf = extractCsrfToken(text);
   // If credentials are already on the page, the trial is already active.
   if (!csrf || extractCredentials(text)) return text;
-  log(`[${TAG}] Claiming free trial…`);
+  log(`[${TAG}] 🎁 Claiming free trial…`);
   const action = /action="([^"]+)"/.exec(text)?.[1];
   const { text: result } = await post(
     action ? new URL(action, BASE).href : `${BASE}/v1/checkout/`,
@@ -142,7 +142,7 @@ async function claimTrial(jar, log) {
     { csrfmiddlewaretoken: csrf, "free-trial": "1" },
     `${BASE}/checkout?free-trial=1`,
   );
-  log(`[${TAG}] ✅ Trial claimed`);
+  log(`[${TAG}] ✅ 🎁 Trial claimed`);
   return result;
 }
 
@@ -154,7 +154,7 @@ async function findCredentials(jar, log) {
     }));
     const creds = extractCredentials(text);
     if (creds) {
-      log(`[${TAG}] ✅ Credentials found`);
+      log(`[${TAG}] ✅ 🔑 Credentials found`);
       return creds;
     }
   }
@@ -187,7 +187,7 @@ export default {
     }
 
     const m3uLink = creds ? buildM3u(M3U_HOST, creds.user, creds.pass) : null;
-    if (m3uLink) log(`[${TAG}] ✅ M3U: ${m3uLink}`);
+    if (m3uLink) log(`[${TAG}] ✅ 📺 M3U: ${m3uLink}`);
 
     return buildResult({
       username: creds?.user ?? email,

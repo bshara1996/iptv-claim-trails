@@ -16,8 +16,8 @@ import {
   generatePhone,
   buildM3u,
   buildResult,
-} from "../../parsing/generators.js";
-import { jsonPost } from "../../http/cookieClient.js";
+} from "../../../parsing/generators.js";
+import { jsonPost } from "../../../http/cookieClient.js";
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
@@ -37,7 +37,7 @@ export default {
   },
 
   async execute({ email, log = () => {} }) {
-    log(`[${TAG}] Submitting trial claim for ${email}...`);
+    log(`[${TAG}] 📝 Submitting trial claim for ${email}...`);
 
     const data = await jsonPost(
       CLAIM_URL,
@@ -92,12 +92,12 @@ export default {
     const allM3uLinks = [...new Set([m3uUrl, builtM3u].filter(Boolean))];
     const tvPlaylist = allM3uLinks[0] ?? null;
 
-    if (username) log(`[${TAG}] Username  : ${username}`);
-    if (password) log(`[${TAG}] Password  : ${password}`);
-    if (serverUrl) log(`[${TAG}] Server    : ${serverUrl}`);
-    if (tvPlaylist) log(`[${TAG}] M3U       : ${tvPlaylist}`);
+    if (username) log(`[${TAG}] 👤 Username  : ${username}`);
+    if (password) log(`[${TAG}] 🔑 Password  : ${password}`);
+    if (serverUrl) log(`[${TAG}] 🌐 Server    : ${serverUrl}`);
+    if (tvPlaylist) log(`[${TAG}] ✅ 📺 M3U       : ${tvPlaylist}`);
     if (!tvPlaylist)
-      log(`[${TAG}] M3U link not found in API response.`, "warn");
+      log(`[${TAG}] ⚠️ M3U link not found in API response.`, "warn");
 
     const claimNumber = trial.claimNumber ?? null;
     const remaining = trial.remaining ?? null;
