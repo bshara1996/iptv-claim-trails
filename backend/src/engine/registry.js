@@ -9,6 +9,7 @@
 
 import EmailnatorProvider from "../email/emailnator.js";
 import DropMailProvider from "../email/dropmail.js";
+import BestMailProvider from "../email/bestTempMail.js";
 import DisposeLolProvider from "../email/disposelol.js";
 import HioMailProvider from "../email/hiomail.js";
 import TempMailLolProvider from "../email/tempmailLol.js";
@@ -46,6 +47,7 @@ import RuTvService from "../services/russian-services/rutv.js";
 export const emailProviders = [
   EmailnatorProvider,
   DropMailProvider,
+  BestMailProvider,
   DisposeLolProvider,
   HioMailProvider,
   TempMailLolProvider,
