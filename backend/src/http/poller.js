@@ -13,8 +13,8 @@
 
 import logger from "../logger.js";
 
-// Default delays sized for Mail.tm's 100 req/min rate limit.
-// Providers without rate limits (e.g. Emailnator) can pass lower values via opts.
+// Shared provider defaults are applied by createProviderMethods().
+// Providers can pass custom values when their API needs different pacing.
 const DEFAULT_POLL_DELAY = 800;
 const DEFAULT_READ_DELAY = 1_500;
 

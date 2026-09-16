@@ -106,5 +106,5 @@ export default {
     return address;
   },
 
-  ...createProviderMethods(TAG, getReader, { pollDelay: 1000, readDelay: 300 }),
+  ...createProviderMethods(TAG, getReader),
 };

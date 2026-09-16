@@ -36,12 +36,14 @@ export function makeGetReader(pageKey, tag, buildReader) {
 
 // Generates the three standard inbox-polling methods for any API-based provider.
 export function createProviderMethods(tag, getReader, defaultOpts = {}) {
+  const pollingDefaults = { pollDelay: 1_000, readDelay: 0, ...defaultOpts };
+
   // Starts the poll loop, logs the outcome, and returns the result.
   async function _run(store, startMsg, timeoutMsg, opts, onRow) {
     logger.info(`[${tag}] ${startMsg}`);
     const result = await pollApi(
       getReader(store),
-      { ...defaultOpts, ...opts },
+      { ...pollingDefaults, ...opts },
       onRow,
     );
     if (!result) logger.warn(`[${tag}] ${timeoutMsg}`);

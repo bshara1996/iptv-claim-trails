@@ -44,6 +44,8 @@ function unflatten(data) {
   try {
     const list = typeof data === "string" ? JSON.parse(data) : data;
     if (!Array.isArray(list) || !list.length) return list;
+
+    // Resolves one value and its nested references from the payload list.
     const hydrate = (i) => {
       const v = typeof i === "number" ? list[i] : i;
       if (!v || typeof v !== "object") return v;
@@ -65,6 +67,7 @@ function buildReader({ cookie }) {
   const payload = b64([{ assignmentId: -1 }]);
 
   return {
+    // Lists the messages currently available in the mailbox.
     async fetchMessages() {
       const res = await fetch(`${RPC}/getMailboxMessages?payload=${payload}`, {
         headers: headers(cookie),
@@ -80,6 +83,8 @@ function buildReader({ cookie }) {
           .trim(),
       }));
     },
+
+    // Fetches and returns the full content of one message.
     async readMessage(id) {
       try {
         const res = await fetch(`${RPC}/getMailboxMessage`, {
@@ -149,5 +154,5 @@ export default {
     return address;
   },
 
-  ...createProviderMethods(TAG, getReader, { pollDelay: 800, readDelay: 300 }),
+  ...createProviderMethods(TAG, getReader),
 };

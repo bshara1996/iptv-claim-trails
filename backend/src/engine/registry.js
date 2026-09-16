@@ -9,12 +9,10 @@
 
 import EmailnatorProvider from "../email/emailnator.js";
 import DropMailProvider from "../email/dropmail.js";
-import BestMailProvider from "../email/bestTempMail.js";
 import DisposeLolProvider from "../email/disposelol.js";
-import HioMailProvider from "../email/hiomail.js";
-import TempMailLolProvider from "../email/tempmailLol.js";
-import NoopmailProvider from "../email/noopmail.js";
-import PokemailProvider from "../email/pokemail.js";
+import FiveMinMailProvider from "../email/fiveMinMail.js";
+import TempMailIngProvider from "../email/tempmailIng.js";
+import BestMailProvider from "../email/bestTempMail.js";
 
 import Y666Service from "../services/russian-services/y666.js";
 import OgoTvService from "../services/russian-services/ogotv.js";
@@ -47,12 +45,10 @@ import RuTvService from "../services/russian-services/rutv.js";
 export const emailProviders = [
   EmailnatorProvider,
   DropMailProvider,
-  BestMailProvider,
   DisposeLolProvider,
-  HioMailProvider,
-  TempMailLolProvider,
-  NoopmailProvider,
-  PokemailProvider,
+  FiveMinMailProvider,
+  TempMailIngProvider,
+  BestMailProvider,
 ];
 
 export const registrationServices = [
