@@ -92,6 +92,12 @@ router.get("/stream/:taskId", (req, res) => {
   task.emitter.on("event", sendEvent);
   task.emitter.once("done", onDone);
 
+  // Replay events emitted between POST /start and this SSE connection.
+  // This includes the initial email_created event used by the UI to show
+  // the active mailbox.
+  for (const event of task.events) sendEvent(event);
+  if (task.events.some((event) => event.type === "done")) onDone();
+
   // Clean up listeners if the client disconnects before the task finishes
   req.on("close", () => {
     clearInterval(keepAlive);

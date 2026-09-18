@@ -16,8 +16,8 @@ import {
   generatePhone,
   buildM3u,
   buildResult,
-} from "../../../parsing/generators.js";
-import { jsonPost } from "../../../http/cookieClient.js";
+} from "../../parsing/generators.js";
+import { jsonPost } from "../../http/cookieClient.js";
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
@@ -33,7 +33,7 @@ export default {
   meta: {
     id: "emeraldiptv",
     name: "Emerald IPTV",
-    description: `${TRIAL_HOURS} Hours`,
+    description: `${TRIAL_HOURS} Hours[trxdnscloud]`,
   },
 
   async execute({ email, log = () => {} }) {

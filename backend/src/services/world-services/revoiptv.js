@@ -11,14 +11,14 @@ import {
   generateUsername,
   generatePhone,
   buildResult,
-} from "../../../parsing/generators.js";
+} from "../../parsing/generators.js";
 import {
   createJar,
   get,
   mergeCookies,
   cookieStr,
   DEFAULT_UA,
-} from "../../../http/cookieClient.js";
+} from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -79,7 +79,7 @@ export default {
   meta: {
     id: "revoiptv",
     name: "RevoIPTV",
-    description: `${TRIAL_HOURS} Hours`,
+    description: `${TRIAL_HOURS} Hours[trxdnscloud]`,
   },
 
   async execute({

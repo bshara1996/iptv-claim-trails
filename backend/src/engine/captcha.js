@@ -1,7 +1,7 @@
 /**
  * captcha.js
  *
- * Shared reCAPTCHA challenge helper.
+ * Shared interactive challenge helper.
  *
  * Exports:
  *   awaitCaptcha(taskId, emitter, pageUrl, sitekey, log)
@@ -20,13 +20,18 @@ export function awaitCaptcha(
   sitekey,
   serviceName,
   log,
+  provider = "recaptcha",
 ) {
-  log(`[${serviceName}] reCAPTCHA detected — waiting for user to solve…`);
+  log(
+    `[${serviceName}] ${provider === "turnstile" ? "Cloudflare Turnstile" : "reCAPTCHA"} detected — waiting for user to solve…`,
+    "warn",
+  );
   emit(emitter, "captcha_challenge", {
     taskId,
     sitekey,
     pageUrl,
     serviceName,
+    provider,
   });
   return new Promise((resolve) => setPendingCaptcha(taskId, resolve));
 }

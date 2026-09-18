@@ -47,9 +47,12 @@ export function createTask() {
   const taskId = uuidv4();
   const emitter = new EventEmitter();
   emitter.setMaxListeners(20);
+  const events = [];
+  emitter.on("event", (event) => events.push(event));
 
   tasks.set(taskId, {
     emitter,
+    events,
     abortController: new AbortController(),
     status: "pending",
     results: [],

@@ -14,7 +14,8 @@ import logger from "../logger.js";
 
 // Emits a typed event on the emitter with an ISO timestamp.
 export function emit(emitter, type, data = {}) {
-  emitter.emit("event", { type, data, timestamp: new Date().toISOString() });
+  const event = { type, data, timestamp: new Date().toISOString() };
+  emitter.emit("event", event);
 }
 
 // Emits a log event via SSE and also writes to the server-side logger.
