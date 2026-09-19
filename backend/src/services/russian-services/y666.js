@@ -9,7 +9,7 @@ const BASE_URL = "https://my.y666.tv";
 const API_BASE = `${BASE_URL}/api`;
 const TAG = "Y666";
 const PLAYLIST_BASE = "http://pl.y6tv.me";
-const TRIAL_HOURS = 24;
+const TRIAL_HOURS = 72;
 
 async function apiFetch(path, { method = "GET", body = null } = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -46,7 +46,9 @@ async function register(email, username, password, log) {
     method: "POST",
     body: { username, email, password, language: "en" },
   });
-  log(`[${TAG}] ✅ Registration submitted — check inbox for verification email.`);
+  log(
+    `[${TAG}] ✅ Registration submitted — check inbox for verification email.`,
+  );
 }
 
 async function verifyEmail(provider, store, seenIds, log) {

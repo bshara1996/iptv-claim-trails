@@ -23,7 +23,6 @@ import OgoTvService from "../services/russian-services/ogotv.js";
 import VeleStoreService from "../services/russian-services/velestore.js";
 import TvBoomService from "../services/russian-services/tvboom.js";
 
-import LuxIptvService from "../services/world-services/luxiptv.js";
 import TvCornService from "../services/world-services/tvcorn.js";
 import OneIptv4kService from "../services/world-services/oneiptv4k.js";
 import KookaService from "../services/kooka-kiwi-platform/kooka.js";
@@ -34,7 +33,9 @@ import EmeraldIptvService from "../services/world-services/emeraldiptv.js";
 
 import IptvSkyService from "../services/world-services/iptvsky.js";
 import GreatestIptvService from "../services/world-services/greatestiptv.js";
+import BitTvService from "../services/world-services/bittv.js";
 
+import LuxIptvService from "../services/local-services/luxiptv.js";
 import LibertyTvService from "../services/local-services/libertytv.js";
 import LayerSevenService from "../services/local-services/layerseven.js";
 
@@ -60,7 +61,6 @@ export const registrationServices = [
   VeleStoreService,
   TvBoomService,
 
-  LuxIptvService,
   TvCornService,
   OneIptv4kService,
   KookaService,
@@ -72,7 +72,9 @@ export const registrationServices = [
 
   IptvSkyService,
   GreatestIptvService,
+  BitTvService,
 
+  LuxIptvService,
   LibertyTvService,
   LayerSevenService,
 

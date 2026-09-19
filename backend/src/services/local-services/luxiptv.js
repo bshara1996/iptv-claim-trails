@@ -125,9 +125,7 @@ function endChat(session) {
 
     socket.once("error", (error) => {
       clearTimeout(timeout);
-      reject(
-        new Error(`[${TAG}] Tawk end-chat failed: ${errorDetail(error)}`),
-      );
+      reject(new Error(`[${TAG}] Tawk end-chat failed: ${errorDetail(error)}`));
     });
     socket.once("open", () => {
       socket.send(
@@ -223,7 +221,7 @@ async function submitChat(session, email) {
 export default {
   meta: {
     id: "luxiptv",
-    name: TAG,
+    name: `${TAG} [Local Host]`,
     description: `${TRIAL_HOURS} Hours`,
   },
 
@@ -237,7 +235,9 @@ export default {
     log(`[${TAG}] 💬 Starting Tawk chat for ${email}...`);
     const session = await startFreshSession();
     await submitChat(session, email);
-    log(`[${TAG}] ✅ Trial request submitted. 📩 Waiting for credentials email...`);
+    log(
+      `[${TAG}] ✅ Trial request submitted. 📩 Waiting for credentials email...`,
+    );
 
     let playlists;
     try {

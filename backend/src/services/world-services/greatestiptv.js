@@ -9,18 +9,17 @@ import { buildResult } from "../../parsing/generators.js";
 import { jsonPost } from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
-
-const TRIAL_URL = "https://www.greatestiptv.com/free-trial/?trial=true";
-const API_URL = "https://www.greatestiptv.com/api/orders";
-const TAG = "GreatestIPTV";
+const TRIAL_URL = "https://www.greatestiptv.com/free-trial/?trial=true"; // "https://www.strimoiptv.com/"
+const API_URL = "https://www.greatestiptv.com/api/orders"; // "https://www.strimoiptv.com"
+const TAG = "GreatestIPTV"; // "StrimoIPTV"
 const TRIAL_HOURS = 36;
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export default {
   meta: {
-    id: "greatestiptv",
-    name: "GreatestIPTV",
+    id: "greatestiptv", // "strimoiptv"
+    name: "GreatestIPTV", // "StrimoIPTV"
     description: "36 Hours",
   },
 
@@ -49,7 +48,7 @@ export default {
     const playlists = await provider.waitForEmailAndExtractPlaylists(
       credentialStore,
       {
-        filterText: "greatest",
+        filterText: TAG,
         seenIds: new Set(inboxSeenIds),
         timeout: 120_000,
       },

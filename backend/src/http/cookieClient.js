@@ -58,6 +58,7 @@ export async function request(method, url, jar, opts = {}) {
     origin = null,
     ua = DEFAULT_UA,
     timeout = DEFAULT_TIMEOUT,
+    extraHeaders = {},
   } = opts;
 
   const resolvedJar = jar ?? {};
@@ -71,6 +72,7 @@ export async function request(method, url, jar, opts = {}) {
       Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "Accept-Language": "en-US,en;q=0.9",
       Cookie: cookieStr(resolvedJar),
+      ...extraHeaders,
     };
 
     if (currentMethod === "POST") {
