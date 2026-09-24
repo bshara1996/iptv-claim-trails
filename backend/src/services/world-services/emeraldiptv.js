@@ -17,7 +17,7 @@ import {
   buildM3u,
   buildResult,
 } from "../../parsing/generators.js";
-import { jsonPost } from "../../http/cookieClient.js";
+import { jsonPost, DEFAULT_UA } from "../../http/cookieClient.js";
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
@@ -25,7 +25,31 @@ const BASE_URL = "https://emeraldiptv.irish";
 const CLAIM_URL = `${BASE_URL}/api/claim-trial/`;
 const TAG = "EmeraldIPTV";
 const TRIAL_HOURS = 24;
-const name = "john";
+const DEFAULT_NAME = "John Doe";
+
+function generateVisitorId(ua = DEFAULT_UA) {
+  const scrList = [
+    "1920x1080x24",
+    "1366x768x24",
+    "1536x864x24",
+    "1440x900x24",
+    "2560x1440x24",
+    "1680x1050x24",
+  ];
+  const scr = scrList[Math.floor(Math.random() * scrList.length)];
+  const cores = [4, 8, 12, 16][Math.floor(Math.random() * 4)];
+  const raw = `${ua}|${scr}|en-IE|${cores}|Europe/Dublin|canvas_blocked`;
+  let a = 0x811c9dc5;
+  for (let i = 0; i < raw.length; i++) {
+    a = Math.imul(a ^ raw.charCodeAt(i), 0x1000193);
+  }
+  const hash = (a >>> 0).toString(16).padStart(8, "0");
+  const b64 = Buffer.from(scr)
+    .toString("base64")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .slice(0, 8);
+  return `fp_${hash}_${b64}`;
+}
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
@@ -39,20 +63,32 @@ export default {
   async execute({ email, log = () => {} }) {
     log(`[${TAG}] 📝 Submitting trial claim for ${email}...`);
 
+    const visitorId = generateVisitorId(DEFAULT_UA);
+
     const data = await jsonPost(
       CLAIM_URL,
       null,
       {
-        clientName: name,
+        clientName: DEFAULT_NAME,
         website: "", // honeypot -- must stay empty
         clientEmail: email,
-        clientPhone: generatePhone(),
-        deviceType: "m3u",
-        deviceLabel: "Smart TV",
+        clientPhone: `+35389${generatePhone().slice(0, 7)}`,
+        format: "xtream",
+        device: "Samsung TV",
+        player: "IPTV Smarters Pro",
+        visitorId,
       },
       {
         referer: `${BASE_URL}/`,
         origin: BASE_URL,
+        ua: DEFAULT_UA,
+        extraHeaders: {
+          Accept: "*/*",
+          "Accept-Language": "en-IE,en;q=0.9",
+          "Sec-Fetch-Dest": "empty",
+          "Sec-Fetch-Mode": "cors",
+          "Sec-Fetch-Site": "same-origin",
+        },
         throwOnError: false,
         timeout: 25_000,
       },

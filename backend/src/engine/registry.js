@@ -33,7 +33,7 @@ import EmeraldIptvService from "../services/world-services/emeraldiptv.js";
 
 import IptvSkyService from "../services/world-services/iptvsky.js";
 import GreatestIptvService from "../services/world-services/greatestiptv.js";
-import BitTvService from "../services/world-services/bittv.js";
+import StrevioService from "../services/world-services/strevio.js";
 
 import LuxIptvService from "../services/local-services/luxiptv.js";
 import LibertyTvService from "../services/local-services/libertytv.js";
@@ -72,7 +72,7 @@ export const registrationServices = [
 
   IptvSkyService,
   GreatestIptvService,
-  BitTvService,
+  StrevioService,
 
   LuxIptvService,
   LibertyTvService,
