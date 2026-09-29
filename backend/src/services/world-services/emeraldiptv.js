@@ -57,7 +57,7 @@ export default {
   meta: {
     id: "emeraldiptv",
     name: "Emerald IPTV",
-    description: `${TRIAL_HOURS} Hours[trxdnscloud]`,
+    description: `${TRIAL_HOURS} Hours`,
   },
 
   async execute({ email, log = () => {} }) {

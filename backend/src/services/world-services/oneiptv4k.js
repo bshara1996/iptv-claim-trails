@@ -44,7 +44,7 @@ const extractError = (html) => {
 export default {
   meta: {
     id: "oneiptv4k",
-    name: "OneIPTV4K (No Ml.tm)",
+    name: "OneIPTV4K",
     description: `${TRIAL_HOURS} Hours`,
   },
 

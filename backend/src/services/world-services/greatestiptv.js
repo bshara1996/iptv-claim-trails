@@ -9,17 +9,17 @@ import { buildResult } from "../../parsing/generators.js";
 import { jsonPost } from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const TRIAL_URL = "https://www.greatestiptv.com/free-trial/?trial=true"; // "https://www.strimoiptv.com/"
-const API_URL = "https://www.greatestiptv.com/api/orders"; // "https://www.strimoiptv.com"
-const TAG = "GreatestIPTV"; // "StrimoIPTV"
+const TRIAL_URL = "https://www.strimoiptv.com/free-trial/?trial=true"; // "https://www.greatestiptv.com"
+const API_URL = "https://www.strimoiptv.com/api/orders"; // "https://www.greatestiptv.com"
+const TAG = "strimoiptv"; // "StrimoIPTV"
 const TRIAL_HOURS = 36;
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export default {
   meta: {
-    id: "greatestiptv", // "strimoiptv"
-    name: "GreatestIPTV", // "StrimoIPTV"
+    id: "strimoiptv", // "greatestiptv"
+    name: "Greatest/Strimo IPTV",
     description: "36 Hours",
   },
 
@@ -64,7 +64,7 @@ export default {
     return buildResult({
       playlists,
       trialHours: TRIAL_HOURS,
-      serviceName: "GreatestIPTV",
+      serviceName: "strimoiptv", // "greatestiptv"
     });
   },
 };

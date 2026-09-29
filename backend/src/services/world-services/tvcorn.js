@@ -66,7 +66,7 @@ async function pollForAccount(jar, log) {
 export default {
   meta: {
     id: "tvcorn",
-    name: "TVCorn (No Ml.tm)",
+    name: "TVCorn",
     description: `${TRIAL_HOURS} Hours`,
   },
 

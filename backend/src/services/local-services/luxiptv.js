@@ -5,7 +5,7 @@
  * with Tawk, submits the pre-chat email, and the Lux support bot sends the
  * trial credentials by email.
  */
-import { buildResult } from "../../parsing/generators.js";
+import { buildResult, computeExpiresAt } from "../../parsing/generators.js";
 import { createJar, cookieStr, jsonPost } from "../../http/cookieClient.js";
 import WebSocket from "ws";
 import { randomBytes } from "node:crypto";
@@ -259,6 +259,10 @@ export default {
     return buildResult({
       playlists,
       trialHours: TRIAL_HOURS,
+      duration: `${TRIAL_HOURS} Hours`,
+      expiresAt: computeExpiresAt(TRIAL_HOURS * 3_600_000, {
+        timeZone: "Asia/Jerusalem",
+      }),
       serviceName: TAG,
     });
   },
