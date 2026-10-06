@@ -57,9 +57,14 @@ export async function pollApi(
       if (seenIds.has(id)) continue;
       seenIds.add(id);
 
+      const filters = Array.isArray(filterText)
+        ? filterText
+        : filterText
+          ? [filterText]
+          : [];
       if (
-        filterText &&
-        !preview.toLowerCase().includes(filterText.toLowerCase())
+        filters.length > 0 &&
+        !filters.some((f) => preview.toLowerCase().includes(f.toLowerCase()))
       )
         continue;
 
