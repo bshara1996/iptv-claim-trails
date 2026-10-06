@@ -20,7 +20,7 @@ import { setPendingTvboomDone } from "../../engine/taskStore.js";
 
 const BASE = "https://tvboom.vip";
 const TAG = "TVBoom";
-const SENDER = "noreply@tvboom.vip";
+const FILTER_TEXT = ["tvboom", "noreply@tvboom.vip"];
 const TRIAL_HOURS = 24;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ export default {
     // Step 2: Poll inbox for the DLE validation link, then confirm the email.
     log(`[${TAG}] 📩 Polling inbox for verification email…`);
     const link = await provider.waitForEmailAndExtractLink(credentialStore, {
-      filterText: SENDER,
+      filterText: FILTER_TEXT,
       pattern: /tvboom\.vip.*doaction=validating/i,
       seenIds: new Set(inboxSeenIds),
       timeout: 120_000,

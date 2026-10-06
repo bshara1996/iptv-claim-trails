@@ -12,7 +12,7 @@ import { jsonPost } from "../../http/cookieClient.js";
 const TRIAL_URL = "https://www.strimoiptv.com/free-trial/?trial=true"; // "https://www.greatestiptv.com"
 const API_URL = "https://www.strimoiptv.com/api/orders"; // "https://www.greatestiptv.com"
 const TAG = "strimoiptv"; // "StrimoIPTV"
-const SENDER = "no-reply@strimoiptv.com";
+const FILTER_TEXT = ["strimoiptv", "no-reply@strimoiptv.com"];
 const TRIAL_HOURS = 36;
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ export default {
     const playlists = await provider.waitForEmailAndExtractPlaylists(
       credentialStore,
       {
-        filterText: SENDER,
+        filterText: FILTER_TEXT,
         seenIds: new Set(inboxSeenIds),
         timeout: 120_000,
       },

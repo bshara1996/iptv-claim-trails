@@ -25,7 +25,7 @@ import { createJar, get, post, jsonPost } from "../../http/cookieClient.js";
 
 const BASE = "https://ogotv.com";
 const TAG = "OgoTV";
-const SENDER = "noreply@ogotv.com";
+const FILTER_TEXT = ["ogo", "noreply@ogotv.com"];
 const TRIAL_HOURS = 24;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ export default {
       const code = await provider.waitForVerificationCodeEmail(
         credentialStore,
         {
-          filterText: SENDER,
+          filterText: FILTER_TEXT,
           seenIds: new Set(inboxSeenIds),
           timeout: 120_000,
         },

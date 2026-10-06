@@ -18,7 +18,7 @@ const BASE_URL = "https://strevio.net";
 const TRIAL_URL = `${BASE_URL}/free-trial/`;
 const AJAX_URL = `${BASE_URL}/wp-admin/admin-ajax.php`;
 const TAG = "Strevio";
-const SENDER = "support@strevio.net";
+const FILTER_TEXT = ["Strevio", "support@strevio.net"];
 const TRIAL_HOURS = 24;
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ export default {
     log(`[${TAG}] 📬 Waiting for confirmation email with trial credentials...`);
     const playlists = await provider.waitForEmailAndExtractPlaylists(
       credentialStore,
-      { filterText: SENDER, seenIds: inboxSeenIds, timeout: 120_000 },
+      { filterText: FILTER_TEXT, seenIds: inboxSeenIds, timeout: 120_000 },
     );
 
     if (!playlists.allM3uLinks.length)
