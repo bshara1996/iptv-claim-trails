@@ -37,7 +37,9 @@ export async function submitCaptchaToken(taskId, token) {
  * Signals backend that manual registration completed or was cancelled.
  */
 export async function signalManualDone(taskId, serviceId = "tvboom") {
-  const res = await fetch(`${BASE}/${serviceId}-done/${taskId}`, { method: "POST" });
+  const res = await fetch(`${BASE}/${serviceId}-done/${taskId}`, {
+    method: "POST",
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? `Unexpected response: ${res.status}`);

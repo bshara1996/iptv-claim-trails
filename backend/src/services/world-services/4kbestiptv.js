@@ -1,27 +1,32 @@
 /**
- * GreatestIPTV — free trial claim via direct API.
+ * 4K Best IPTV — free trial via checkout API.
  *
- * 1. POST the trial registration payload to the orders API.
- * 2. Poll the inbox for the confirmation email containing M3U playlist links.
- * Trial duration: 36 hours.
+ * Site: https://www.4kbestiptv.com
+ *
+ * Flow:
+ *   1. POST /api/checkout with the trial payload.
+ *      → Server registers the request and sends credentials to the email.
+ *   2. Poll inbox for the confirmation/credentials email containing M3U links.
+ *
+ * Trial duration: 24 hours (free trial plan).
  */
 import { buildResult } from "../../parsing/generators.js";
 import { jsonPost } from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const TRIAL_URL = "https://www.strimoiptv.com/free-trial/?trial=true"; // "https://www.greatestiptv.com"
-const API_URL = "https://www.strimoiptv.com/api/orders"; // "https://www.greatestiptv.com"
-const TAG = "strimoiptv"; // "StrimoIPTV"
-const SENDER = "no-reply@strimoiptv.com";
-const TRIAL_HOURS = 36;
+
+const PAGE_URL = "https://www.4kbestiptv.com";
+const API_URL = "https://www.4kbestiptv.com/api/checkout";
+const TAG = "4K Best IPTV";
+const TRIAL_HOURS = 24;
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export default {
   meta: {
-    id: "strimoiptv", // "greatestiptv"
-    name: "Greatest/Strimo IPTV",
-    description: "36 Hours",
+    id: "4kbestiptv",
+    name: TAG,
+    description: `${TRIAL_HOURS} Hours`,
   },
 
   async execute({
@@ -31,41 +36,47 @@ export default {
     inboxSeenIds = new Set(),
     log = () => {},
   }) {
-    // Step 1: Submit the trial request to the API.
+    // Step 1: Submit the trial checkout request.
+    log(`[${TAG}] Submitting free trial request for ${email}...`);
+
     await jsonPost(
       API_URL,
       null,
       {
-        planId: "trial",
+        method: "trial",
+        name: "",
         email: email.trim(),
-        planType: "standard",
-        hasAdultContent: false,
+        whatsapp: "",
+        note: "",
+        planName: "Free Trial",
+        price: "$0.00",
       },
-      { referer: TRIAL_URL },
+      { referer: PAGE_URL },
     );
-    log(`[${TAG}] Trial request submitted via API.`);
 
-    // Step 2: Poll inbox for confirmation email with M3U links.
+    log(`[${TAG}] Trial request submitted. Waiting for credentials email...`);
+
+    // Step 2: Poll inbox for the credentials/confirmation email with M3U links.
     const playlists = await provider.waitForEmailAndExtractPlaylists(
       credentialStore,
       {
-        filterText: SENDER,
         seenIds: new Set(inboxSeenIds),
         timeout: 120_000,
       },
     );
 
-    if (!playlists.allM3uLinks.length)
-      log(`[${TAG}] No M3U links found in confirmation email.`, "warn");
-    else
+    if (!playlists.allM3uLinks.length) {
+      log(`[${TAG}] No M3U links found in credentials email.`, "warn");
+    } else {
       log(
         `[${TAG}] ✅ M3U extracted — TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
       );
+    }
 
     return buildResult({
       playlists,
       trialHours: TRIAL_HOURS,
-      serviceName: "strimoiptv", // "greatestiptv"
+      serviceName: TAG,
     });
   },
 };

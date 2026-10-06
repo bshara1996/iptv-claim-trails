@@ -1,94 +1,149 @@
 /**
  * CaptchaModal
  *
- * Renders a full-screen overlay with an embedded reCAPTCHA v2 widget when the
- * backend pauses a task and asks the user to solve a captcha.
+ * Renders a full-screen overlay with either a Cloudflare Turnstile widget or a
+ * reCAPTCHA v2 widget, depending on challenge.provider ("turnstile" | "recaptcha").
  *
  * Props:
- *   challenge  { taskId, sitekey, pageUrl } | null  — non-null = show modal
- *   onSolved   (taskId, token) => void              — called after solve + POST
- *   onDismiss  () => void                           — "Cancel" button
+ *   challenge  { taskId, sitekey, pageUrl, serviceName, provider } | null
+ *   onSolved   (taskId, token) => void   — called after solve + POST
+ *   onDismiss  () => void                — "Cancel" button
  */
 import { useEffect, useRef, useState } from "react";
 import { submitCaptchaToken } from "../../services/api.js";
 import "./CaptchaModal.css";
 
-// reCAPTCHA v2 widget ID assigned by grecaptcha.render() — tracked so we can
-// reset it if the modal is shown again for a second captcha in the same task.
-let widgetId = null;
+// ── reCAPTCHA widget state (global so it survives re-renders) ─────────────────
+let rcWidgetId = null;
+
+// ── Turnstile widget state ────────────────────────────────────────────────────
+let tsWidgetId = null;
 
 export default function CaptchaModal({ challenge, onSolved, onDismiss }) {
   const containerRef = useRef(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  // Inject the reCAPTCHA script once (idempotent — skips if already loaded).
+  const isTurnstile = challenge?.provider === "turnstile";
+
+  // ── Script injection ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (document.getElementById("recaptcha-sdk")) return;
-    const s = document.createElement("script");
-    s.id = "recaptcha-sdk";
-    s.src =
-      "https://www.google.com/recaptcha/api.js?render=explicit&onload=__rcLoaded";
-    s.async = true;
-    s.defer = true;
-    document.head.appendChild(s);
+    // reCAPTCHA (injected once, idempotent)
+    if (!document.getElementById("recaptcha-sdk")) {
+      const s = document.createElement("script");
+      s.id = "recaptcha-sdk";
+      s.src =
+        "https://www.google.com/recaptcha/api.js?render=explicit&onload=__rcLoaded";
+      s.async = true;
+      s.defer = true;
+      document.head.appendChild(s);
+    }
+
+    // Cloudflare Turnstile (injected once, idempotent)
+    if (!document.getElementById("turnstile-sdk")) {
+      const s = document.createElement("script");
+      s.id = "turnstile-sdk";
+      s.src =
+        "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=__tsLoaded&render=explicit";
+      s.async = true;
+      s.defer = true;
+      document.head.appendChild(s);
+    }
   }, []);
 
-  // Render (or re-render) the widget each time a new challenge arrives.
+  // ── Widget mount / remount on each new challenge ────────────────────────────
   useEffect(() => {
     if (!challenge) return;
 
     setSubmitting(false);
     setError(null);
 
-    const mount = () => {
-      if (!containerRef.current || !window.grecaptcha?.render) return;
-
-      // Reset previous widget if one exists
-      if (widgetId !== null) {
-        try {
-          window.grecaptcha.reset(widgetId);
-        } catch (_) {}
-        widgetId = null;
+    // Shared submit handler used by both widget callbacks.
+    const handleToken = async (token) => {
+      setSubmitting(true);
+      setError(null);
+      try {
+        await submitCaptchaToken(challenge.taskId, token);
+        onSolved?.(challenge.taskId, token);
+      } catch (err) {
+        setError(`Failed to submit token: ${err.message}`);
+        setSubmitting(false);
+        // Reset so the user can retry.
+        if (isTurnstile) {
+          if (tsWidgetId !== null) window.turnstile?.reset(tsWidgetId);
+        } else {
+          if (rcWidgetId !== null) window.grecaptcha?.reset(rcWidgetId);
+        }
       }
-
-      // Clear the container before rendering
-      containerRef.current.innerHTML = "";
-
-      widgetId = window.grecaptcha.render(containerRef.current, {
-        sitekey: challenge.sitekey,
-        theme: "dark",
-        callback: async (token) => {
-          setSubmitting(true);
-          setError(null);
-          try {
-            await submitCaptchaToken(challenge.taskId, token);
-            onSolved?.(challenge.taskId, token);
-          } catch (err) {
-            setError(`Failed to submit token: ${err.message}`);
-            setSubmitting(false);
-            if (widgetId !== null) window.grecaptcha?.reset(widgetId);
-          }
-        },
-        "expired-callback": () => {
-          setError("Token expired — please solve the captcha again.");
-          setSubmitting(false);
-        },
-        "error-callback": () => {
-          setError("reCAPTCHA error — check your connection and try again.");
-          setSubmitting(false);
-        },
-      });
     };
 
-    // If grecaptcha is already available, mount immediately.
-    // Otherwise wait for the onload callback.
-    if (window.grecaptcha?.render) {
-      mount();
-    } else {
-      window.__rcLoaded = () => {
-        mount();
+    if (isTurnstile) {
+      // ── Turnstile ──────────────────────────────────────────────────────────
+      const mountTurnstile = () => {
+        if (!containerRef.current || !window.turnstile?.render) return;
+
+        // Remove any existing widget first.
+        if (tsWidgetId !== null) {
+          try {
+            window.turnstile.remove(tsWidgetId);
+          } catch (_) {}
+          tsWidgetId = null;
+        }
+        containerRef.current.innerHTML = "";
+
+        tsWidgetId = window.turnstile.render(containerRef.current, {
+          sitekey: challenge.sitekey,
+          theme: "light",
+          callback: handleToken,
+          "expired-callback": () => {
+            setError("Token expired — please solve the challenge again.");
+            setSubmitting(false);
+          },
+          "error-callback": () => {
+            setError("Turnstile error — check your connection and try again.");
+            setSubmitting(false);
+          },
+        });
       };
+
+      if (window.turnstile?.render) {
+        mountTurnstile();
+      } else {
+        window.__tsLoaded = mountTurnstile;
+      }
+    } else {
+      // ── reCAPTCHA ──────────────────────────────────────────────────────────
+      const mountRecaptcha = () => {
+        if (!containerRef.current || !window.grecaptcha?.render) return;
+
+        if (rcWidgetId !== null) {
+          try {
+            window.grecaptcha.reset(rcWidgetId);
+          } catch (_) {}
+          rcWidgetId = null;
+        }
+        containerRef.current.innerHTML = "";
+
+        rcWidgetId = window.grecaptcha.render(containerRef.current, {
+          sitekey: challenge.sitekey,
+          theme: "dark",
+          callback: handleToken,
+          "expired-callback": () => {
+            setError("Token expired — please solve the captcha again.");
+            setSubmitting(false);
+          },
+          "error-callback": () => {
+            setError("reCAPTCHA error — check your connection and try again.");
+            setSubmitting(false);
+          },
+        });
+      };
+
+      if (window.grecaptcha?.render) {
+        mountRecaptcha();
+      } else {
+        window.__rcLoaded = mountRecaptcha;
+      }
     }
   }, [challenge]);
 

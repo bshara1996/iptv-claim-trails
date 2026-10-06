@@ -77,20 +77,29 @@ export function useAutomation() {
   // ── Registration modal handlers (TVBoom) ───────────────────────────────
 
   // Called by registration modal after the backend confirmed "done".
-  const onTvboomRegisterDone = useCallback((challenge) => {
-    const sName = challenge?.serviceName || "Service";
-    setTvboomRegisterChallenge(null);
-    pushLog(`[${sName}] ✅ Registration confirmed — resuming automation…`);
-  }, [pushLog]);
+  const onTvboomRegisterDone = useCallback(
+    (challenge) => {
+      const sName = challenge?.serviceName || "Service";
+      setTvboomRegisterChallenge(null);
+      pushLog(`[${sName}] ✅ Registration confirmed — resuming automation…`);
+    },
+    [pushLog],
+  );
 
   // Called when the user clicks "Cancel Task" inside the registration modal.
-  const onTvboomRegisterDismiss = useCallback((challenge) => {
-    const sName = challenge?.serviceName || "Service";
-    setTvboomRegisterChallenge(null);
-    if (taskId) stopAutomation(taskId).catch(console.error);
-    setStatus("cancelled");
-    pushLog(`Task cancelled by user (${sName} registration dismissed).`, "warn");
-  }, [taskId, pushLog]);
+  const onTvboomRegisterDismiss = useCallback(
+    (challenge) => {
+      const sName = challenge?.serviceName || "Service";
+      setTvboomRegisterChallenge(null);
+      if (taskId) stopAutomation(taskId).catch(console.error);
+      setStatus("cancelled");
+      pushLog(
+        `Task cancelled by user (${sName} registration dismissed).`,
+        "warn",
+      );
+    },
+    [taskId, pushLog],
+  );
 
   // ── Start automation ──────────────────────────────────────────────────────
   const start = useCallback(async () => {
@@ -153,7 +162,7 @@ export function useAutomation() {
           ...d,
         });
       },
-            onDone: () => setStatus((prev) => (prev === "running" ? "done" : prev)),
+      onDone: () => setStatus((prev) => (prev === "running" ? "done" : prev)),
     });
   }, [selectedProvider, selectedServices, pushLog]);
 

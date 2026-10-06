@@ -20,6 +20,7 @@ import { setPendingTvboomDone } from "../../engine/taskStore.js";
 
 const BASE = "https://tvboom.vip";
 const TAG = "TVBoom";
+const SENDER = "noreply@tvboom.vip";
 const TRIAL_HOURS = 24;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -29,7 +30,10 @@ async function confirmEmail(jar, link, log) {
   const { text } = await get(link, jar);
   const m = /href=["']([^"']*do=register[^"']*step=2[^"']*)/i.exec(text);
   if (!m) {
-    log(`[${TAG}] ⚠️ Step-2 link not found — may already be confirmed.`, "warn");
+    log(
+      `[${TAG}] ⚠️ Step-2 link not found — may already be confirmed.`,
+      "warn",
+    );
     return;
   }
   const step2 = m[1].startsWith("http")
@@ -68,7 +72,7 @@ export default {
     // Step 2: Poll inbox for the DLE validation link, then confirm the email.
     log(`[${TAG}] 📩 Polling inbox for verification email…`);
     const link = await provider.waitForEmailAndExtractLink(credentialStore, {
-      filterText: "tvboom",
+      filterText: SENDER,
       pattern: /tvboom\.vip.*doaction=validating/i,
       seenIds: new Set(inboxSeenIds),
       timeout: 120_000,

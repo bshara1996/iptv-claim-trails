@@ -8,6 +8,7 @@ import { DEFAULT_UA } from "../../http/cookieClient.js";
 const BASE_URL = "https://my.y666.tv";
 const API_BASE = `${BASE_URL}/api`;
 const TAG = "Y666";
+const SENDER = "noreply@y666.tv";
 const PLAYLIST_BASE = "http://pl.y6tv.me";
 const TRIAL_HOURS = 72;
 
@@ -54,7 +55,7 @@ async function register(email, username, password, log) {
 async function verifyEmail(provider, store, seenIds, log) {
   log(`[${TAG}] 📩 Polling inbox for verification link...`);
   const link = await provider.waitForEmailAndExtractLink(store, {
-    filterText: "y666",
+    filterText: SENDER,
     pattern: /my\.y666\.tv\/verify-email\?token=/i,
     seenIds: new Set(seenIds),
     timeout: 120_000,
