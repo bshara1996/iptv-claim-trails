@@ -2,56 +2,60 @@
    IPTV Claim Automation — Modern Cyberpunk Design System
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
 
 /* ── Design Tokens ─────────────────────────────────────────────────────────── */
 :root {
   /* Surface colors */
-  --bg-app:         #070b12;
-  --bg-surface:     #0c1220;
-  --bg-card:        #0f1728;
-  --bg-card-hover:  #131e33;
-  --bg-input:       #090f1b;
+  --bg-app: #070b12;
+  --bg-surface: #0c1220;
+  --bg-card: #0f1728;
+  --bg-card-hover: #131e33;
+  --bg-input: #090f1b;
   --bg-input-focus: #0c1527;
 
   /* Borders & Dividers */
-  --border-subtle:  #162338;
+  --border-subtle: #162338;
   --border-default: #1d2e4a;
-  --border-glow:    #2a436c;
-  --border-active:  #00a2ff;
+  --border-glow: #2a436c;
+  --border-active: #00a2ff;
 
   /* Accent Colors */
-  --accent:         #00a8ff;
-  --accent-light:   #38bdf8;
-  --accent-dark:    #0284c7;
-  --accent-glow:    rgba(0, 168, 255, 0.2);
+  --accent: #00a8ff;
+  --accent-light: #38bdf8;
+  --accent-dark: #0284c7;
+  --accent-glow: rgba(0, 168, 255, 0.2);
   --accent-gradient: linear-gradient(135deg, #0099ff 0%, #00d2ff 100%);
   --accent-gradient-hover: linear-gradient(135deg, #1aa3ff 0%, #33dbff 100%);
 
   /* Status Colors */
-  --green:          #10b981;
-  --green-glow:     rgba(16, 185, 129, 0.18);
-  --green-border:   rgba(16, 185, 129, 0.35);
-  
-  --red:            #f43f5e;
-  --red-glow:       rgba(244, 63, 94, 0.18);
-  --red-border:     rgba(244, 63, 94, 0.35);
-  
-  --yellow:         #f59e0b;
-  --yellow-glow:    rgba(245, 158, 11, 0.18);
-  --yellow-border:  rgba(245, 158, 11, 0.35);
-  
-  --purple:         #8b5cf6;
-  --purple-glow:    rgba(139, 92, 246, 0.18);
-  --purple-border:  rgba(139, 92, 246, 0.35);
+  --green: #10b981;
+  --green-glow: rgba(16, 185, 129, 0.18);
+  --green-border: rgba(16, 185, 129, 0.35);
+
+  --red: #f43f5e;
+  --red-glow: rgba(244, 63, 94, 0.18);
+  --red-border: rgba(244, 63, 94, 0.35);
+
+  --yellow: #f59e0b;
+  --yellow-glow: rgba(245, 158, 11, 0.18);
+  --yellow-border: rgba(245, 158, 11, 0.35);
+
+  --purple: #8b5cf6;
+  --purple-glow: rgba(139, 92, 246, 0.18);
+  --purple-border: rgba(139, 92, 246, 0.35);
 
   /* Typography */
-  --text-primary:   #f1f5f9;
+  --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
-  --text-muted:     #475569;
-  --font-sans:    'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono:    'JetBrains Mono', 'Fira Code', Consolas, monospace;
-  --font-console: 'Fira Code', 'JetBrains Mono', 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+  --text-muted: #475569;
+  --font-sans:
+    "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", Consolas, monospace;
+  --font-console:
+    "Fira Code", "JetBrains Mono", "Cascadia Code", "Consolas", "Courier New",
+    monospace;
 
   /* Shapes & Radii */
   --radius-xs: 4px;
@@ -65,10 +69,15 @@
   --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
   --shadow-glow: 0 0 24px var(--accent-glow);
+
+  /* Extended accent alias (used in LogPanel scrollbar) */
+  --accent-d4: #00d4ff;
 }
 
 /* ── Reset ─────────────────────────────────────────────────────────────────── */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -87,7 +96,7 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-image: 
+  background-image:
     radial-gradient(at 10% 10%, rgba(0, 168, 255, 0.04) 0px, transparent 40%),
     radial-gradient(at 90% 90%, rgba(139, 92, 246, 0.03) 0px, transparent 40%);
   background-attachment: fixed;
@@ -125,5 +134,7 @@ body {
 }
 
 @keyframes spin-kf {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }

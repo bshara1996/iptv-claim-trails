@@ -19,7 +19,11 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  /* subtle bottom glow line */
+  box-shadow:
+    0 1px 0 0 var(--accent, #00d4ff),
+    0 2px 16px 0 rgba(0, 212, 255, 0.08),
+    0 4px 24px rgba(0, 0, 0, 0.35);
 }
 
 .topbar-brand {
@@ -30,10 +34,15 @@
 }
 
 .topbar-logo-mark {
-  width: 36px;
-  height: 36px;
+  /* slightly larger on desktop */
+  width: 38px;
+  height: 38px;
   border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, rgba(0, 168, 255, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(0, 168, 255, 0.15) 0%,
+    rgba(139, 92, 246, 0.15) 100%
+  );
   border: 1px solid rgba(0, 168, 255, 0.3);
   display: flex;
   align-items: center;
@@ -81,6 +90,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-right: auto;
+  margin-left: 24px;
 }
 
 .topbar-badge {
@@ -103,9 +114,35 @@
   background: rgba(0, 168, 255, 0.08);
 }
 
+/* ── Sidebar Toggle Button ────────────────────────────────────────────────── */
+.sidebar-toggle-btn {
+  display: none; /* shown only at ≤900px via media query */
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.sidebar-toggle-btn:hover {
+  background: rgba(0, 168, 255, 0.1);
+  border-color: rgba(0, 168, 255, 0.35);
+}
+
 /* ── Backend Error Banner ─────────────────────────────────────────────────── */
 .backend-error-banner {
-  background: linear-gradient(90deg, rgba(244, 63, 94, 0.15) 0%, rgba(244, 63, 94, 0.05) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(244, 63, 94, 0.15) 0%,
+    rgba(244, 63, 94, 0.05) 100%
+  );
   border-bottom: 1px solid var(--red-border);
   color: var(--red);
   padding: 10px 28px;
@@ -122,6 +159,24 @@
   font-family: var(--font-mono);
 }
 
+.backend-error-dismiss {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  border-radius: var(--radius-xs);
+  color: var(--red);
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 3px 7px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.backend-error-dismiss:hover {
+  background: rgba(244, 63, 94, 0.15);
+}
+
 /* ── Main Layout ───────────────────────────────────────────────────────────── */
 .main-content {
   display: grid;
@@ -129,33 +184,87 @@
   flex: 1;
   height: calc(100vh - 64px);
   overflow: hidden;
+  min-width: 0;
 }
 
 /* ── Sidebar ───────────────────────────────────────────────────────────────── */
 .sidebar {
   background: var(--bg-surface);
   border-right: 1px solid var(--border-default);
+  /* left accent border */
+  border-left: 2px solid var(--accent, #00d4ff);
   overflow-y: auto;
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  position: relative;
+  /* smooth collapse transition */
+  transition:
+    max-width 0.3s ease,
+    opacity 0.3s ease,
+    padding 0.3s ease;
+}
+
+/* gradient overlay */
+.sidebar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    transparent 100%
+  );
+  z-index: 0;
+}
+
+.sidebar > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Sidebar card / item hover lift (applied to direct children) */
+.sidebar > *:hover {
+  transform: translateY(-1px);
+}
+
+/* ── Sidebar Collapsed State ──────────────────────────────────────────────── */
+.sidebar--collapsed {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  padding: 0;
+  border-left-width: 0;
+  border-right-width: 0;
 }
 
 /* ── Right Panel ───────────────────────────────────────────────────────────── */
 .right-panel {
   display: grid;
-  grid-template-rows: minmax(220px, 1fr) minmax(260px, 1.3fr);
+  grid-template-rows: minmax(280px, 40%) minmax(260px, 1fr);
   gap: 16px;
   padding: 20px;
   overflow: hidden;
-  background: radial-gradient(circle at 90% 10%, rgba(0, 168, 255, 0.03) 0%, transparent 50%);
+  min-width: 0;
+  background: radial-gradient(
+    circle at 90% 10%,
+    rgba(0, 168, 255, 0.03) 0%,
+    transparent 50%
+  );
 }
 
 /* ── Animations ────────────────────────────────────────────────────────────── */
 @keyframes slideDown-kf {
-  from { opacity: 0; transform: translateY(-8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Responsive Rules ──────────────────────────────────────────────────────── */
@@ -166,21 +275,35 @@
 }
 
 @media (max-width: 900px) {
+  .sidebar-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .main-content {
-    grid-template-columns: 1fr;
+    grid-template-columns: auto 1fr;
     height: auto;
     overflow: visible;
   }
 
-  .sidebar {
-    border-right: none;
-    border-bottom: 1px solid var(--border-default);
-    overflow-y: visible;
-    padding: 16px;
+  /* When not collapsed, sidebar takes its natural width but is scrollable */
+  .sidebar:not(.sidebar--collapsed) {
+    width: 280px;
+    max-width: 280px;
+    overflow-y: auto;
+    border-bottom: none;
+  }
+
+  .sidebar--collapsed {
+    max-width: 0;
+    padding: 0;
+    opacity: 0;
+    overflow: hidden;
   }
 
   .right-panel {
-    grid-template-rows: auto auto;
+    grid-template-rows: minmax(280px, 40%) minmax(260px, 1fr);
     overflow: visible;
     height: auto;
     padding: 16px;
@@ -199,10 +322,48 @@
 
 @media (max-width: 600px) {
   .topbar-meta {
+    gap: 6px;
+  }
+
+  /* Hide lower-priority badges on mobile */
+  .topbar-badge--low-priority {
     display: none;
   }
-  .sidebar, .right-panel {
+
+  .main-content {
+    grid-template-columns: 1fr;
+  }
+
+  /* Collapsed sidebar takes zero space on mobile */
+  .sidebar--collapsed {
+    display: none;
+  }
+
+  .sidebar:not(.sidebar--collapsed) {
+    width: 100%;
+    max-width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .right-panel {
     padding: 12px;
     gap: 12px;
+    grid-template-rows: minmax(260px, 40%) minmax(220px, 1fr);
+  }
+}
+
+@media (max-width: 360px) {
+  .topbar {
+    padding: 0 10px;
+    gap: 8px;
+  }
+
+  .topbar-title {
+    font-size: 0.9rem;
+  }
+
+  .topbar-meta {
+    display: none;
   }
 }

@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useAutomation } from "../../hooks/useAutomation.js";
 import ProviderSelector from "../ProviderSelector/ProviderSelector.jsx";
 import ServiceList from "../ServiceList/ServiceList.jsx";
@@ -34,6 +35,21 @@ export default function Dashboard() {
   const canStart = selectedProvider && selectedServices.length > 0;
   const isRunning = status === "running";
 
+  // Sidebar collapsed state — default collapsed on mobile
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => window.innerWidth <= 600,
+  );
+
+  // Error banner dismiss state
+  const [errorDismissed, setErrorDismissed] = useState(false);
+
+  // Reset dismiss when a new error arrives
+  useEffect(() => {
+    if (backendError) {
+      setErrorDismissed(false);
+    }
+  }, [backendError]);
+
   return (
     <>
       <div className="app-shell">
@@ -58,18 +74,18 @@ export default function Dashboard() {
             <div className="topbar-title-group">
               <h1 className="topbar-title">IPTV Claim Trails</h1>
               <span className="topbar-subtitle">
-                Automated Trial Registration & M3U Harvester
+                Automated Trial Registration &amp; M3U Harvester
               </span>
             </div>
           </div>
 
           <div className="topbar-meta">
             {results.length > 0 && (
-              <div className="topbar-badge active">
+              <div className="topbar-badge active topbar-badge--low-priority">
                 <span>📺 {results.length} Harvested</span>
               </div>
             )}
-            <div className="topbar-badge">
+            <div className="topbar-badge topbar-badge--low-priority">
               <span>📡 {selectedServices.length} Selected</span>
             </div>
             <div className={`topbar-badge ${isRunning ? "active" : ""}`}>
@@ -77,22 +93,44 @@ export default function Dashboard() {
               <span>{isRunning ? "Running" : "Ready"}</span>
             </div>
           </div>
+
+          {/* Sidebar toggle button — visible at ≤900px */}
+          <button
+            className="sidebar-toggle-btn"
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            aria-label={
+              sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+            }
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? "›" : "‹"}
+          </button>
         </header>
 
         {/* ── Backend Error Alert ─────────────────────────────────────────── */}
-        {backendError && (
+        {backendError && !errorDismissed && (
           <div className="backend-error-banner">
             <span>
               ⚠️ {backendError} — ensure the backend is running at{" "}
               <strong>http://localhost:3001</strong>
             </span>
+            <button
+              className="backend-error-dismiss"
+              onClick={() => setErrorDismissed(true)}
+              aria-label="Dismiss error"
+              title="Dismiss"
+            >
+              ✕
+            </button>
           </div>
         )}
 
         {/* ── Main Workspace ──────────────────────────────────────────────── */}
         <div className="main-content">
           {/* ── Left Sidebar ──────────────────────────────────────────────── */}
-          <aside className="sidebar">
+          <aside
+            className={`sidebar${sidebarCollapsed ? " sidebar--collapsed" : ""}`}
+          >
             <ProviderSelector
               providers={providers}
               value={selectedProvider}
