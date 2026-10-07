@@ -7,6 +7,7 @@
  * To add a service:  create services/<name>.js, import it, add to registrationServices[].
  */
 
+// Temp Emails
 import EmailnatorProvider from "../email/emailnator.js";
 import DropMailProvider from "../email/dropmail.js";
 import FiveMinMailProvider from "../email/fiveMinMail.js";
@@ -15,10 +16,15 @@ import BestMailProvider from "../email/bestTempMail.js";
 import TempMailAppProvider from "../email/tempMailApp.js";
 import TempMailFishProvider from "../email/tempMailFish.js";
 
+// Russian IPTV Serives
 import Y666Service from "../services/russian-services/y666.js";
 import OgoTvService from "../services/russian-services/ogotv.js";
 import VeleStoreService from "../services/russian-services/velestore.js";
 import TvBoomService from "../services/russian-services/tvboom.js";
+
+// World IPTV Serives
+import EuroViewTvTrexService from "../services/world-services/euroviewtv/trex.js";
+import EuroViewTvPromaxService from "../services/world-services/euroviewtv/promax.js";
 
 import IptvSkyService from "../services/world-services/iptvsky.js";
 import AmbKonnectService from "../services/world-services/ambkonnect.js";
@@ -26,7 +32,6 @@ import GreatestIptvService from "../services/world-services/greatestiptv.js";
 
 import TvCornService from "../services/world-services/tvcorn.js";
 import OneIptv4kService from "../services/world-services/oneiptv4k.js";
-import RevoIptvService from "../services/world-services/revoiptv.js";
 import StrevioService from "../services/world-services/strevio.js";
 
 import GeoIptvService from "../services/world-services/geoiptv.js";
@@ -52,13 +57,15 @@ export const registrationServices = [
   VeleStoreService,
   TvBoomService,
 
+  EuroViewTvTrexService,
+  EuroViewTvPromaxService,
+
   IptvSkyService,
   AmbKonnectService,
   GreatestIptvService,
 
   TvCornService,
   OneIptv4kService,
-  RevoIptvService, // http://line.trxdnscloud.ru
   StrevioService,
 
   GeoIptvService,

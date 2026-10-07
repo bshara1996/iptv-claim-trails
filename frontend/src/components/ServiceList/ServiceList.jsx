@@ -1,8 +1,17 @@
-import './ServiceList.css';
+import "./ServiceList.css";
 
 function RadioTowerIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
       <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5" />
       <circle cx="12" cy="12" r="2" />
@@ -14,13 +23,27 @@ function RadioTowerIcon() {
 
 function CheckIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <polyline points="20 6 9 17 4 12" />
     </svg>
   );
 }
 
-export default function ServiceList({ services, selected, onToggle, disabled }) {
+export default function ServiceList({
+  services,
+  selected,
+  onToggle,
+  disabled,
+}) {
   const handleSelectAll = () => {
     services.forEach((s) => {
       if (!selected.includes(s.id)) onToggle(s.id);
@@ -40,7 +63,7 @@ export default function ServiceList({ services, selected, onToggle, disabled }) 
           </span>
           <span>Target Services</span>
         </div>
-        
+
         {services.length > 0 && (
           <div className="service-header-controls">
             <button
@@ -59,7 +82,9 @@ export default function ServiceList({ services, selected, onToggle, disabled }) 
             >
               None
             </button>
-            <span className={`service-count-chip${selected.length === 0 ? ' empty' : ''}`}>
+            <span
+              className={`service-count-chip${selected.length === 0 ? " empty" : ""}`}
+            >
               {selected.length}/{services.length}
             </span>
           </div>
@@ -79,7 +104,7 @@ export default function ServiceList({ services, selected, onToggle, disabled }) 
               return (
                 <label
                   key={svc.id}
-                  className={`service-item-row${isSelected ? ' selected' : ''}${disabled ? ' disabled' : ''}`}
+                  className={`service-item-row${isSelected ? " selected" : ""}${disabled ? " disabled" : ""}`}
                 >
                   <input
                     type="checkbox"
@@ -96,12 +121,12 @@ export default function ServiceList({ services, selected, onToggle, disabled }) 
                     <div className="service-name-text">{svc.name}</div>
                     {svc.url && (
                       <div className="service-url-subtext">
-                        {svc.url.replace(/^https?:\/\//, '')}
+                        {svc.url.replace(/^https?:\/\//, "")}
                       </div>
                     )}
                   </div>
                   <span className="service-type-badge">
-                    {svc.description ? svc.description.split(' ').slice(0, 2).join(' ') : 'IPTV'}
+                    {svc.description ?? "IPTV"}
                   </span>
                 </label>
               );

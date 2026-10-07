@@ -10,7 +10,8 @@ const API_BASE = `${BASE_URL}/api`;
 const TAG = "Y666";
 const FILTER_TEXT = ["y666", "noreply@y666.tv"];
 const PLAYLIST_BASE = "http://pl.y6tv.me";
-const TRIAL_HOURS = 72;
+const TRIAL_DAYS = 3;
+const TRIAL_HOURS = TRIAL_DAYS * 24;
 
 async function apiFetch(path, { method = "GET", body = null } = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -86,7 +87,7 @@ export default {
   meta: {
     id: "y666",
     name: "Y666",
-    description: `${TRIAL_HOURS} Hours`,
+    description: `${TRIAL_DAYS} Days`,
   },
 
   async execute({
