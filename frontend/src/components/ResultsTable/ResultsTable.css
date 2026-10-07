@@ -620,3 +620,14 @@
     padding: 8px;
   }
 }
+    justify-content: space-between;
+  }
+
+  .results-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .results-table-scroll {
+    padding: 8px;
+  }
+}

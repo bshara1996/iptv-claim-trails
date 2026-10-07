@@ -69,9 +69,6 @@
   --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
   --shadow-glow: 0 0 24px var(--accent-glow);
-
-  /* Extended accent alias (used in LogPanel scrollbar) */
-  --accent-d4: #00d4ff;
 }
 
 /* ── Reset ─────────────────────────────────────────────────────────────────── */

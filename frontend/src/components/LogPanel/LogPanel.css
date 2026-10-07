@@ -6,7 +6,9 @@
   flex-direction: column;
   overflow: hidden;
   box-shadow: var(--shadow-sm);
-  height: 100%;
+  height: 340px;
+  min-height: 340px;
+  max-height: 340px;
 }
 
 .log-panel-header {
@@ -27,7 +29,6 @@
   gap: 10px;
 }
 
-/* ── macOS traffic-light dots ─────────────────────────────────────────────── */
 .terminal-dots {
   display: flex;
   align-items: center;
@@ -35,9 +36,8 @@
 }
 
 .dot-circle {
-  /* 11px diameter as specified */
-  width: 11px;
-  height: 11px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
 }
 
@@ -48,27 +48,7 @@
   background: rgba(245, 158, 11, 0.7);
 }
 .dot-green {
-  background: rgba(34, 197, 94, 0.8);
-  animation: pulse-green 2.4s ease-in-out infinite;
-}
-
-@keyframes pulse-green {
-  0%,
-  100% {
-    box-shadow: 0 0 4px 1px #22c55e55;
-  }
-  50% {
-    box-shadow: 0 0 8px 3px #22c55eaa;
-  }
-}
-
-/* ── Vertical separator between dots and title ────────────────────────────── */
-.log-header-sep {
-  display: inline-block;
-  width: 1px;
-  height: 16px;
-  background: rgba(255, 255, 255, 0.12);
-  flex-shrink: 0;
+  background: rgba(16, 185, 129, 0.7);
 }
 
 .log-panel-title {
@@ -96,7 +76,73 @@
   border-radius: 12px;
 }
 
-/* ── Scroll Area ──────────────────────────────────────────────────────────── */
+/* Right Controls */
+.log-panel-right-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-filter-group {
+  display: flex;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  padding: 2px;
+  gap: 2px;
+}
+
+.log-filter-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.log-filter-btn.active {
+  background: var(--border-default);
+  color: var(--text-primary);
+}
+
+.log-tool-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  border-radius: var(--radius-xs);
+  padding: 3px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.log-tool-btn:hover:not(:disabled) {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+  color: var(--accent-light);
+}
+
+.log-tool-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.log-tool-btn.copied {
+  background: var(--green-glow);
+  border-color: var(--green-border);
+  color: var(--green);
+}
+
+/* Scroll Area */
 .log-scroll-area {
   flex: 1;
   overflow-y: auto;
@@ -110,61 +156,18 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  position: relative;
 }
 
-/* scanline texture overlay */
-.log-scroll-area::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.015) 2px,
-    rgba(0, 0, 0, 0.015) 4px
-  );
-}
-
-/* ── Custom scrollbar ─────────────────────────────────────────────────────── */
-.log-scroll-area::-webkit-scrollbar {
-  width: 4px;
-}
-
-.log-scroll-area::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.log-scroll-area::-webkit-scrollbar-thumb {
-  background: rgba(0, 212, 255, 0.2);
-  border-radius: 2px;
-}
-
-.log-scroll-area::-webkit-scrollbar-thumb:hover {
-  background: var(--accent, #00d4ff);
-}
-
-/* ── Empty state ──────────────────────────────────────────────────────────── */
 .log-empty-state {
   color: var(--text-muted);
   font-family: var(--font-console);
   font-style: italic;
+  padding: 36px 0;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 8px;
-  flex: 1;
-  /* glowing border box */
-  border: 1px solid rgba(0, 212, 255, 0.2);
-  box-shadow: 0 0 12px rgba(0, 212, 255, 0.1);
-  border-radius: var(--radius-md, 8px);
-  padding: 1.5rem;
-  margin: 1rem 0;
 }
 
 .log-empty-icon {
@@ -172,7 +175,7 @@
   opacity: 0.6;
 }
 
-/* ── Interactive Log Item Row ─────────────────────────────────────────────── */
+/* Interactive Log Item Row */
 .log-item-row {
   display: flex;
   align-items: center;
@@ -180,47 +183,19 @@
   word-break: break-word;
   font-family: var(--font-console);
   padding: 4px 8px;
-  border-radius: var(--radius-xs);
+  border-radius: 6px;
   cursor: pointer;
   user-select: text;
   transition: all 0.15s ease;
   position: relative;
-  z-index: 2; /* above scanline overlay */
   border: 1px solid transparent;
-  /* left accent bar — invisible at rest */
-  border-left: 2px solid transparent;
   animation: fadeInLog-kf 0.15s ease;
-}
-
-/* Level-specific left accent bar on hover */
-.log-row--info:hover {
-  border-left-color: var(--accent, #00d4ff);
-}
-
-.log-row--warn:hover {
-  border-left-color: #f59e0b;
-}
-
-.log-row--error:hover {
-  border-left-color: #ef4444;
-}
-
-.log-row--success:hover {
-  border-left-color: #22c55e;
 }
 
 .log-item-row:hover {
   background: rgba(0, 168, 255, 0.08);
   border-color: rgba(0, 168, 255, 0.25);
   box-shadow: 0 0 12px rgba(0, 168, 255, 0.06);
-}
-
-/* Override border-color set by level classes when not hovered — keep transparent */
-.log-row--warn:not(:hover),
-.log-row--error:not(:hover),
-.log-row--success:not(:hover),
-.log-row--info:not(:hover) {
-  border-left-color: transparent;
 }
 
 .log-item-row:hover .log-prompt-char {
@@ -243,22 +218,13 @@
   border-color: rgba(16, 185, 129, 0.35);
 }
 
-/* ── Timestamp ────────────────────────────────────────────────────────────── */
 .log-timestamp {
-  color: rgba(255, 255, 255, 0.35);
-  font-family: monospace;
-  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-family: var(--font-console);
+  font-size: 0.72rem;
   flex-shrink: 0;
   user-select: none;
-}
-
-/* ── Separator between timestamp and prompt ──────────────────────────────── */
-.log-sep {
-  color: rgba(255, 255, 255, 0.18);
-  font-family: monospace;
-  font-size: 0.7rem;
-  flex-shrink: 0;
-  user-select: none;
+  opacity: 0.8;
 }
 
 .log-prompt-char {
@@ -299,7 +265,7 @@
   color: #34d399;
 }
 
-/* ── Copy feedback indicator pill ────────────────────────────────────────── */
+/* Copy feedback indicator pill */
 .log-copy-indicator {
   opacity: 0;
   transform: scale(0.9);
@@ -308,14 +274,12 @@
   font-size: 0.65rem;
   font-weight: 700;
   padding: 2px 7px;
-  border-radius: var(--radius-xs);
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--border-default);
   color: var(--text-secondary);
   user-select: none;
   flex-shrink: 0;
-  position: relative;
-  z-index: 2;
 }
 
 .log-item-row.copied .log-copy-indicator {

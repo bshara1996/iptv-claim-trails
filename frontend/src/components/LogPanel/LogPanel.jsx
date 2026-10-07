@@ -20,18 +20,8 @@ function TerminalIcon() {
   );
 }
 
-// Derive a log level class from the entry's level field
-function levelClass(level) {
-  const l = (level || "info").toLowerCase();
-  if (l === "warn" || l === "warning") return "warn";
-  if (l === "error") return "error";
-  if (l === "success") return "success";
-  return "info";
-}
-
 function LogEntryRow({ entry }) {
   const [copied, setCopied] = useState(false);
-  const level = levelClass(entry.level);
 
   const handleCopy = async () => {
     try {
@@ -43,14 +33,15 @@ function LogEntryRow({ entry }) {
 
   return (
     <div
-      className={`log-item-row log-row--${level}${copied ? " copied" : ""}`}
+      className={`log-item-row${copied ? " copied" : ""}`}
       onClick={handleCopy}
       title="Click to copy this line"
     >
       <span className="log-timestamp">{entry.time}</span>
-      <span className="log-sep">|</span>
       <span className="log-prompt-char">›</span>
-      <span className={`log-message ${level}`}>{entry.message}</span>
+      <span className={`log-message ${entry.level || "info"}`}>
+        {entry.message}
+      </span>
       <span className="log-copy-indicator">{copied ? "✓ Copied" : "⎘"}</span>
     </div>
   );
@@ -73,8 +64,6 @@ export default function LogPanel({ logs }) {
             <span className="dot-circle dot-yellow" />
             <span className="dot-circle dot-green" />
           </div>
-          {/* vertical separator between dots and title */}
-          <span className="log-header-sep" aria-hidden="true" />
           <div className="log-panel-title">
             <TerminalIcon />
             <span>Execution Terminal</span>
