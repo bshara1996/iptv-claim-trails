@@ -17,6 +17,7 @@ export default {
     id: "euroviewtv-trex",
     name: TAG,
     description: "Until 01:00 AM next day",
+    group: "trex",
   },
 
   execute: (ctx) =>

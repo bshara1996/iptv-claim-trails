@@ -235,7 +235,12 @@ async function activateAndGetM3u(jar, username, log) {
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export default {
-  meta: { id: "velestore", name: "VeleStore", description: "3 Days" },
+  meta: {
+    id: "velestore",
+    name: "VeleStore",
+    description: "3 Days",
+    group: "russian",
+  },
 
   async execute({ email, taskId, emitter, log = () => {} }) {
     const username = generateUsername();

@@ -1,10 +1,10 @@
 /**
- * Maple Stream TV — free trial via a single POST request.
+ * Maple 4K IPTV — free trial via a single POST request.
  *
- * Site: https://iptv-trial-maplestreamtv.medmaar.workers.dev/
+ * Site: https://iptv-trial-maple4k.medmaar.workers.dev/
  *
  * Flow:
- *   1. POST / with the trial payload (name, email, device, whatsapp, notes, country).
+ *   1. POST / with the trial payload (name, email, country, device, whatsapp, notes).
  *      → Server registers the trial and sends credentials to the email.
  *   2. Poll inbox for the confirmation/credentials email containing M3U links.
  *
@@ -15,18 +15,19 @@ import { jsonPost } from "../../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const API_URL = "https://iptv-trial-maplestreamtv.medmaar.workers.dev/";
-const TAG = "Maple Stream TV";
-const SENDER = "help@maplestreamtv.ca";
+const API_URL = "https://iptv-trial-maple4k.medmaar.workers.dev/";
+const TAG = "Maple 4K IPTV";
+const SENDER = "help@maple4k.ca";
 const TRIAL_HOURS = 24;
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export default {
   meta: {
-    id: "maplestreamtv",
+    id: "maple4k",
     name: TAG,
-    description: `${TRIAL_HOURS} Hours`,
+    description: "Until 01:00 AM next day",
+    group: "trex",
   },
 
   async execute({
@@ -45,10 +46,10 @@ export default {
       {
         name: email.split("@")[0],
         email: email.trim(),
-        device: "Windows PC",
+        country: "United Arab Emirates",
+        device: "PC Windows / Mac",
         whatsapp: "",
         notes: "",
-        country: "Canada",
       },
       { referer: API_URL },
     );

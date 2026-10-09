@@ -14,6 +14,7 @@ export default {
     id: "euroviewtv-promax",
     name: TAG,
     description: "24 Hours",
+    group: "best",
   },
 
   execute: (ctx) =>

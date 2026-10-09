@@ -22,6 +22,7 @@ export default {
     id: "strimoiptv", // "greatestiptv"
     name: "Greatest/Strimo IPTV",
     description: "36 Hours",
+    group: "other",
   },
 
   async execute({

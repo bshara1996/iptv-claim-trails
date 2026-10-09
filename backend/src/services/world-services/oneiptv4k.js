@@ -46,6 +46,7 @@ export default {
     id: "oneiptv4k",
     name: "OneIPTV4K",
     description: `${TRIAL_HOURS} Hours`,
+    group: "other",
   },
 
   async execute({

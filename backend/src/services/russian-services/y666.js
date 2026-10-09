@@ -88,6 +88,7 @@ export default {
     id: "y666",
     name: "Y666",
     description: `${TRIAL_DAYS} Days`,
+    group: "russian",
   },
 
   async execute({

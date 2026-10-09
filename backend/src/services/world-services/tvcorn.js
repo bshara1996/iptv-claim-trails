@@ -24,6 +24,7 @@ import {
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const BASE_URL = "https://en.tvcorn.com";
+const CDN_HOST = "http://cf.sb-plt.com";
 const TAG = "TVCorn";
 const POLL_INTERVAL = 3_000;
 const POLL_TIMEOUT = 180_000;
@@ -68,6 +69,7 @@ export default {
     id: "tvcorn",
     name: "TVCorn",
     description: `${TRIAL_HOURS} Hours`,
+    group: "best",
   },
 
   async execute({
@@ -132,7 +134,11 @@ export default {
 
     // Step 5: Poll until the account is ready.
     const data = await pollForAccount(jar, log);
-    const m3uLink = data.m3u ?? data.m3u_url ?? data.playlist ?? null;
+    const rawM3uLink = data.m3u ?? data.m3u_url ?? data.playlist ?? null;
+    // Rewrite the CDN host to the preferred server.
+    const m3uLink = rawM3uLink
+      ? rawM3uLink.replace(/^https?:\/\/[^/]+/, CDN_HOST)
+      : null;
     log(`[${TAG}] ✅ Account ready — 📺 M3U: ${m3uLink ?? "not found"}`);
 
     const expiryDate = parseExpiryDate(data.expiry);

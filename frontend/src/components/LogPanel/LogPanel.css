@@ -6,9 +6,8 @@
   flex-direction: column;
   overflow: hidden;
   box-shadow: var(--shadow-sm);
-  height: 340px;
-  min-height: 340px;
-  max-height: 340px;
+  height: 100%;
+  min-height: 0;
 }
 
 .log-panel-header {

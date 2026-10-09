@@ -64,6 +64,7 @@ export default {
     id: "ogotv",
     name: "OgoTV (Gmails)",
     description: `${TRIAL_HOURS} Hours`,
+    group: "russian",
   },
 
   async execute({

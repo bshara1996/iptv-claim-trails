@@ -27,6 +27,7 @@ export default {
     id: "4kbestiptv",
     name: TAG,
     description: `${TRIAL_HOURS} Hours`,
+    group: "other",
   },
 
   async execute({

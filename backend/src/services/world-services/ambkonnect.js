@@ -29,6 +29,7 @@ export default {
     id: "ambkonnect",
     name: "AmbKonnect",
     description: `${TRIAL_HOURS} Hours`,
+    group: "other",
   },
 
   // Run the login → token → credential flow for the free trial.

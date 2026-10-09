@@ -88,7 +88,12 @@ async function requestNonce(jar) {
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export default {
-  meta: { id: "iptvsky", name: "IPTVSky", description: `${TRIAL_HOURS} Hours` },
+  meta: {
+    id: "iptvsky",
+    name: "IPTVSky",
+    description: `${TRIAL_HOURS} Hours`,
+    group: "best",
+  },
 
   async execute({ email, log = () => {} }) {
     const jar = createJar();
