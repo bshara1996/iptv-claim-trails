@@ -449,10 +449,10 @@
 /* ── Responsive Adaptations ────────────────────────────────────────────────── */
 
 /* Container Query: When container is wide (tablet, single-column dashboard) */
-@container (min-width: 500px) {
+@container (min-width: 600px) {
   .service-group-items {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 6px;
     padding: 8px;
   }
@@ -462,7 +462,7 @@
 @media (min-width: 580px) and (max-width: 900px) {
   .service-group-items {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 6px;
     padding: 8px;
   }
@@ -556,6 +556,20 @@
   .service-list-box {
     max-height: clamp(240px, 42vh, 360px);
     gap: 6px;
+  }
+}
+
+/* Force single-column on narrow mobile (<=640px) */
+@media (max-width: 640px) {
+  .service-group-items {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: unset !important;
+  }
+
+  .service-type-badge {
+    max-width: none;
+    flex-shrink: 1;
   }
 }
 

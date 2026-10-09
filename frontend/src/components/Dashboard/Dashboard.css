@@ -137,7 +137,7 @@
   grid-template-columns: 350px 1fr;
   flex: 1;
   min-height: 0;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
 }
 
@@ -160,7 +160,7 @@
   gap: 22px;
   padding: 20px;
   overflow: hidden;
-  min-width: 600px;
+  min-width: 0;
   min-height: 0;
   background: radial-gradient(
     circle at 90% 10%,
@@ -208,6 +208,7 @@
     height: auto;
     padding: 16px;
     gap: 16px;
+    min-width: 0;
   }
 
   .topbar {
@@ -228,5 +229,16 @@
   .right-panel {
     padding: 12px;
     gap: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    padding: 0 12px;
+  }
+
+  .sidebar,
+  .right-panel {
+    padding: 10px;
   }
 }

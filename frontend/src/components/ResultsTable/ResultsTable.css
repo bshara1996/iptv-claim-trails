@@ -165,6 +165,7 @@
 .results-table-scroll {
   flex: 1;
   overflow: auto;
+  overflow-x: auto;
   position: relative;
   background: var(--bg-card);
   padding: 12px;
@@ -212,6 +213,7 @@
 /* ── Table View Styling ────────────────────────────────────────────────────── */
 .iptv-table {
   width: 100%;
+  min-width: 600px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.82rem;
@@ -621,14 +623,9 @@
     padding: 8px;
   }
 }
-    justify-content: space-between;
-  }
 
+@media (max-width: 640px) {
   .results-card-grid {
     grid-template-columns: 1fr;
-  }
-
-  .results-table-scroll {
-    padding: 8px;
   }
 }

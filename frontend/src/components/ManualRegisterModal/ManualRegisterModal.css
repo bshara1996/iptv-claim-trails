@@ -13,6 +13,13 @@
   box-sizing: border-box;
 }
 
+@media (max-width: 640px) {
+  .tvboom-overlay {
+    padding: 12px;
+    align-items: flex-start;
+  }
+}
+
 @keyframes tvboom-fade-in {
   from {
     opacity: 0;
@@ -309,4 +316,28 @@
   display: block;
   min-width: 0;
   background: #fff;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .tvboom-shell {
+    flex-direction: column;
+    max-width: min(480px, calc(100vw - 24px));
+    margin: 12px auto;
+    width: 100%;
+    overflow-y: auto;
+    max-height: calc(100vh - 24px);
+  }
+
+  .tvboom-sidebar {
+    width: 100%;
+    flex-shrink: 0;
+    overflow-y: visible;
+  }
+
+  .tvboom-iframe {
+    min-height: 300px;
+    flex: none;
+    height: 50vh;
+  }
 }

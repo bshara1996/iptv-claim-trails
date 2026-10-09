@@ -80,6 +80,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .log-filter-group {
@@ -297,5 +298,16 @@
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .log-panel-header {
+    padding: 8px 12px;
+  }
+
+  .log-panel-right-controls {
+    flex-wrap: wrap;
+    gap: 6px;
   }
 }
