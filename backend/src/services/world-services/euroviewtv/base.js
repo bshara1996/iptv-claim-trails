@@ -40,12 +40,19 @@ const VERIFY_LINK_RE =
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Returns Supabase API headers; swaps in the user token when provided.
-const apiHeaders = (token = null) => ({
-  apikey: ANON_KEY,
-  Authorization: `Bearer ${token ?? ANON_KEY}`,
-  "User-Agent": DEFAULT_UA,
-});
+// Returns Supabase API headers.
+// - Unauthenticated calls (token = null): only apikey header. The new
+//   sb_publishable_* key format is NOT a JWT, so it must NOT be used as a
+//   Bearer token — doing so causes HTTP 400/401 from the auth endpoint.
+// - Authenticated calls (token = access_token JWT): include Bearer token.
+const apiHeaders = (token = null) => {
+  const headers = {
+    apikey: ANON_KEY,
+    "User-Agent": DEFAULT_UA,
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+};
 
 // ── Base execute ──────────────────────────────────────────────────────────────
 

@@ -55,7 +55,6 @@ export async function pollApi(
     for (const { id, preview } of messages) {
       if (signal?.aborted) return null;
       if (seenIds.has(id)) continue;
-      seenIds.add(id);
 
       const filters = Array.isArray(filterText)
         ? filterText
@@ -67,6 +66,10 @@ export async function pollApi(
         !filters.some((f) => preview.toLowerCase().includes(f.toLowerCase()))
       )
         continue;
+
+      // Mark as seen only after it passes the filter — so a different service
+      // polling with a different filterText can still claim this email.
+      seenIds.add(id);
 
       // Brief pause before reading to stay within provider rate limits.
       // Skip entirely when the provider sets readDelay to 0.

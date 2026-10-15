@@ -4,13 +4,13 @@
  * Site: https://www.tvonnet.live
  *
  * Flow:
- *   POST /api/iptv/provision with trial details.
- *   Response contains one or more M3U links directly.
+ *   POST /api/iptv/provision → response contains M3U links + magicLink directly.
  *
  * Trial duration: 12 hours.
  */
-import { buildResult } from "../../parsing/generators.js";
-import { jsonPost } from "../../http/cookieClient.js";
+import { buildResult } from "../../../parsing/generators.js";
+import { jsonPost } from "../../../http/cookieClient.js";
+import { extractM3uLinks } from "../../../parsing/extractors.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -24,11 +24,12 @@ export default {
   meta: {
     id: "tvonnet",
     name: TAG,
-    description: `${TRIAL_HOURS} Hours`,
-    group: "other",
+    description: `${TRIAL_HOURS} Hours [Limited]`,
+    group: "trex",
   },
 
   async execute({ email, log = () => {} }) {
+    // Step 1: POST trial request — response delivers M3U links directly
     log(`[${TAG}] 📝 Submitting trial request...`);
     const data = await jsonPost(
       `${BASE_URL}/api/iptv/provision`,
@@ -46,31 +47,32 @@ export default {
       { referer: BASE_URL, origin: BASE_URL, throwOnError: true },
     );
 
-    // Extract all M3U links from the response (may be nested anywhere)
+    log(`[${TAG}] 📦 Raw response: ${JSON.stringify(data, null, 2)}`);
+
+    // Step 2: Extract M3U links + magicLink from the response
     const allM3uLinks = extractM3uLinks(data);
+    const magicLink = data?.magicLink ?? null;
 
     if (!allM3uLinks.length)
       log(`[${TAG}] ⚠️ No M3U links found in response.`, "warn");
-    else log(`[${TAG}] ✅ ${allM3uLinks.length} M3U link(s) received.`);
+    else
+      log(
+        `[${TAG}] ✅ ${allM3uLinks.length} M3U link(s) received:\n${[...allM3uLinks].reverse().join("\n")}`,
+      );
+
+    if (magicLink) log(`[${TAG}] 🔗 Magic Link: ${magicLink}`);
+
+    // Step 3: Build TV playlist — server2 first, primary second, magicLink last
+    const orderedLinks = [...allM3uLinks].reverse();
+    if (magicLink) orderedLinks.push(magicLink);
+    const tvPlaylist = orderedLinks.length ? orderedLinks.join("\n") : null;
 
     return buildResult({
       allM3uLinks,
-      tvPlaylist: allM3uLinks[0] ?? null,
-      vodPlaylist: allM3uLinks[1] ?? null,
+      tvPlaylist,
+      vodPlaylist: null,
       trialHours: TRIAL_HOURS,
       serviceName: TAG,
     });
   },
 };
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-// Recursively collect every string that looks like an M3U URL from any response shape.
-function extractM3uLinks(obj) {
-  if (!obj || typeof obj !== "object") return [];
-  return Object.values(obj).flatMap((v) => {
-    if (typeof v === "string" && /\.m3u|get\.php|type=m3u/i.test(v)) return [v];
-    if (typeof v === "object") return extractM3uLinks(v);
-    return [];
-  });
-}

@@ -622,6 +622,12 @@
   .results-table-scroll {
     padding: 8px;
   }
+
+  /* Let panel take natural height on mobile */
+  .results-panel-wrapper {
+    height: auto;
+    min-height: 300px;
+  }
 }
 
 @media (max-width: 640px) {

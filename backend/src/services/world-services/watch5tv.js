@@ -5,7 +5,7 @@
  *
  * Flow:
  *   1. POST /auth/v1/signup        → sends verification email.
- *   2. Poll inbox → GET verify link → confirm account.
+ *   2. Poll inbox → click verify link → confirm account.
  *   3. POST /auth/v1/token         → sign in, get access token.
  *   4. POST w5-provision-trial     → provision the trial.
  *   5. GET  /rest/v1/subscriptions → build M3U from Xtream credentials.
@@ -14,6 +14,7 @@
  */
 
 import { buildResult, buildM3u } from "../../parsing/generators.js";
+import { jsonPost } from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -26,25 +27,34 @@ const ANON_KEY =
 const PROVISION_URL =
   "https://watch5tv.com/.netlify/functions/w5-provision-trial";
 const FILTER_TEXT = ["WATCH5TV", "info@watch5tv.com"];
+const SIGNUP_REDIRECT =
+  "https%3A%2F%2Fwatch5tv.com%2Fwatch5%2Fauth%2Fcallback%3Fnext%3D%252Fwatch5%252Fdashboard";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// POSTs or GETs a Supabase endpoint; throws on non-ok, returns parsed JSON.
-async function sbFetch(path, { token = null, body = null } = {}) {
-  const res = await fetch(`${SUPABASE}${path}`, {
-    method: body ? "POST" : "GET",
-    headers: {
-      "Content-Type": "application/json",
+// Posts to a Supabase auth/REST endpoint; injects apikey + optional Bearer token.
+const sbPost = (path, body, token) =>
+  jsonPost(`${SUPABASE}${path}`, null, body, {
+    extraHeaders: {
       apikey: ANON_KEY,
       ...(token && { Authorization: `Bearer ${token}` }),
     },
-    ...(body && { body: JSON.stringify(body) }),
+  });
+
+// Gets a Supabase REST endpoint; injects apikey + Bearer token, returns parsed JSON.
+async function sbGet(path, token) {
+  const res = await fetch(`${SUPABASE}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
     signal: AbortSignal.timeout(30_000),
   });
   const json = await res.json();
   if (!res.ok)
     throw new Error(
-      `[${TAG}] ${path} (${res.status}): ${json.error_description ?? json.msg ?? JSON.stringify(json)}`,
+      `[${TAG}] ${path} (${res.status}): ${json.message ?? JSON.stringify(json)}`,
     );
   return json;
 }
@@ -55,8 +65,8 @@ export default {
   meta: {
     id: "watch5tv",
     name: TAG,
-    description: `${TRIAL_HOURS} Hours`,
-    group: "other",
+    description: `${TRIAL_HOURS} Hours [Limited]`,
+    group: "best",
   },
 
   async execute({
@@ -69,24 +79,21 @@ export default {
     const username = email.split("@")[0].replace(/[^a-zA-Z0-9]/g, "");
     const password = `W5_${username.slice(0, 8)}!2025`;
 
-    // Step 1: Create a Supabase account; server sends a verification email.
+    // Step 1: Create account — server sends a verification email.
     log(`[${TAG}] 📝 Registering account...`);
-    const signup = await sbFetch(
-      "/auth/v1/signup?redirect_to=https%3A%2F%2Fwatch5tv.com%2Fwatch5%2Fauth%2Fcallback%3Fnext%3D%252Fwatch5%252Fdashboard",
+    const signup = await sbPost(
+      `/auth/v1/signup?redirect_to=${SIGNUP_REDIRECT}`,
       {
-        body: {
-          email,
-          password,
-          data: { full_name: username },
-          gotrue_meta_security: {},
-          code_challenge: null,
-          code_challenge_method: null,
-        },
+        email,
+        password,
+        data: { full_name: username },
+        gotrue_meta_security: {},
+        code_challenge: null,
+        code_challenge_method: null,
       },
     );
 
-    // Step 2: Poll inbox for the confirmation email, then GET the verify link.
-    // The email contains: <a href="https://…supabase.co/auth/v1/verify?token=…">Confirm email address</a>
+    // Step 2: Poll inbox for the confirmation email, then click the verify link.
     log(`[${TAG}] 📬 Waiting for verification email...`);
     const verifyLink = await provider.waitForEmailAndExtractLink(
       credentialStore,
@@ -106,44 +113,32 @@ export default {
       signal: AbortSignal.timeout(30_000),
     });
 
-    // Step 3: Sign in with password — Supabase puts the token in the redirect
-    // fragment which fetch never sees, so we re-login to get it from JSON.
+    // Step 3: Sign in with password to get the access token from JSON.
     log(`[${TAG}] 🔑 Signing in...`);
-    const signin = await sbFetch("/auth/v1/token?grant_type=password", {
-      body: { email, password },
+    const signin = await sbPost("/auth/v1/token?grant_type=password", {
+      email,
+      password,
     });
     const token = signin.access_token;
     const userId = signin.user?.id ?? signup.user?.id;
 
     // Step 4: Provision the 24-hour trial via the Netlify function.
     log(`[${TAG}] 🎁 Provisioning trial...`);
-    const provisionRes = await fetch(PROVISION_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+    await jsonPost(
+      PROVISION_URL,
+      null,
+      { template_id: null, is_adult: false, domain_id: null },
+      {
+        extraHeaders: { Authorization: `Bearer ${token}` },
       },
-      body: JSON.stringify({
-        template_id: null,
-        is_adult: false,
-        domain_id: null,
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!provisionRes.ok) {
-      const err = await provisionRes.text().catch(() => "");
-      throw new Error(
-        `[${TAG}] Provision failed (${provisionRes.status}): ${err.slice(0, 200)}`,
-      );
-    }
+    );
 
-    // Step 5: Fetch the subscription row; build an Xtream Codes M3U URL from
-    // iptv_server + iptv_username + iptv_password.
+    // Step 5: Fetch the subscription row; build an Xtream Codes M3U URL.
     log(`[${TAG}] 📡 Fetching subscription...`);
     const query = userId
       ? `/rest/v1/subscriptions?select=*&user_id=eq.${userId}&order=created_at.desc&limit=10`
       : `/rest/v1/subscriptions?select=*&order=created_at.desc&limit=1`;
-    const subs = await sbFetch(query, { token });
+    const subs = await sbGet(query, token);
     const sub = Array.isArray(subs) ? subs[0] : subs;
     const m3uUrl = buildM3u(
       sub?.iptv_server,
@@ -151,8 +146,12 @@ export default {
       sub?.iptv_password,
     );
 
-    if (m3uUrl) log(`[${TAG}] ✅ M3U: ${m3uUrl}`);
-    else log(`[${TAG}] ⚠️ No M3U found in subscription.`, "warn");
+    if (m3uUrl) log(`[${TAG}] ✅ 🎁 Trial activated. 📺 M3U: ${m3uUrl}`);
+    else
+      log(
+        `[${TAG}] ⚠️ Trial provisioned but no M3U found in subscription.`,
+        "warn",
+      );
 
     return buildResult({
       username: sub?.iptv_username ?? null,

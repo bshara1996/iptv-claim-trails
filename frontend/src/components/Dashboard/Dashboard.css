@@ -6,6 +6,15 @@
   background-color: var(--bg-app);
 }
 
+/* On mobile, allow natural document scroll instead of locking to 100vh */
+@media (max-width: 900px) {
+  .app-shell {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+}
+
 /* ── Topbar ───────────────────────────────────────────────────────────────── */
 .topbar {
   background: rgba(12, 18, 32, 0.85);
@@ -227,18 +236,27 @@
   }
   .sidebar,
   .right-panel {
-    padding: 12px;
+    padding: 12px 14px;
     gap: 12px;
   }
 }
 
 @media (max-width: 640px) {
   .topbar {
-    padding: 0 12px;
+    padding: 0 14px;
   }
 
   .sidebar,
   .right-panel {
-    padding: 10px;
+    padding: 12px 14px;
+  }
+}
+
+/* Prevent any child from breaking out of the viewport on mobile */
+@media (max-width: 900px) {
+  .sidebar > *,
+  .right-panel > * {
+    max-width: 100%;
+    min-width: 0;
   }
 }

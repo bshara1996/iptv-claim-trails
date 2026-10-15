@@ -310,4 +310,10 @@
     flex-wrap: wrap;
     gap: 6px;
   }
+
+  /* Let panel take natural height on mobile */
+  .log-panel-wrapper {
+    height: auto;
+    min-height: 280px;
+  }
 }

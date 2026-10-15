@@ -145,6 +145,17 @@ export function extractCredentials(html) {
   return u && p ? { user: u, pass: p } : null;
 }
 
+// Recursively collects every string that looks like an M3U URL from any
+// JSON response shape (objects, arrays, nested structures).
+export function extractM3uLinks(obj) {
+  if (!obj || typeof obj !== "object") return [];
+  return Object.values(obj).flatMap((v) => {
+    if (typeof v === "string" && /\.m3u|get\.php|type=m3u/i.test(v)) return [v];
+    if (typeof v === "object") return extractM3uLinks(v);
+    return [];
+  });
+}
+
 // Extracts username and password from an M3U URL string.
 // Handles both /playlist/user/pass/ path format and ?username=&password= query format.
 // Returns { user, pass } or null.

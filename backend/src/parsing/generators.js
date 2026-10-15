@@ -8,6 +8,7 @@
  *   generateUsername()         — random lowercase username (10 letters + 10 digits)
  *   generatePassword()         — random mixed-case alphanumeric password (10 chars)
  *   generatePhone()            — random 10-digit phone number (non-zero leading digit)
+ *   nextDayAt(hour, minute)    — Date set to HH:MM on the next calendar day
  *   computeExpiresAt(msOrDate) — formatted expiry timestamp from ms offset or Date
  *   computeTrialExpiry(hours)  — shorthand: computeExpiresAt(hours * 3_600_000)
  *   parseExpiryDate(raw)       — parses "DD.MM.YYYY HH:mm" UTC string into a Date
@@ -45,6 +46,16 @@ export function generatePhone() {
   return lead + rest;
 }
 
+// Returns the next occurrence of HH:MM — today if it hasn't passed yet, otherwise tomorrow.
+// e.g. nextOccurrenceAt(1, 0) → today at 01:00 if it's before 01:00, else tomorrow at 01:00.
+export function nextDayAt(hour, minute = 0) {
+  const d = new Date();
+  d.setHours(hour, minute, 0, 0);
+  // if that time has already passed today, roll to tomorrow
+  if (d <= Date.now()) d.setDate(d.getDate() + 1);
+  return d;
+}
+
 // Returns a human-readable expiry timestamp for the given Date or ms offset.
 // Format: "Jan 1, 2026, 00:00" (en-US, 24-hour clock).
 export function computeExpiresAt(msOrDate, { timeZone } = {}) {
@@ -74,11 +85,17 @@ export function parseExpiryDate(raw) {
   return new Date(`${year}-${month}-${day}T${timePart}:00Z`);
 }
 
-// Returns the remaining time from an expiry Date as "N Hours".
+// Returns the remaining time from an expiry Date as "N Hours" or "N Hours M Min".
 export function formatDuration(expiryDate) {
   if (!expiryDate) return null;
-  const totalHours = Math.round((expiryDate - Date.now()) / 3_600_000);
-  return `${totalHours} Hours`;
+  const totalMins = Math.floor((expiryDate - Date.now()) / 60_000);
+  const hours = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  return hours === 0
+    ? `${mins} Min`
+    : mins > 0
+      ? `${hours} Hours ${mins} Min`
+      : `${hours} Hours`;
 }
 
 // Builds an Xtream-Codes M3U+ URL from a server host and credentials.

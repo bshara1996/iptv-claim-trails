@@ -54,5 +54,4 @@ export function logPlaylists(emitter, record) {
   if (record.tvPlaylist) log(emitter, `📺 TV Playlist: ${record.tvPlaylist}`);
   if (record.vodPlaylist)
     log(emitter, `🍿 VOD Playlist: ${record.vodPlaylist}`);
-  else log(emitter, "ℹ️ VOD Playlist: none");
 }

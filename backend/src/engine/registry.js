@@ -29,16 +29,21 @@ import TvCornService from "../services/world-services/tvcorn.js";
 import EuroViewTvPromaxService from "../services/world-services/euroviewtv/promax.js";
 
 // ── Group: Trex ───────────────────────────────────────────────────────────────
+import TvOnNetService from "../services/world-services/trex/tvonnet.js";
+import IptvExpertenService from "../services/world-services/trex/iptvexperten.js";
+import SacoTvService from "../services/world-services/trex/sacotv.js";
 import MapleStreamTvService from "../services/world-services/trex/maplestreamtv.js";
 import Maple4kService from "../services/world-services/trex/maple4k.js";
+import IptvMapleTvService from "../services/world-services/trex/iptvmapletv.js";
+import Mojo4kTvService from "../services/world-services/trex/mojo4ktv.js";
+import IptvMojoService from "../services/world-services/trex/iptvmojo.js";
+import Mojo4kDeService from "../services/world-services/trex/mojo4kde.js";
 import EuroViewTvTrexService from "../services/world-services/euroviewtv/trex.js";
 
 // ── Group: Other ──────────────────────────────────────────────────────────────
 import AmbKonnectService from "../services/world-services/ambkonnect.js";
 import GreatestIptvService from "../services/world-services/greatestiptv.js";
 import OneIptv4kService from "../services/world-services/oneiptv4k.js";
-import FourKBestIptvService from "../services/world-services/4kbestiptv.js";
-import TvOnNetService from "../services/world-services/tvonnet.js";
 import Watch5TvService from "../services/world-services/watch5tv.js";
 
 export const emailProviders = [
@@ -65,16 +70,21 @@ export const registrationServices = [
   EuroViewTvPromaxService,
 
   // ── Trex ────────────────────────────────────────────────────────────────────
+  TvOnNetService,
+  IptvExpertenService,
+  SacoTvService,
   MapleStreamTvService,
   Maple4kService,
+  IptvMapleTvService,
+  Mojo4kTvService,
+  IptvMojoService,
+  Mojo4kDeService,
   EuroViewTvTrexService,
 
   // ── Other ───────────────────────────────────────────────────────────────────
   AmbKonnectService,
   GreatestIptvService,
   OneIptv4kService,
-  FourKBestIptvService,
-  TvOnNetService,
   Watch5TvService,
 ];
 
