@@ -133,8 +133,11 @@ export function buildResult({
       ? playlists.allM3uLinks
       : [tv, vod].filter(Boolean);
 
-  let dur = duration ?? playlists?.duration ?? null;
-  let exp = expiresAt ?? playlists?.expiresAt ?? null;
+  // expiryDate / trialHours are caller-supplied overrides and take priority over
+  // anything parsed from the email body.  Only fall back to playlists values when
+  // neither override is present.
+  let dur = duration ?? null;
+  let exp = expiresAt ?? null;
   if (!dur || !exp) {
     if (expiryDate instanceof Date && !isNaN(expiryDate)) {
       dur ??= formatDuration(expiryDate);
@@ -147,6 +150,10 @@ export function buildResult({
       exp ??= computeExpiresAt(trialHours * 3_600_000, {
         timeZone: "Asia/Jerusalem",
       });
+    } else {
+      // No override — fall back to whatever the email contained.
+      dur ??= playlists?.duration ?? null;
+      exp ??= playlists?.expiresAt ?? null;
     }
   }
 

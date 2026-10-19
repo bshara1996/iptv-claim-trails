@@ -6,9 +6,9 @@
  * Flow:
  *   POST /api/iptv/provision → response contains M3U links + magicLink directly.
  *
- * Trial duration: 12 hours.
+ * Trial duration: until 12:00 PM next day.
  */
-import { buildResult } from "../../../parsing/generators.js";
+import { buildResult, nextDayAt } from "../../../parsing/generators.js";
 import { jsonPost } from "../../../http/cookieClient.js";
 import { extractM3uLinks } from "../../../parsing/extractors.js";
 
@@ -16,7 +16,6 @@ import { extractM3uLinks } from "../../../parsing/extractors.js";
 
 const BASE_URL = "https://www.tvonnet.live";
 const TAG = "TvOnNet";
-const TRIAL_HOURS = 12;
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
@@ -24,7 +23,7 @@ export default {
   meta: {
     id: "tvonnet",
     name: TAG,
-    description: `${TRIAL_HOURS} Hours [Limited]`,
+    description: "Until 01:00 AM next day",
     group: "trex",
   },
 
@@ -71,7 +70,7 @@ export default {
       allM3uLinks,
       tvPlaylist,
       vodPlaylist: null,
-      trialHours: TRIAL_HOURS,
+      expiryDate: nextDayAt(1),
       serviceName: TAG,
     });
   },

@@ -1,35 +1,43 @@
 /**
- * Strong8K IPTV — free trial via GET-then-POST form submission.
- * Site: https://strong8kiptv.co/trial
+ * Strong8K IPTV — free 24-hour trial.
+ *
+ * Site: https://strong8kiptv.co
  *
  * Flow:
- *   1. GET /trial → prime session cookies + extract hidden CSRF _token (if present)
- *   2. POST /trial with form fields including _token (if found) → follow redirect → 2xx
- *   3. Poll inbox for credentials email
- *
- * Fix (HTTP 409): the server requires a session established by loading GET /trial
- * first.  It may also require a CSRF _token echoed back from the page HTML.
- * If no _token is found the POST proceeds without it (the site may not use Laravel).
+ *   1. POST /trial  → submit email + package (Sec-Fetch-* headers required,
+ *                     server rejects non-browser submits with HTTP 409)
+ *   2. Poll inbox   → wait for credentials email with M3U links
  */
 import { buildResult } from "../../parsing/generators.js";
-import {
-  createJar,
-  get,
-  post,
-  extractCsrfToken,
-} from "../../http/cookieClient.js";
+import { createJar, post } from "../../http/cookieClient.js";
+
+// ── Config ────────────────────────────────────────────────────────────────────
 
 const TAG = "Strong8K IPTV";
 const TRIAL_URL = "https://strong8kiptv.co/trial";
 const TRIAL_HOURS = 24;
-const FILTER_TEXT = ["strong8k", "strong8kiptv.co"];
+
+// Strings used to identify the credentials email in the inbox.
+const FILTER_TEXT = ["Strong IPTV 8K", "emily@strong8kiptv.co"];
+
+// Required to pass the server's browser-only check.
+const BROWSER_HEADERS = {
+  "Sec-Fetch-Site": "same-origin",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-User": "?1",
+  "Sec-Fetch-Dest": "document",
+  "Upgrade-Insecure-Requests": "1",
+  "Cache-Control": "max-age=0",
+};
+
+// ── Service ───────────────────────────────────────────────────────────────────
 
 export default {
   meta: {
     id: "strong8kiptv",
     name: TAG,
     description: `${TRIAL_HOURS} Hours`,
-    group: "other",
+    group: "best",
   },
 
   async execute({
@@ -39,42 +47,30 @@ export default {
     inboxSeenIds = new Set(),
     log = () => {},
   }) {
-    const jar = createJar();
+    // Step 1: Submit the trial request form.
+    log(`[${TAG}] 📝 Submitting free trial for ${email}...`);
 
-    // Step 1: GET /trial — prime session cookies and extract CSRF token.
-    log(`[${TAG}] Loading trial page to establish session...`);
-    const { text: trialPage, status: getStatus } = await get(TRIAL_URL, jar);
-    if (getStatus >= 400)
-      throw new Error(
-        `[${TAG}] Failed to load trial page (HTTP ${getStatus}).`,
-      );
-
-    const token = extractCsrfToken(trialPage);
-    if (!token) log(`[${TAG}] No CSRF _token found — proceeding without it.`);
-
-    // Step 2: Submit the trial form (form-encoded, not JSON).
-    log(`[${TAG}] Submitting free trial request for ${email}...`);
-    const postBody = {
-      format: "m3u",
-      m3u: "m3u",
-      mac: "",
-      package: "83106", // Arabic Package — 53105
-      email: email.trim(),
-    };
-    if (token) postBody._token = token;
-
-    const { status } = await post(
+    const { status, text, finalUrl } = await post(
       TRIAL_URL,
-      jar,
-      postBody,
-      TRIAL_URL, // referer
+      createJar(),
+      { format: "m3u", mac: "", package: "83106", email: email.trim() },
+      TRIAL_URL,
+      { extraHeaders: BROWSER_HEADERS },
     );
 
-    if (status >= 400)
-      throw new Error(`[${TAG}] Trial request rejected (HTTP ${status}).`);
+    // Extract the human-readable error from the page's notice paragraph when available.
+    if (status >= 400) {
+      const reason =
+        text
+          ?.match(/<p[^>]*notice-error[^>]*>([\s\S]*?)<\/p>/i)?.[1]
+          .replace(/<[^>]+>/g, "")
+          .trim() ?? `HTTP ${status}`;
+      log(`[${TAG}] ❌ ${status} | ${finalUrl} | ${reason}`, "warn");
+      throw new Error(`[${TAG}] Trial request rejected — ${reason}`);
+    }
 
-    log(`[${TAG}] Trial request submitted. Waiting for credentials email...`);
-
+    // Step 2: Poll inbox for the credentials email and extract M3U links.
+    log(`[${TAG}] 📬 Waiting for credentials email...`);
     const playlists = await provider.waitForEmailAndExtractPlaylists(
       credentialStore,
       {
@@ -85,10 +81,10 @@ export default {
     );
 
     if (!playlists.allM3uLinks.length)
-      log(`[${TAG}] No M3U links found in credentials email.`, "warn");
+      log(`[${TAG}] ⚠️ No M3U links found.`, "warn");
     else
       log(
-        `[${TAG}] ✅ M3U extracted — TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
+        `[${TAG}] ✅ TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
       );
 
     return buildResult({

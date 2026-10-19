@@ -1,70 +1,40 @@
 /**
  * SacoTV — free trial via multi-step web flow.
- *
  * Site: https://sacotv.com
  *
  * Flow:
- *   1. GET  /register.php          → session cookies + CSRF token
- *   2. POST /register.php          → create account (sends verification email)
- *   3. Poll inbox → GET verify link (/verify.php?token=…) → confirm account
- *   4. GET  /generate-trial.php    → fetch CSRF token for trial claim
- *   5. POST /generate-trial.php    → claim the trial (region=world)
- *   6. GET  /dashboard.php?trial_ok=… → extract M3U playlist link
- *
- * Trial duration: 24 hours.
+ *   1. GET  /register.php        → session cookies + CSRF token
+ *   2. POST /register.php        → create account (sends verification email)
+ *   3. Poll inbox → click verify link
+ *   4. GET  /generate-trial.php  → fresh CSRF token
+ *   5. POST /generate-trial.php  → claim trial (region=world)
+ *   6. GET  /dashboard.php       → extract M3U link
  */
 import {
   generateUsername,
   generatePassword,
   buildResult,
+  nextDayAt,
 } from "../../../parsing/generators.js";
-import { extractLinks } from "../../../parsing/extractors.js";
+import { extractPlaylists } from "../../../parsing/extractors.js";
 import {
   createJar,
   get,
   post,
-  mergeCookies,
-  extractCsrfToken,
   extractInputValue,
+  extractCsrfToken,
 } from "../../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const BASE_URL = "https://sacotv.com";
-const REGISTER_URL = `${BASE_URL}/register.php`;
-const GENERATE_URL = `${BASE_URL}/generate-trial.php`;
+const BASE = "https://sacotv.com";
+const REGISTER = `${BASE}/register.php`;
+const GENERATE = `${BASE}/generate-trial.php`;
 const TAG = "SacoTV";
-const TRIAL_HOURS = 24;
-const FILTER_TEXT = ["sacotv", "verify"];
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-// Extracts a CSRF token from SacoTV's hidden input named "csrf".
-function extractSacoCsrf(html) {
-  return extractInputValue(html, "csrf") ?? extractCsrfToken(html) ?? null;
-}
-
-// Extracts an M3U link from the dashboard HTML.
-// SacoTV typically embeds it in a data-clipboard-text attribute or as a bare URL.
-function extractM3uFromDashboard(html) {
-  // data-clipboard-text="http://…/get.php?username=…&password=…&type=m3u_plus"
-  const clipMatch = html.match(
-    /data-clipboard-text=["']([^"']*(?:get\.php|type=m3u|\.m3u)[^"']*)/i,
-  );
-  if (clipMatch) return clipMatch[1];
-
-  // href with get.php or m3u param
-  const hrefMatch = html.match(
-    /href=["']([^"']*(?:get\.php\?[^"']*type=m3u|\.m3u8?)[^"']*)/i,
-  );
-  if (hrefMatch) return hrefMatch[1];
-
-  // bare URL containing get.php?username=…&password=…&type=m3u
-  const bareMatch = html.match(
-    /https?:\/\/[^\s"'<>]*get\.php\?[^\s"'<>]*type=m3u[^\s"'<>]*/i,
-  );
-  return bareMatch ? bareMatch[0] : null;
-}
+// SacoTV uses a non-standard "csrf" input name — try that first, then fall back.
+const getCsrf = (html) =>
+  extractInputValue(html, "csrf") ?? extractCsrfToken(html);
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
@@ -72,7 +42,7 @@ export default {
   meta: {
     id: "sacotv",
     name: TAG,
-    description: "Limited",
+    description: "Until Midnight Next Day",
     group: "trex",
   },
 
@@ -87,26 +57,19 @@ export default {
     const username = generateUsername();
     const password = generatePassword();
 
-    // ── Step 1: Load registration page — capture session cookies + CSRF ───────
-    log(`[${TAG}] 📄 Loading registration page...`);
-    const initRes = await get(REGISTER_URL, jar, { referer: BASE_URL });
-    if (initRes.status >= 400)
-      throw new Error(
-        `[${TAG}] Failed to load registration page (HTTP ${initRes.status}).`,
-      );
-    const csrf = extractSacoCsrf(initRes.text);
-    if (!csrf)
-      throw new Error(
-        `[${TAG}] Could not extract CSRF token from registration page.`,
-      );
+    // Step 1: Load registration page — capture session cookies + CSRF token.
+    const initRes = await get(REGISTER, jar, { referer: BASE });
+    const regCsrf = getCsrf(initRes.text);
+    if (!regCsrf)
+      throw new Error(`[${TAG}] CSRF not found on registration page.`);
 
-    // ── Step 2: Submit registration form ──────────────────────────────────────
-    log(`[${TAG}] 📝 Registering account for ${email}...`);
+    // Step 2: Submit registration form — site sends a verification email.
+    log(`[${TAG}] Registering ${email}...`);
     const regRes = await post(
-      REGISTER_URL,
+      REGISTER,
       jar,
       {
-        csrf,
+        csrf: regCsrf,
         website: "",
         username,
         email,
@@ -114,89 +77,57 @@ export default {
         password,
         password_confirm: password,
       },
-      REGISTER_URL,
+      REGISTER,
     );
-    // The site redirects to a "check your email" page or returns success HTML.
-    // A 200 or 302 are both acceptable here; we just need no hard error.
-    if (regRes.status >= 500)
-      throw new Error(
-        `[${TAG}] Registration request failed (HTTP ${regRes.status}).`,
-      );
-    log(
-      `[${TAG}] ✅ Registration submitted — waiting for verification email...`,
-    );
+    log(`[${TAG}] 📦 Registration response: ${regRes.text?.slice(0, 500)}`);
 
-    // ── Step 3: Poll inbox for verification link ───────────────────────────────
+    // Step 3: Poll inbox for the verification link and click it.
+    log(`[${TAG}] Waiting for verification email...`);
     const verifyLink = await provider.waitForEmailAndExtractLink(
       credentialStore,
       {
-        filterText: FILTER_TEXT,
+        filterText: ["sacotv", "verify"],
         pattern: /sacotv\.com\/verify\.php\?token=/i,
         seenIds: new Set(inboxSeenIds),
         timeout: 120_000,
       },
     );
-    if (!verifyLink)
-      throw new Error(`[${TAG}] Verification email did not arrive in time.`);
-    log(`[${TAG}] 🔗 Clicking verification link...`);
-    const verifyRes = await get(verifyLink, jar, { referer: BASE_URL });
-    if (verifyRes.status >= 400)
-      throw new Error(
-        `[${TAG}] Email verification failed (HTTP ${verifyRes.status}).`,
-      );
+    if (!verifyLink) throw new Error(`[${TAG}] Verification email timed out.`);
+    await get(verifyLink, jar, { referer: BASE });
     log(`[${TAG}] ✅ Email verified.`);
 
-    // ── Step 4: Load trial-generation page to get a fresh CSRF token ──────────
-    log(`[${TAG}] 📄 Loading trial generation page...`);
-    const genPageRes = await get(GENERATE_URL, jar, { referer: BASE_URL });
-    if (genPageRes.status >= 400)
-      throw new Error(
-        `[${TAG}] Failed to load trial page (HTTP ${genPageRes.status}).`,
-      );
-    const trialCsrf = extractSacoCsrf(genPageRes.text);
-    if (!trialCsrf)
-      throw new Error(`[${TAG}] Could not extract CSRF token from trial page.`);
+    // Step 4: Load trial-generation page to get a fresh CSRF token.
+    const genPage = await get(GENERATE, jar, { referer: BASE });
+    const trialCsrf = getCsrf(genPage.text);
+    if (!trialCsrf) throw new Error(`[${TAG}] CSRF not found on trial page.`);
 
-    // ── Step 5: Submit the trial claim ────────────────────────────────────────
-    log(`[${TAG}] 🎁 Claiming trial (region: world)...`);
+    // Step 5: Submit the trial claim — site redirects to dashboard on success.
+    log(`[${TAG}] Claiming trial...`);
     const trialRes = await post(
-      GENERATE_URL,
+      GENERATE,
       jar,
       { csrf: trialCsrf, region: "world" },
-      GENERATE_URL,
+      GENERATE,
     );
-    if (trialRes.status >= 500)
-      throw new Error(
-        `[${TAG}] Trial claim request failed (HTTP ${trialRes.status}).`,
-      );
+    log(`[${TAG}] 📦 Trial response (finalUrl): ${trialRes.finalUrl}`);
+    log(`[${TAG}] 📦 Trial response (body): ${trialRes.text?.slice(0, 500)}`);
 
-    // The response redirects to /dashboard.php?trial_ok=t_… — finalUrl carries it.
+    // Step 6: Load dashboard and extract M3U playlist link.
     const dashUrl = trialRes.finalUrl?.includes("dashboard.php")
       ? trialRes.finalUrl
-      : `${BASE_URL}/dashboard.php`;
+      : `${BASE}/dashboard.php`;
+    const dash = await get(dashUrl, jar, { referer: GENERATE });
+    log(`[${TAG}] 📦 Dashboard response: ${dash.text?.slice(0, 1000)}`);
+    const playlists = extractPlaylists(dash.text);
 
-    // ── Step 6: Load dashboard and extract M3U link ───────────────────────────
-    log(`[${TAG}] 📡 Fetching dashboard for M3U link...`);
-    const dashRes = await get(dashUrl, jar, { referer: GENERATE_URL });
-    if (dashRes.status >= 400)
-      throw new Error(
-        `[${TAG}] Failed to load dashboard (HTTP ${dashRes.status}).`,
-      );
-
-    const m3uLink = extractM3uFromDashboard(dashRes.text);
-    if (m3uLink) log(`[${TAG}] ✅ 🎁 Trial activated. 📺 M3U: ${m3uLink}`);
-    else
-      log(
-        `[${TAG}] ⚠️ Trial activated but no M3U link found in dashboard.`,
-        "warn",
-      );
+    if (playlists) log(`[${TAG}] ✅ M3U: ${playlists.tvPlaylist}`);
+    else log(`[${TAG}] ⚠️ Trial activated but no M3U found.`, "warn");
 
     return buildResult({
       username,
       password,
-      tvPlaylist: m3uLink,
-      allM3uLinks: m3uLink ? [m3uLink] : [],
-      trialHours: TRIAL_HOURS,
+      playlists,
+      expiryDate: nextDayAt(1),
       serviceName: TAG,
     });
   },

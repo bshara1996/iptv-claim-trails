@@ -1,9 +1,13 @@
 /**
  * IPTVSky — free 24-hour trial via the site's nonce-protected AJAX endpoint.
  *
+ * Site: https://iptvsky.ca
+ *
  * Flow:
  *   1. GET /wp-json/iptvsky-trial/v1/nonce → session cookie + nonce
  *   2. POST /wp-admin/admin-ajax.php → Xtream credentials and playlist link
+ *
+ * Trial duration: 24 hours.
  */
 import {
   generatePhone,
@@ -11,144 +15,88 @@ import {
   buildM3u,
   buildResult,
 } from "../../parsing/generators.js";
-import {
-  createJar,
-  get,
-  mergeCookies,
-  cookieStr,
-  DEFAULT_UA,
-} from "../../http/cookieClient.js";
+import { createJar, get, post } from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const BASE_URL = "https://iptvsky.ca";
-const TRIAL_URL = `${BASE_URL}/trial/`;
+const TRIAL_PAGE = `${BASE_URL}/trial/`;
 const NONCE_URL = `${BASE_URL}/wp-json/iptvsky-trial/v1/nonce`;
 const AJAX_URL = `${BASE_URL}/wp-admin/admin-ajax.php`;
 const TAG = "IPTVSky";
 const TRIAL_HOURS = 24;
-const MAX_ATTEMPTS = 3;
 
-// Parses an API response and adds a service-specific error message.
-function parseJson(text, error) {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Parses JSON text or throws a labelled [TAG] error with a snippet on failure.
+const parseJson = (text, label) => {
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`[${TAG}] ${error}`);
+    throw new Error(`[${TAG}] Unexpected ${label}: ${text.slice(0, 80)}`);
   }
-}
-
-// Posts the trial form, retrying transient Cloudflare failures and browser gates.
-async function submitTrial(jar, form) {
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-    const response = await fetch(AJAX_URL, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "User-Agent": DEFAULT_UA,
-        Origin: BASE_URL,
-        Referer: TRIAL_URL,
-        Cookie: cookieStr(jar),
-      },
-      body: form,
-      signal: AbortSignal.timeout(30_000),
-    });
-    mergeCookies(jar, response);
-    const text = await response.text();
-
-    const browserGate =
-      jar.hc_js_gate !== "1" &&
-      text.includes("hc_js_gate=1") &&
-      text.includes("Checking your browser");
-    const transientFailure = response.status === 522 || response.status >= 500;
-
-    if (!browserGate && !transientFailure) return { response, text };
-
-    if (attempt < 2) {
-      await new Promise((resolve) => setTimeout(resolve, 750 * 2 ** attempt));
-      if (browserGate) jar.hc_js_gate = "1";
-      continue;
-    }
-
-    if (!browserGate) return { response, text };
-  }
-
-  throw new Error(`[${TAG}] Browser gate retry failed`);
-}
-
-// Requests the nonce, retrying temporary Cloudflare failures.
-async function requestNonce(jar) {
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-    const response = await get(NONCE_URL, jar, { referer: TRIAL_URL });
-    if (response.status < 500 || attempt === MAX_ATTEMPTS - 1) return response;
-    await new Promise((resolve) => setTimeout(resolve, 750 * 2 ** attempt));
-  }
-}
+};
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export default {
   meta: {
     id: "iptvsky",
-    name: "IPTVSky",
+    name: TAG,
     description: `${TRIAL_HOURS} Hours`,
     group: "best",
   },
 
   async execute({ email, log = () => {} }) {
+    // Anti-bot protection requires the hc_js_gate session cookie.
     const jar = createJar();
+    jar.hc_js_gate = "1";
 
+    // Step 1: fetch the nonce — binds the form submission to the session.
     log(`[${TAG}] 🔐 Requesting trial nonce...`);
-    const nonceResponse = await requestNonce(jar);
-    if (nonceResponse.status >= 400)
-      throw new Error(
-        `[${TAG}] Failed to request trial nonce (HTTP ${nonceResponse.status}).`,
-      );
-    // The nonce binds the form submission to the initial IPTVSky session.
-    const nonce = parseJson(
-      nonceResponse.text,
-      "Invalid trial nonce response.",
-    )?.nonce;
+    const { text: nonceText, status: nonceStatus } = await get(NONCE_URL, jar, {
+      referer: TRIAL_PAGE,
+    });
+    if (nonceStatus >= 400)
+      throw new Error(`[${TAG}] Failed to request nonce.`);
+
+    const nonce = parseJson(nonceText, "nonce response").nonce;
     if (!nonce) throw new Error(`[${TAG}] Trial nonce was not returned.`);
 
-    const form = new FormData();
-    for (const [key, value] of Object.entries({
-      action: "iptvsky_create_trial",
-      trial_name: generateUsername(),
-      trial_whatsapp: generatePhone(),
-      trial_email: email,
-      trial_device: "other",
-      trial_template: "100003981663766",
-      iptvsky_nonce: nonce,
-    })) {
-      form.append(key, value);
-    }
-
+    // Step 2: submit the trial form — credentials are returned directly.
     log(`[${TAG}] 📝 Submitting trial claim for ${email}...`);
-    const { response, text } = await submitTrial(jar, form);
-
-    const result = parseJson(
-      text,
-      `Trial endpoint returned non-JSON content (HTTP ${response.status}).`,
+    const { text, status } = await post(
+      AJAX_URL,
+      jar,
+      {
+        action: "iptvsky_create_trial",
+        trial_name: generateUsername(),
+        trial_whatsapp: generatePhone(),
+        trial_email: email,
+        trial_device: "other",
+        trial_template: "100003981663766",
+        iptvsky_nonce: nonce,
+      },
+      TRIAL_PAGE,
     );
-    if (!response.ok || !result.success)
+
+    const data = parseJson(text, "response");
+    if (status >= 400 || !data.success)
       throw new Error(
-        `[${TAG}] Trial claim failed: ${result.data?.message ?? `HTTP ${response.status}`}`,
+        `[${TAG}] ${data.data?.message ?? "Trial request rejected."}`,
       );
 
-    const { username, password, host, m3u_link: playlist } = result.data ?? {};
+    const { username, password, host, m3u_link: playlist } = data.data ?? {};
     if (!username || !password || !host)
-      throw new Error(
-        `[${TAG}] Trial response did not include complete credentials.`,
-      );
+      throw new Error(`[${TAG}] Trial response missing credentials.`);
 
     const m3u = playlist ?? buildM3u(host, username, password);
     log(`[${TAG}] ✅ 🎁 Trial activated. 📺 M3U: ${m3u ?? "not returned"}`);
+
     return buildResult({
       username,
       password,
       tvPlaylist: m3u,
-      allM3uLinks: m3u ? [m3u] : [],
       trialHours: TRIAL_HOURS,
       serviceName: TAG,
     });
