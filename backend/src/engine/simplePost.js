@@ -9,6 +9,7 @@
  *     meta:        { id, name, description, group },
  *     url:         "https://…",
  *     referer:     "https://…",        // optional, defaults to url
+ *     origin:      "https://…",        // optional, defaults to url origin
  *     filterText:  "sender",           // string or string[]
  *     trialHours:  24,                 // fixed-hour expiry  OR
  *     expiryDate:  () => nextDayAt(1), // dynamic expiry (called at run time)
@@ -22,6 +23,7 @@ export function simplePost({
   meta,
   url,
   referer,
+  origin,
   filterText,
   trialHours,
   expiryDate,
@@ -41,7 +43,10 @@ export function simplePost({
       log(`[${TAG}] Submitting free trial request for ${email}...`);
 
       // null = no cookie jar needed; fall back to url if no explicit referer
-      await jsonPost(url, null, payload(email), { referer: referer ?? url });
+      await jsonPost(url, null, payload(email), {
+        referer: referer ?? url,
+        origin,
+      });
 
       log(`[${TAG}] Trial request submitted. Waiting for credentials email...`);
 
