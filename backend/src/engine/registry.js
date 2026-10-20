@@ -50,6 +50,7 @@ import GreatestIptvService from "../services/world-services/greatestiptv.js";
 import OneIptv4kService from "../services/world-services/oneiptv4k.js";
 import PongoIptvService from "../services/world-services/pongoiptv.js";
 import NxtIptvService from "../services/world-services/nxtiptv.js";
+import SoxProviderService from "../services/world-services/soxprovider.js";
 
 export const emailProviders = [
   EmailnatorProvider,
@@ -96,6 +97,7 @@ export const registrationServices = [
   OneIptv4kService,
   PongoIptvService,
   NxtIptvService,
+  SoxProviderService,
 ];
 
 // Looks up a provider by its meta.id. Returns null if not found.
