@@ -1,21 +1,24 @@
 /**
  * Best Temp Mail disposable email provider.
  *
+ * Creates a temporary mailbox and reads its inbox through the Best Temp Mail API.
+ *
  * API:
  *   POST /api/v3/createEmail  → { status, data: { address, id, update_tag } }
  *   POST /api/v3/getEmailList → { status, data: { emailList, update_tag } }
  */
+
 import logger from "../logger.js";
 import { makeApi } from "../http/apiClient.js";
-import { makeGetReader, createProviderMethods } from "./base.js";
+import { makeGetReader, createProviderMethods, joinFields } from "./base.js";
 
-// ── Config ────────────────────────────────────────────────────────────────────
+// ── Config ───────────────────────────────────────────────────────────────────
 
 const BASE_URL = "https://best-temp-mail.com";
 const TAG = "Best Temp Mail";
 const api = makeApi(`${BASE_URL}/api/v3`);
 
-// ── API helpers ───────────────────────────────────────────────────────────────
+// ── HTTP helper ───────────────────────────────────────────────────────────────
 
 // Sends a POST request and returns the API data.
 async function request(path, body) {
@@ -25,52 +28,30 @@ async function request(path, body) {
   return response.data;
 }
 
-// Returns a stable message identifier.
-const messageId = (message, index) =>
-  message?.id ?? message?.send_time_by_sender ?? String(index);
-
-// Combines the available message content fields.
-const messageText = (message) =>
-  [message?.html, message?.text, message?.subject].filter(Boolean).join("\n");
-
-// Builds a short inbox preview.
-const messagePreview = (message) =>
-  [message?.from_address, message?.subject, message?.text]
-    .filter(Boolean)
-    .join(" ");
-
-// ── Inbox reader ─────────────────────────────────────────────────────────────
+// ── Inbox reader ──────────────────────────────────────────────────────────────
 
 function buildReader(credential) {
   // Empty refreshes omit emailList, so retain the previous list.
   let messages = [];
-
-  // Fetches the current mailbox messages.
-  const fetchMessages = () =>
-    request("/getEmailList", {
-      ...credential,
-      update_tag: credential.updateTag,
-    });
+  // send_time_by_sender is a provider-specific fallback not in the shared messageIdOf.
+  const msgId = (msg, i) => msg?.id ?? msg?.send_time_by_sender ?? String(i);
+  const find = (sid) =>
+    messages.find((msg, i) => String(msgId(msg, i)) === String(sid));
 
   return {
-    // Lists messages for the poller.
     async fetchMessages() {
-      const data = await fetchMessages();
+      const data = await request("/getEmailList", { ...credential, update_tag: credential.updateTag });
       credential.updateTag = data?.update_tag ?? credential.updateTag;
       if (data?.hasNewEmail) messages = data.emailList ?? [];
-
-      return messages.map((message, index) => ({
-        id: messageId(message, index),
-        preview: messagePreview(message),
+      return messages.map((msg, i) => ({
+        id: msgId(msg, i),
+        preview: joinFields(msg, "from_address subject text"),
       }));
     },
 
-    // Returns the selected message content.
-    async readMessage(id) {
-      const message = messages.find(
-        (item, index) => String(messageId(item, index)) === String(id),
-      );
-      return message ? messageText(message) : "";
+    async readMessage(sid) {
+      const msg = find(sid);
+      return msg ? joinFields(msg, "html text subject") : "";
     },
   };
 }
@@ -88,15 +69,11 @@ export default {
     apiOnly: true,
   },
 
-  // Creates a mailbox and stores its credentials.
   async createEmail(store) {
     logger.info(`[${TAG}] Creating mailbox...`);
     const intToken = crypto.randomUUID();
-    const {
-      address,
-      id,
-      update_tag: updateTag,
-    } = (await request("/createEmail", { intToken })) ?? {};
+    const { address, id, update_tag: updateTag } =
+      (await request("/createEmail", { intToken })) ?? {};
 
     if (!address || !id || !updateTag)
       throw new Error(`[${TAG}] Incomplete mailbox returned from API.`);

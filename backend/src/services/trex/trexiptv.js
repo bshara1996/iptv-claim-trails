@@ -7,8 +7,8 @@
  *   1. POST /trial-api.php  → submit email, phone, bouquets
  *                           → response contains expire_date and m3u_url
  */
-import { buildResult, generatePhone } from "../../../parsing/generators.js";
-import { makeApi } from "../../../http/apiClient.js";
+import { buildResult, generatePhone } from "../../parsing/generators.js";
+import { makeApi } from "../../http/apiClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

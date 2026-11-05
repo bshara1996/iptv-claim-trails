@@ -2,8 +2,8 @@
  * Mojo 4K DE — free trial.
  * Site: https://mojo4k.de/kostenlos-testen
  */
-import { simplePost } from "../../../engine/simplePost.js";
-import { nextDayAt, generateUsername } from "../../../parsing/generators.js";
+import { simplePost } from "../../engine/simplePost.js";
+import { nextDayAt, generateUsername } from "../../parsing/generators.js";
 
 export default simplePost({
   meta: {

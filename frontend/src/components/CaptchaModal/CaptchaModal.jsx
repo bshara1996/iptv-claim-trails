@@ -4,7 +4,6 @@
  * Top-level captcha dispatcher. Routes each challenge to the correct
  * dedicated modal based on challenge.provider:
  *
- *   "turnstile" → TurnstileModal  (Cloudflare Turnstile)
  *   "hcaptcha"  → HCaptchaModal   (hCaptcha)
  *   "recaptcha" → reCAPTCHA v2 inline (default)
  *
@@ -16,7 +15,6 @@
 import { useEffect, useRef, useState } from "react";
 import { submitCaptchaToken } from "../../services/api.js";
 import HCaptchaModal from "./HCaptchaModal.jsx";
-import TurnstileModal from "./TurnstileModal.jsx";
 import "./CaptchaModal.css";
 
 // ── reCAPTCHA widget ID (global so it survives re-renders) ─────────────────
@@ -28,12 +26,10 @@ export default function CaptchaModal({ challenge, onSolved, onDismiss }) {
   const [error, setError] = useState(null);
 
   // Determine whether this instance should handle reCAPTCHA.
-  // Turnstile and hCaptcha are delegated to their own components below,
+  // hCaptcha is delegated to its own component below,
   // but hooks must always run unconditionally — so we gate the side-effects
   // with a boolean rather than returning early before the hooks.
-  const isRecaptcha =
-    !challenge ||
-    (challenge.provider !== "turnstile" && challenge.provider !== "hcaptcha");
+  const isRecaptcha = !challenge || challenge.provider !== "hcaptcha";
 
   // ── reCAPTCHA script injection (once, idempotent) ─────────────────────────
   useEffect(() => {
@@ -104,16 +100,6 @@ export default function CaptchaModal({ challenge, onSolved, onDismiss }) {
 
   // ── Delegate to dedicated modals ─────────────────────────────────────────
   // These returns happen AFTER all hooks have been called above.
-  if (challenge?.provider === "turnstile") {
-    return (
-      <TurnstileModal
-        challenge={challenge}
-        onSolved={onSolved}
-        onDismiss={onDismiss}
-      />
-    );
-  }
-
   if (challenge?.provider === "hcaptcha") {
     return (
       <HCaptchaModal

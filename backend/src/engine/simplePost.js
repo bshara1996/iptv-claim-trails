@@ -1,25 +1,30 @@
 /**
  * engine/simplePost.js
  *
- * Factory for the most common service pattern:
- *   POST a payload → poll inbox for M3U credentials.
+ * Factory for the most common service pattern: POST a payload → poll inbox for M3U credentials.
  *
- * Usage:
- *   export default simplePost({
- *     meta:        { id, name, description, group },
- *     url:         "https://…",
- *     referer:     "https://…",        // optional, defaults to url
- *     origin:      "https://…",        // optional, defaults to url origin
- *     filterText:  "sender",           // string or string[]
- *     trialHours:  24,                 // fixed-hour expiry  OR
- *     expiryDate:  () => nextDayAt(1), // dynamic expiry (called at run time)
- *     payload:     (email) => ({ name: …, email, … }),
- *   });
+ * Exports:
+ *   simplePost(config) — returns a service object { meta, execute } ready for the registry
+ *
+ * Config fields:
+ *   meta        { id, name, description, group }
+ *   url         "https://…"
+ *   referer     "https://…"        optional, defaults to url
+ *   origin      "https://…"        optional, defaults to url origin
+ *   filterText  string | string[]  inbox filter passed to waitForEmailAndExtractPlaylists
+ *   trialHours  number             fixed-hour expiry
+ *   expiryDate  () => Date         dynamic expiry, called at run time (takes priority over trialHours)
+ *   payload     (email) => object  builds the POST body for the given email address
  */
+
 import { buildResult } from "../parsing/generators.js";
 import { jsonPost } from "../http/cookieClient.js";
 
-export function simplePost({
+// ── Factory ───────────────────────────────────────────────────────────────────
+
+// Returns a service object whose execute() submits a trial request and polls
+// the inbox for the credentials email.
+export const simplePost = ({
   meta,
   url,
   referer,
@@ -28,7 +33,7 @@ export function simplePost({
   trialHours,
   expiryDate,
   payload,
-}) {
+}) => {
   const TAG = meta.name;
 
   return {
@@ -42,7 +47,7 @@ export function simplePost({
     }) {
       log(`[${TAG}] Submitting free trial request for ${email}...`);
 
-      // null = no cookie jar needed; fall back to url if no explicit referer
+      // null = no cookie jar needed; fall back to url if no explicit referer.
       await jsonPost(url, null, payload(email), {
         referer: referer ?? url,
         origin,
@@ -50,21 +55,20 @@ export function simplePost({
 
       log(`[${TAG}] Trial request submitted. Waiting for credentials email...`);
 
-      // snapshot seenIds so the poller only watches for new messages from this point
+      // Snapshot seenIds so the poller only watches for messages arriving after this point.
       const playlists = await provider.waitForEmailAndExtractPlaylists(
         credentialStore,
         { filterText, seenIds: new Set(inboxSeenIds), timeout: 120_000 },
       );
 
-      if (!playlists.allM3uLinks.length)
-        log(`[${TAG}] No M3U links found in credentials email.`, "warn");
-      else
-        // tvPlaylist is the first/primary stream link when the email contains several
-        log(
-          `[${TAG}] ✅ M3U extracted — TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
-        );
+      log(
+        playlists.allM3uLinks.length
+          ? `[${TAG}] ✅ M3U extracted — TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`
+          : `[${TAG}] No M3U links found in credentials email.`,
+        playlists.allM3uLinks.length ? "info" : "warn",
+      );
 
-      // expiryDate() is called now so the timestamp reflects actual activation time
+      // expiryDate() is called now so the timestamp reflects the actual activation time.
       return buildResult({
         playlists,
         trialHours,
@@ -73,4 +77,4 @@ export function simplePost({
       });
     },
   };
-}
+};

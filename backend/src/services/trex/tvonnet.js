@@ -6,16 +6,27 @@
  * Flow:
  *   POST /api/iptv/provision → response contains M3U links + magicLink directly.
  *
- * Trial duration: until 12:00 PM next day.
+ * Trial duration: until 01:00 AM next day.
+ *
+ * Note: TvOnNet rejects Gmail dot-alias addresses (Emailnator) with a 400.
+ * Gmail ignores dots in the local part, so we strip them before submitting.
  */
-import { buildResult, nextDayAt } from "../../../parsing/generators.js";
-import { jsonPost } from "../../../http/cookieClient.js";
-import { extractM3uLinks } from "../../../parsing/extractors.js";
+import { buildResult, nextDayAt } from "../../parsing/generators.js";
+import { jsonPost } from "../../http/cookieClient.js";
+import { extractM3uLinks } from "../../parsing/extractors.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const BASE_URL = "https://www.tvonnet.live";
 const TAG = "TvOnNet";
+
+// Strips dots from the local part of Gmail addresses so dot-aliases (Emailnator)
+// aren't rejected. Gmail ignores dots, so it's the same inbox. Non-Gmail untouched.
+const stripGmailDots = (email) =>
+  email.replace(
+    /^([^@]+)@(gmail\.com|googlemail\.com)$/i,
+    (_, l, d) => `${l.replace(/\./g, "")}@${d}`,
+  );
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
@@ -28,7 +39,10 @@ export default {
   },
 
   async execute({ email, log = () => {} }) {
-    // Step 1: POST trial request — response delivers M3U links directly
+    const submitEmail = stripGmailDots(email.trim());
+    if (submitEmail !== email.trim())
+      log(`[${TAG}] 🔧 Normalised email for submission: ${submitEmail}`);
+
     log(`[${TAG}] 📝 Submitting trial request...`);
     const data = await jsonPost(
       `${BASE_URL}/api/iptv/provision`,
@@ -38,7 +52,7 @@ export default {
         duration: "12h",
         connections: 1,
         fullName: "VIP Guest",
-        email: email.trim(),
+        email: submitEmail,
         device: "Windows PC / Mac",
         paymentMethod: "Email Only Pass Delivery",
         includeAdult: false,
@@ -46,9 +60,9 @@ export default {
       { referer: BASE_URL, origin: BASE_URL, throwOnError: true },
     );
 
-    log(`[${TAG}] 📦 Raw response: ${JSON.stringify(data, null, 2)}`);
+    log(`[${TAG}] 📦 Response: ${JSON.stringify(data)}`);
 
-    // Step 2: Extract M3U links + magicLink from the response
+    // Extract M3U links + magicLink, then order: server2 first, magicLink last.
     const allM3uLinks = extractM3uLinks(data);
     const magicLink = data?.magicLink ?? null;
 
@@ -61,14 +75,12 @@ export default {
 
     if (magicLink) log(`[${TAG}] 🔗 Magic Link: ${magicLink}`);
 
-    // Step 3: Build TV playlist — server2 first, primary second, magicLink last
     const orderedLinks = [...allM3uLinks].reverse();
     if (magicLink) orderedLinks.push(magicLink);
-    const tvPlaylist = orderedLinks.length ? orderedLinks.join("\n") : null;
 
     return buildResult({
       allM3uLinks,
-      tvPlaylist,
+      tvPlaylist: orderedLinks.length ? orderedLinks.join("\n") : null,
       vodPlaylist: null,
       expiryDate: nextDayAt(1),
       serviceName: TAG,

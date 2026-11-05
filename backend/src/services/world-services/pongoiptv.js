@@ -111,17 +111,28 @@ export default {
     }
 
     // A warning div means the site rejected the request silently (e.g. daily trial limit).
-    // Translate and surface both versions without polling the inbox.
+    // Some alert divs are success confirmations — detect them by key phrases and continue to
+    // inbox polling instead of returning early.
     if (alertText) {
-      const en = await toEnglish(alertText);
-      const note = en !== alertText ? `${en} (${alertText})` : alertText;
-      log(`[${TAG}] ⚠️ ${note}`, "warn");
-      return buildResult({
-        status: "warning",
-        note,
-        trialHours: TRIAL_HOURS,
-        serviceName: TAG,
-      });
+      const isSuccess =
+        /created|account has been|sent your login|login details|credentials/i.test(
+          alertText,
+        ) || alertText.includes("🎉");
+
+      if (isSuccess) {
+        // Success confirmation — fall through to inbox polling below.
+        log(`[${TAG}] ✅ ${alertText.slice(0, 120)}`);
+      } else {
+        const en = await toEnglish(alertText);
+        const note = en !== alertText ? `${en} (${alertText})` : alertText;
+        log(`[${TAG}] ⚠️ ${note}`, "warn");
+        return buildResult({
+          status: "warning",
+          note,
+          trialHours: TRIAL_HOURS,
+          serviceName: TAG,
+        });
+      }
     }
 
     // Step 3: Poll inbox for the credentials email and extract M3U links.

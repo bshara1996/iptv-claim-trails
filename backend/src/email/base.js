@@ -6,6 +6,8 @@
  * Exports:
  *   makeGetReader(pageKey, tag, buildReader)     — credential guard for polling
  *   createProviderMethods(tag, getReader, opts?) — generates the 3 inbox-polling methods
+ *   messageIdOf(message, index)                 — stable message identifier from common id fields
+ *   joinFields(message, fields)                 — joins selected message fields into one string
  *
  * Providers write credentials onto a plain store object in createEmail(),
  * then read them back here when polling starts.
@@ -13,33 +15,59 @@
 
 import logger from "../logger.js";
 import { pollApi } from "../http/poller.js";
+import { plainText, errSnippet } from "../http/cookieClient.js";
 import {
   extractLinks,
   extractPlaylists,
   EMPTY_PLAYLISTS,
 } from "../parsing/extractors.js";
 
+// ── Shared message helpers ───────────────────────────────────────────────────
+
+// Stable message identifier from common id field names; falls back to index.
+export const messageIdOf = (message, index) =>
+  message?.id ??
+  message?._id ??
+  message?.message_id ??
+  message?.received_at ??
+  index;
+
+// Joins a space-separated field list from a message into one string.
+export const joinFields = (message, fields) =>
+  fields
+    .split(" ")
+    .map((f) => message?.[f])
+    .filter(Boolean)
+    .map((v) => (typeof v === "string" ? v : JSON.stringify(v)))
+    .join("\n")
+    .trim();
+
 // ── Credential helper ─────────────────────────────────────────────────────────
 
-// Returns a getReader function that reads pageKey off the credential store.
-// Throws if createEmail() hasn't been called yet for this store.
-export function makeGetReader(pageKey, tag, buildReader) {
-  return function getReader(store) {
-    const credential = store[pageKey];
-    if (!credential)
-      throw new Error(`[${tag}] No ${pageKey} — call createEmail first.`);
-    return buildReader(credential);
-  };
-}
+// Returns a getReader that reads pageKey off the store; throws if createEmail wasn't called.
+export const makeGetReader = (pageKey, tag, buildReader) => (store) => {
+  const credential = store[pageKey];
+  if (!credential)
+    throw new Error(`[${tag}] No ${pageKey} — call createEmail first.`);
+  return buildReader(credential);
+};
 
 // ── Provider method factory ───────────────────────────────────────────────────
+
+// Extracts the four poll options every method accepts, with shared defaults.
+const pollOpts = ({
+  filterText = "",
+  seenIds = new Set(),
+  timeout = 120_000,
+  signal = null,
+} = {}) => ({ filterText, seenIds, timeout, signal });
 
 // Generates the three standard inbox-polling methods for any API-based provider.
 export function createProviderMethods(tag, getReader, defaultOpts = {}) {
   const pollingDefaults = { pollDelay: 1_000, readDelay: 0, ...defaultOpts };
 
   // Starts the poll loop, logs the outcome, and returns the result.
-  async function _run(store, startMsg, timeoutMsg, opts, onRow) {
+  async function poll(store, startMsg, timeoutMsg, opts, onRow) {
     logger.info(`[${tag}] ${startMsg}`);
     const result = await pollApi(
       getReader(store),
@@ -50,94 +78,73 @@ export function createProviderMethods(tag, getReader, defaultOpts = {}) {
     return result;
   }
 
+  // Logs success or warning for a poll row result, then returns it.
+  const report = (value, ok, miss) => {
+    if (value) logger.info(`[${tag}] ${ok}`);
+    else logger.warn(`[${tag}] ${miss}`);
+    return value;
+  };
+
   return {
-    // Polls until an email containing a 6-digit verification code arrives.
-    async waitForVerificationCodeEmail(
-      store,
-      {
-        filterText = "",
-        seenIds = new Set(),
-        codeRe = /\b(\d{6})\b/,
-        timeout = 120_000,
-        signal = null,
-      } = {},
-    ) {
-      return _run(
+    // Polls until a 6-digit verification code arrives.
+    async waitForVerificationCodeEmail(store, opts = {}) {
+      const { codeRe = /\b(\d{6})\b/ } = opts;
+      return poll(
         store,
         "Polling inbox for verification code...",
         "Timed out waiting for verification code.",
-        { filterText, seenIds, timeout, signal },
+        pollOpts(opts),
         (content, preview) => {
           // Strip tags so codes inside <b>/<span> are visible to the regex.
-          const plain = content
-            .replace(/<[^>]*>/g, " ")
-            .replace(/\s{2,}/g, " ");
           const code =
-            codeRe.exec(preview)?.[1] ?? codeRe.exec(plain)?.[1] ?? null;
-          if (code) logger.info(`[${tag}] Code found: ${code}`);
-          else
-            logger.warn(
-              `[${tag}] No code in this email — skipping. preview: ${preview.slice(0, 120)}`,
-            );
-          return code;
+            codeRe.exec(preview)?.[1] ??
+            codeRe.exec(plainText(content))?.[1] ??
+            null;
+          return report(
+            code,
+            `Code found: ${code}`,
+            `No code in this email — skipping. preview: ${errSnippet(preview)}`,
+          );
         },
       );
     },
 
-    // Polls until a matching email arrives, then returns the first URL
-    // (or the first URL matching pattern when provided).
-    async waitForEmailAndExtractLink(
-      store,
-      {
-        filterText = "",
-        pattern = null,
-        seenIds = new Set(),
-        timeout = 120_000,
-        signal = null,
-      } = {},
-    ) {
+    // Polls until a matching email arrives, then returns the first URL (or first match for pattern).
+    async waitForEmailAndExtractLink(store, opts = {}) {
+      const { pattern = null, filterText = "" } = opts;
       const label = filterText ? ` matching "${filterText}"` : "";
-      return _run(
+      return poll(
         store,
         `Waiting for link email${label}...`,
         `Timed out waiting for email${label}.`,
-        { filterText, seenIds, timeout, signal },
+        pollOpts(opts),
         (content, preview) => {
           const links = extractLinks(content);
           const match =
             (pattern ? links.find((l) => pattern.test(l)) : links[0]) ?? null;
-          if (match) logger.info(`[${tag}] Extracted link: ${match}`);
-          else
-            logger.warn(
-              `[${tag}] No usable link in email (preview: "${preview.slice(0, 80)}") — skipping.`,
-            );
-          return match;
+          return report(
+            match,
+            `Extracted link: ${match}`,
+            `No usable link in email (preview: "${errSnippet(preview, 80)}") — skipping.`,
+          );
         },
       );
     },
 
-    // Polls until an email with M3U playlist links arrives and returns them.
-    // Never returns null — callers expect a destructurable object.
-    async waitForEmailAndExtractPlaylists(
-      store,
-      {
-        filterText = "",
-        seenIds = new Set(),
-        timeout = 120_000,
-        signal = null,
-      } = {},
-    ) {
+    // Polls until an email with M3U playlist links arrives. Never returns null.
+    async waitForEmailAndExtractPlaylists(store, opts = {}) {
+      const { filterText = "" } = opts;
       const label = filterText ? ` matching "${filterText}"` : "";
-      const result = await _run(
+      const result = await poll(
         store,
         `Polling inbox for playlist email${label}...`,
         "Timed out waiting for playlist email.",
-        { filterText, seenIds, timeout, signal },
+        pollOpts(opts),
         (content, preview) => {
           const playlists = extractPlaylists(content);
           if (!playlists) {
             logger.warn(
-              `[${tag}] No M3U links in this email — skipping. preview: ${preview.slice(0, 120)}`,
+              `[${tag}] No M3U links in this email — skipping. preview: ${errSnippet(preview)}`,
             );
             return null;
           }

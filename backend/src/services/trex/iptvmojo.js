@@ -2,12 +2,12 @@
  * IPTV Mojo — free trial.
  * Site: https://iptvmojo.com/free-trial
  */
-import { simplePost } from "../../../engine/simplePost.js";
+import { simplePost } from "../../engine/simplePost.js";
 import {
   nextDayAt,
   generateUsername,
   generatePhone,
-} from "../../../parsing/generators.js";
+} from "../../parsing/generators.js";
 
 export default simplePost({
   meta: {

@@ -12,6 +12,7 @@
  *   request(method, url, jar, opts?) — core fetch with manual redirect loop
  *   get(url, jar, opts?)             — GET shorthand
  *   post(url, jar, body, referer?)   — POST shorthand (form-encoded)
+ *   multipartPost(url, jar, body, referer?, opts?) — POST shorthand (multipart/form-data)
  *   jsonPost(url, jar, body, opts?)  — POST shorthand (JSON body, jar optional)
  *
  * CSRF helpers (service-agnostic):
@@ -117,9 +118,49 @@ export async function request(method, url, jar, opts = {}) {
 // GET shorthand.
 export const get = (url, jar, opts) => request("GET", url, jar, opts);
 
-// POST shorthand.
+// POST shorthand (application/x-www-form-urlencoded).
 export const post = (url, jar, body, referer, opts) =>
   request("POST", url, jar, { body, referer, ...opts });
+
+// POST shorthand that sends a multipart/form-data body via FormData.
+// body — plain object; each key/value is appended as a FormData field.
+// The browser decides the boundary; we must NOT set Content-Type ourselves.
+export async function multipartPost(url, jar, body, referer, opts = {}) {
+  const {
+    ua = DEFAULT_UA,
+    timeout = DEFAULT_TIMEOUT,
+    extraHeaders = {},
+  } = opts;
+
+  const resolvedJar = jar ?? {};
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(body)) {
+    if (v !== undefined && v !== null) fd.append(k, String(v));
+  }
+
+  const headers = {
+    "User-Agent": ua,
+    Accept: "*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    Cookie: cookieStr(resolvedJar),
+    Origin: new URL(url).origin,
+    Referer: referer ?? url,
+    ...extraHeaders,
+    // NOTE: do NOT set Content-Type — fetch sets it automatically with the
+    // correct multipart boundary when the body is a FormData instance.
+  };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: fd,
+    redirect: "manual",
+    signal: AbortSignal.timeout(timeout),
+  });
+
+  mergeCookies(resolvedJar, res);
+  return { text: await res.text(), finalUrl: url, status: res.status };
+}
 
 // JSON POST shorthand — posts a JSON body, harvests cookies if jar provided,
 // follows redirects manually, and returns the parsed JSON response (or {} on parse failure).

@@ -8,7 +8,7 @@ import { DEFAULT_UA } from "../../http/cookieClient.js";
 const BASE_URL = "https://my.y666.tv";
 const API_BASE = `${BASE_URL}/api`;
 const TAG = "Y666";
-const FILTER_TEXT = ["y666", "noreply@y666.tv"];
+const FILTER_TEXT = ["Y6TV ", "noreply@y6tv.tv"];
 const PLAYLIST_BASE = "http://pl.y6tv.me";
 const TRIAL_DAYS = 3;
 const TRIAL_HOURS = TRIAL_DAYS * 24;

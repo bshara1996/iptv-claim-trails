@@ -2,8 +2,8 @@
  * Maple Stream TV — free trial.
  * Site: https://maplestreamtv.ca/
  */
-import { simplePost } from "../../../engine/simplePost.js";
-import { nextDayAt, generateUsername } from "../../../parsing/generators.js";
+import { simplePost } from "../../engine/simplePost.js";
+import { nextDayAt, generateUsername } from "../../parsing/generators.js";
 
 export default simplePost({
   meta: {

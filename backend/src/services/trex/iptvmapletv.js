@@ -2,12 +2,12 @@
  * IPTV Maple TV — free trial.
  * Site: https://iptvmapletv.com/try-iptv-canada/
  */
-import { simplePost } from "../../../engine/simplePost.js";
+import { simplePost } from "../../engine/simplePost.js";
 import {
   nextDayAt,
   generatePhone,
   generateUsername,
-} from "../../../parsing/generators.js";
+} from "../../parsing/generators.js";
 
 export default simplePost({
   meta: {

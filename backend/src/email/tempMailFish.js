@@ -1,25 +1,33 @@
 /**
  * TempMail.fish disposable email provider.
  *
+ * Creates a temporary mailbox and reads its inbox through the TempMail.fish API.
+ *
  * API:
  *   POST /emails/new-email                       → { email, authKey }
  *   GET  /emails/emails?emailAddress={address}   → [{ id, from, subject, htmlBody, textBody }]
  *
  * Auth: `Authorization: <authKey>` header on subsequent requests.
  */
-import logger from "../logger.js";
-import { makeGetReader, createProviderMethods } from "./base.js";
 
-// ── Config ────────────────────────────────────────────────────────────────────
+import logger from "../logger.js";
+import {
+  makeGetReader,
+  createProviderMethods,
+  messageIdOf,
+  joinFields,
+} from "./base.js";
+
+// ── Config ───────────────────────────────────────────────────────────────────
 
 const BASE_URL = "https://api.tempmail.fish";
 const TAG = "TempMail.fish";
 
 // ── HTTP helper ───────────────────────────────────────────────────────────────
 
-// Performs API requests with JSON headers and optional mailbox authKey.
-const request = (path, { method = "GET", authKey } = {}) =>
-  fetch(`${BASE_URL}${path}`, {
+// Performs API requests with JSON headers and an optional mailbox authKey.
+async function request(path, { method = "GET", authKey } = {}) {
+  const res = await fetch(`${BASE_URL}${path}`, {
     method,
     headers: {
       Accept: "application/json",
@@ -28,40 +36,34 @@ const request = (path, { method = "GET", authKey } = {}) =>
         : { "Content-Type": "application/json" }),
     },
     signal: AbortSignal.timeout(20_000),
-  }).then((r) => {
-    if (!r.ok) throw new Error(`[${TAG}] ${path} → HTTP ${r.status}`);
-    return r.json();
   });
+  if (!res.ok) throw new Error(`[${TAG}] ${path} → HTTP ${res.status}`);
+  return res.json();
+}
 
 // ── Inbox reader ──────────────────────────────────────────────────────────────
 
 function buildReader({ address, authKey }) {
   let messages = [];
+  const find = (id) =>
+    messages.find((m, i) => String(messageIdOf(m, i)) === String(id));
 
   return {
-    // Fetches inbox messages and maps them to poller previews.
     async fetchMessages() {
       const data = await request(
         `/emails/emails?emailAddress=${encodeURIComponent(address)}`,
         { authKey },
       );
       messages = Array.isArray(data) ? data : (data?.emails ?? []);
-      return messages.map((msg, index) => ({
-        id: String(msg.id ?? msg._id ?? index),
-        preview: [msg.from, msg.subject, msg.textBody]
-          .filter(Boolean)
-          .join(" · "),
+      return messages.map((msg, i) => ({
+        id: String(messageIdOf(msg, i)),
+        preview: joinFields(msg, "from subject textBody"),
       }));
     },
 
-    // Returns full searchable message content (body + subject) by id.
     async readMessage(id) {
-      const msg = messages.find(
-        (m, index) => String(m.id ?? m._id ?? index) === id,
-      );
-      return [msg?.htmlBody, msg?.textBody, msg?.subject]
-        .filter(Boolean)
-        .join("\n");
+      const msg = find(id);
+      return joinFields(msg, "htmlBody textBody subject");
     },
   };
 }
@@ -79,13 +81,11 @@ export default {
     apiOnly: true,
   },
 
-  // Generates a disposable mailbox, saves authKey to store, and returns address.
   async createEmail(store) {
     logger.info(`[${TAG}] Creating mailbox...`);
     const { email: address, authKey } = await request("/emails/new-email", {
       method: "POST",
     });
-
     if (!address || !authKey)
       throw new Error(`[${TAG}] Incomplete mailbox returned from API.`);
 

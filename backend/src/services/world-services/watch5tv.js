@@ -99,7 +99,8 @@ export default {
       credentialStore,
       {
         filterText: FILTER_TEXT,
-        pattern: /supabase\.co\/auth\/v1\/verify/i,
+        pattern:
+          /supabase\.co\/auth\/v1\/verify|watch5tv\.com.*auth.*callback/i,
         seenIds: new Set(inboxSeenIds),
         timeout: 120_000,
       },
@@ -107,11 +108,43 @@ export default {
     if (!verifyLink)
       throw new Error(`[${TAG}] Verification email did not arrive in time.`);
 
+    log(`[${TAG}] 🔗 Verify link extracted: ${verifyLink}`);
+
+    // Supabase verify links require a `type` query param (e.g. type=signup).
+    // If it's missing, inject it; if the link is a redirect wrapper on another
+    // host, parse the inner Supabase URL out of its query params first.
+    // Decode HTML entities (&amp; → &) before URL parsing so searchParams work correctly.
+    let finalVerifyLink = verifyLink.replace(/&amp;/gi, "&");
+    try {
+      const u = new URL(finalVerifyLink);
+      // If the link hits a non-Supabase host, try to extract a nested supabase URL.
+      if (!u.hostname.includes("supabase.co")) {
+        const inner =
+          u.searchParams.get("verification_url") ??
+          u.searchParams.get("url") ??
+          u.searchParams.get("redirect_to");
+        if (inner) {
+          finalVerifyLink = decodeURIComponent(inner);
+          log(`[${TAG}] 🔗 Unwrapped inner verify URL: ${finalVerifyLink}`);
+        }
+      }
+      // Ensure type=signup is present.
+      const vu = new URL(finalVerifyLink);
+      if (!vu.searchParams.has("type")) {
+        vu.searchParams.set("type", "signup");
+        finalVerifyLink = vu.toString();
+        log(`[${TAG}] 🔗 Injected type=signup → ${finalVerifyLink}`);
+      }
+    } catch {
+      // URL parse failed — use original link as-is.
+    }
+
     log(`[${TAG}] 🔗 Clicking verification link...`);
-    await fetch(verifyLink, {
+    const verifyRes = await fetch(finalVerifyLink, {
       redirect: "follow",
       signal: AbortSignal.timeout(30_000),
     });
+    await verifyRes.text();
 
     // Step 3: Sign in with password to get the access token from JSON.
     log(`[${TAG}] 🔑 Signing in...`);
@@ -124,7 +157,7 @@ export default {
 
     // Step 4: Provision the 24-hour trial via the Netlify function.
     log(`[${TAG}] 🎁 Provisioning trial...`);
-    await jsonPost(
+    const provision = await jsonPost(
       PROVISION_URL,
       null,
       { template_id: null, is_adult: false, domain_id: null },
@@ -132,6 +165,7 @@ export default {
         extraHeaders: { Authorization: `Bearer ${token}` },
       },
     );
+    log(`[${TAG}] 📥 Provision raw response: ${JSON.stringify(provision)}`);
 
     // Step 5: Fetch the subscription row; build an Xtream Codes M3U URL.
     log(`[${TAG}] 📡 Fetching subscription...`);
@@ -139,6 +173,7 @@ export default {
       ? `/rest/v1/subscriptions?select=*&user_id=eq.${userId}&order=created_at.desc&limit=10`
       : `/rest/v1/subscriptions?select=*&order=created_at.desc&limit=1`;
     const subs = await sbGet(query, token);
+    log(`[${TAG}] 📥 Subscriptions raw response: ${JSON.stringify(subs)}`);
     const sub = Array.isArray(subs) ? subs[0] : subs;
     const m3uUrl = buildM3u(
       sub?.iptv_server,

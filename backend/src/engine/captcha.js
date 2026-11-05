@@ -1,18 +1,21 @@
 /**
- * captcha.js
+ * engine/captcha.js
  *
- * Shared interactive challenge helper.
+ * Interactive CAPTCHA challenge helper.
  *
  * Exports:
- *   awaitCaptcha(taskId, emitter, pageUrl, sitekey, log)
+ *   awaitCaptcha(taskId, emitter, pageUrl, sitekey, serviceName, log, provider?)
  *     — emits a captcha_challenge event and returns a Promise that resolves
  *       with the token when the frontend POSTs the solved response back.
  */
+
 import { emit } from "./events.js";
 import { setPendingCaptcha } from "./taskStore.js";
 
-// Emits a captcha_challenge event and returns a Promise that resolves
-// when the frontend POSTs the solved reCAPTCHA token back via the captcha route.
+// ── Challenge ─────────────────────────────────────────────────────────────────
+
+// Notifies the frontend of a pending CAPTCHA and waits for the user to solve it.
+// Resolves with the token once the frontend POSTs it to the captcha route.
 export function awaitCaptcha(
   taskId,
   emitter,
@@ -22,10 +25,7 @@ export function awaitCaptcha(
   log,
   provider = "recaptcha",
 ) {
-  log(
-    `[${serviceName}] ${provider === "turnstile" ? "Cloudflare Turnstile" : "reCAPTCHA"} detected — waiting for user to solve…`,
-    "warn",
-  );
+  log(`[${serviceName}] CAPTCHA detected — waiting for user to solve…`, "warn");
   emit(emitter, "captcha_challenge", {
     taskId,
     sitekey,

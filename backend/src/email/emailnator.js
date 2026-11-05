@@ -9,21 +9,20 @@
  *   POST /api/message-list   { email }    → { messages: [{id, from, subject, locked}] }
  *   GET  /api/message/:id                 → { content (HTML) }
  */
-import logger from "../logger.js";
-import { makeGetReader, createProviderMethods } from "./base.js";
-import { DEFAULT_UA } from "../http/cookieClient.js";
 
-// ── Config ────────────────────────────────────────────────────────────────────
+import logger from "../logger.js";
+import { makeGetReader, createProviderMethods, joinFields } from "./base.js";
+import { DEFAULT_UA, errSnippet } from "../http/cookieClient.js";
+
+// ── Config ───────────────────────────────────────────────────────────────────
 
 const BASE = "https://www.emailnator.com";
 const TAG = "Emailnator";
 
-const EMAIL_TYPES = { domain: 1, plusGmail: 2, dotGmail: 3, googleMail: 8 };
+// ── HTTP helper ───────────────────────────────────────────────────────────────
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-// Sends a GET or POST request to the Emailnator API and returns parsed JSON.
-async function apiFetch(method, path, body) {
+// Sends a request to the Emailnator API with required browser-like headers.
+async function api(method, path, body) {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
@@ -37,34 +36,28 @@ async function apiFetch(method, path, body) {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(
-      `[${TAG}] ${method} ${path} → ${res.status} ${text.slice(0, 200)}`,
-    );
+    throw new Error(`[${TAG}] ${method} ${path} → ${res.status} ${errSnippet(text)}`);
   }
   return res.json();
 }
 
-// Builds the inbox reader bound to a specific email address.
+// ── Inbox reader ──────────────────────────────────────────────────────────────
+
 function buildReader({ address }) {
   return {
     // Returns unlocked messages only — locked messages are ads/system notices.
     async fetchMessages() {
-      const data = await apiFetch("POST", "/api/message-list", {
-        email: address,
-      });
+      const data = await api("POST", "/api/message-list", { email: address });
       return (data?.messages ?? [])
         .filter((m) => !m.locked)
         .map((m) => ({
           id: m.id,
-          preview: `${m.from ?? ""} ${m.subject ?? ""}`.trim(),
+          preview: joinFields(m, "from subject"),
         }));
     },
-    // Fetches the full HTML content for a single message.
+
     async readMessage(id) {
-      const data = await apiFetch(
-        "GET",
-        `/api/message/${encodeURIComponent(id)}`,
-      );
+      const data = await api("GET", `/api/message/${encodeURIComponent(id)}`);
       return data?.content ?? "";
     },
   };
@@ -83,12 +76,9 @@ export default {
     apiOnly: true,
   },
 
-  // Generates a new dotGmail address and stores the credential on the store.
   async createEmail(store) {
     logger.info(`[${TAG}] Generating dotGmail address...`);
-    const data = await apiFetch("POST", "/api/generate-email", {
-      ids: [EMAIL_TYPES.dotGmail],
-    });
+    const data = await api("POST", "/api/generate-email", { ids: [3] }); // 3 = dotGmail
     const address = typeof data?.email === "string" ? data.email : null;
     if (!address)
       throw new Error(`[${TAG}] No address returned from generate-email.`);
@@ -97,6 +87,5 @@ export default {
     return address;
   },
 
-  // Emailnator enforces rate limits if polled too frequently (HTTP 429).
   ...createProviderMethods(TAG, getReader),
 };

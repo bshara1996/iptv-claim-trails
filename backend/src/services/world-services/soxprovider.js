@@ -112,8 +112,7 @@ export default {
       );
 
     return buildResult({
-      playlists,
-      vodPlaylist: null,
+      playlists: { ...playlists, vodPlaylist: null },
       trialHours: TRIAL_HOURS,
       serviceName: TAG,
     });

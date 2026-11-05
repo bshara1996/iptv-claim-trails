@@ -7,59 +7,56 @@
  *   3. Poll inbox            → wait for 6-digit verification code
  *   4. POST /trial/verifyOtp → submit OTP, triggers async account generation
  *   5. Poll /trial/status    → every 3s until status === "completed" or timeout
+ *
+ * Uses the shared cookie-aware HTTP helpers from cookieClient.js (get/post),
+ * which handle cookie jars, manual redirect following, and default headers.
  */
 import {
   generateUsername,
   parseExpiryDate,
   buildResult,
-  TVCORN_ALL_COUNTRIES,
 } from "../../parsing/generators.js";
 import {
   createJar,
-  mergeCookies,
-  cookieStr,
+  get,
+  post,
   extractCsrfInlineJs,
 } from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const BASE_URL = "https://en.tvcorn.com";
-const CDN_HOST = "http://cf.sb-plt.com";
+const BASE = "https://en.tvcorn.com";
+const CDN_HOST = "http://pro.business-cloud-8.ru";
 const TAG = "TVCorn";
+const FILTER_TEXT = "tvcorn";
 const POLL_INTERVAL = 3_000;
 const POLL_TIMEOUT = 180_000;
+const OTP_TIMEOUT = 120_000;
 const TRIAL_HOURS = 24;
+
+const url = (path) => `${BASE}${path}`;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Fetches a TVCorn endpoint, attaching the cookie jar when provided.
-const apiFetch = (path, { jar, ...opts } = {}) =>
-  fetch(`${BASE_URL}${path}`, {
-    ...opts,
-    headers: {
-      "User-Agent": "Mozilla/5.0",
-      Accept: "application/json, text/html",
-      ...(jar && { Cookie: cookieStr(jar) }),
-      ...opts.headers,
-    },
-    redirect: "follow",
-    signal: AbortSignal.timeout(30_000),
-  });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Polls /trial/status every POLL_INTERVAL ms until the account is ready or timeout expires.
+// Short preview of a JSON response — prefers a server "message" when present.
+const brief = (obj, n = 200) => obj?.message ?? JSON.stringify(obj).slice(0, n);
+
+// Polls /trial/status every POLL_INTERVAL ms until the account is ready or the
+// timeout elapses.
 async function pollForAccount(jar, log) {
   const deadline = Date.now() + POLL_TIMEOUT;
   while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL));
-    const res = await apiFetch("/trial/status", { jar });
-    mergeCookies(jar, res);
-    const json = await res.json().catch(() => null);
+    await sleep(POLL_INTERVAL);
+    const { text } = await get(url("/trial/status"), jar);
+    const json = JSON.parse(text || "{}");
     log(`[${TAG}] 🔄 Poll → ${JSON.stringify(json)}`);
     if (json?.status === "completed" && json.data) return json.data;
     if (json?.status === "failed")
       throw new Error(json.data?.message ?? "Account generation failed.");
   }
-  throw new Error("Account generation timed out.");
+  throw new Error(`[${TAG}] Account generation timed out.`);
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -67,9 +64,9 @@ async function pollForAccount(jar, log) {
 export default {
   meta: {
     id: "tvcorn",
-    name: "TVCorn",
+    name: TAG,
     description: `${TRIAL_HOURS} Hours`,
-    group: "best",
+    group: "World 8K",
   },
 
   async execute({
@@ -79,76 +76,67 @@ export default {
     inboxSeenIds = new Set(),
     log = () => {},
   }) {
-    const username = generateUsername();
     const jar = createJar();
-    const POST = {
-      method: "POST",
-      jar,
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    };
+    const name = generateUsername();
 
     // Step 1: Load trial page — capture session cookies and CSRF token.
-    const initRes = await apiFetch("/trial");
-    mergeCookies(jar, initRes);
-    const csrf = extractCsrfInlineJs(await initRes.text());
+    const { text: html } = await get(url("/trial"), jar);
+    const csrf = extractCsrfInlineJs(html);
     if (!csrf)
-      throw new Error("Could not extract CSRF token from the trial page.");
+      throw new Error(
+        `[${TAG}] Could not extract CSRF token from the trial page.`,
+      );
 
     // Step 2: Submit name + email to trigger the OTP verification email.
-    const otpBody = new URLSearchParams({
-      _token: csrf,
-      name: username,
-      email,
-    });
-    TVCORN_ALL_COUNTRIES.forEach((c) => otpBody.append("countries[]", c));
-    const otpRes = await apiFetch("/trial/sendOtp", { ...POST, body: otpBody });
-    mergeCookies(jar, otpRes);
-    const otpJson = await otpRes.json();
-    if (otpJson.status !== "true" && otpJson.status !== true)
-      throw new Error(
-        `OTP request failed: ${otpJson.message ?? "Unknown error"}`,
-      );
+    const otpBody = new URLSearchParams({ _token: csrf, name, email });
+    otpBody.append("countries[]", "world");
+    const sendJson = JSON.parse(
+      (await post(url("/trial/sendOtp"), jar, otpBody)).text || "{}",
+    );
+    if (sendJson.status !== "true" && sendJson.status !== true)
+      throw new Error(`[${TAG}] OTP request failed: ${brief(sendJson)}`);
     log(`[${TAG}] ✅ 📩 OTP email sent to ${email}`);
 
     // Step 3: Wait for the OTP to arrive in the inbox.
     const code = await provider.waitForVerificationCodeEmail(credentialStore, {
-      filterText: "tvcorn",
+      filterText: FILTER_TEXT,
       seenIds: new Set(inboxSeenIds),
-      timeout: 120_000,
+      timeout: OTP_TIMEOUT,
     });
-    if (!code) throw new Error("Verification code was not received.");
+    if (!code) throw new Error(`[${TAG}] Verification code was not received.`);
     log(`[${TAG}] ✅ 🔐 Verification code received: ${code}`);
 
     // Step 4: Submit OTP — triggers async account generation on the server.
-    const verifyRes = await apiFetch("/trial/verifyOtp", {
-      ...POST,
-      body: new URLSearchParams({ _token: csrf, email, otp: code }),
-    });
-    mergeCookies(jar, verifyRes);
-    const verifyJson = await verifyRes.json();
+    const verifyJson = JSON.parse(
+      (
+        await post(
+          url("/trial/verifyOtp"),
+          jar,
+          new URLSearchParams({ _token: csrf, email, otp: code }),
+        )
+      ).text || "{}",
+    );
     if (verifyJson.status === "false" || verifyJson.status === "error")
-      throw new Error(
-        `OTP verification failed: ${verifyJson.message ?? "Invalid code"}`,
-      );
+      throw new Error(`[${TAG}] OTP verification failed: ${brief(verifyJson)}`);
     log(`[${TAG}] ✅ Email verified — waiting for account to be generated…`);
 
     // Step 5: Poll until the account is ready.
     const data = await pollForAccount(jar, log);
-    const rawM3uLink = data.m3u ?? data.m3u_url ?? data.playlist ?? null;
+    const rawM3u = data.m3u ?? data.m3u_url ?? data.playlist ?? null;
     // Rewrite the CDN host to the preferred server.
-    const m3uLink = rawM3uLink
-      ? rawM3uLink.replace(/^https?:\/\/[^/]+/, CDN_HOST)
+    const m3uLink = rawM3u
+      ? rawM3u.replace(/^https?:\/\/[^/]+/, CDN_HOST)
       : null;
     log(`[${TAG}] ✅ Account ready — 📺 M3U: ${m3uLink ?? "not found"}`);
-
-    const expiryDate = parseExpiryDate(data.expiry);
 
     return buildResult({
       username: data.username,
       password: data.password,
       tvPlaylist: m3uLink,
-      expiryDate,
-      serviceName: "TVCorn",
+      allM3uLinks: m3uLink ? [m3uLink] : [],
+      expiryDate: parseExpiryDate(data.expiry),
+      trialHours: TRIAL_HOURS,
+      serviceName: TAG,
     });
   },
 };

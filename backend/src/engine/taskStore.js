@@ -2,7 +2,6 @@
  * engine/taskStore.js
  *
  * In-memory task store.
- * Each task holds its EventEmitter, AbortController, status, and results.
  *
  * Exports:
  *   tasks                                          — the underlying Map (used by runner.js)
@@ -15,8 +14,8 @@
  *   resolvePendingManualDone(taskId)               — signals that the user completed registration
  *   rejectPendingManualDone(taskId, name?)         — signals that the user cancelled registration
  *
- *   Legacy aliases (kept for backwards-compat): setPendingTvboomDone, resolvePendingTvboomDone,
- *   rejectPendingTvboomDone — all delegate to the generic functions above.
+ *   Legacy aliases (kept for backwards-compat):
+ *   setPendingTvboomDone, resolvePendingTvboomDone, rejectPendingTvboomDone
  */
 
 import { v4 as uuidv4 } from "uuid";
@@ -24,80 +23,82 @@ import { EventEmitter } from "events";
 
 export const tasks = new Map();
 
-// Maps taskId → resolve function for the captcha token Promise.
-// Populated by the service while it waits; cleared once the token arrives.
+// ── Internal helper ───────────────────────────────────────────────────────────
+
+// Pops an entry from a pending map, calls fn(entry), and returns true. Returns false if nothing was waiting.
+const popPending = (map, taskId, fn) => {
+  const entry = map.get(taskId);
+  if (!entry) return false;
+  map.delete(taskId);
+  fn(entry);
+  return true;
+};
+
+// ── Captcha ───────────────────────────────────────────────────────────────────
+
 const pendingCaptchas = new Map();
 
-// Stores a resolve callback so the captcha route can unblock the service.
-export function setPendingCaptcha(taskId, resolve) {
+// Stores a resolve callback so the captcha route can unblock the waiting service.
+export const setPendingCaptcha = (taskId, resolve) =>
   pendingCaptchas.set(taskId, resolve);
-}
 
-// Fulfils the pending captcha promise with the given token. Returns false if none is waiting.
-export function resolvePendingCaptcha(taskId, token) {
-  const resolve = pendingCaptchas.get(taskId);
-  if (!resolve) return false;
-  pendingCaptchas.delete(taskId);
-  resolve(token);
-  return true;
-}
+// Fulfils the pending captcha promise with the given token. Returns false if no captcha is waiting.
+export const resolvePendingCaptcha = (taskId, token) =>
+  popPending(pendingCaptchas, taskId, (resolve) => resolve(token));
+
+// ── Task lifecycle ────────────────────────────────────────────────────────────
 
 // Creates a new task entry and returns its id and emitter.
 export function createTask() {
   const taskId = uuidv4();
   const emitter = new EventEmitter();
   emitter.setMaxListeners(20);
-  const events = [];
-  emitter.on("event", (event) => events.push(event));
 
-  tasks.set(taskId, {
+  const task = {
     emitter,
-    events,
+    events: [],
     abortController: new AbortController(),
     status: "pending",
     results: [],
-  });
+  };
+  emitter.on("event", (e) => task.events.push(e));
+  tasks.set(taskId, task);
 
   return { taskId, emitter };
 }
 
 // Returns the task for taskId, or null if not found.
-export function getTask(taskId) {
-  return tasks.get(taskId) ?? null;
-}
+export const getTask = (taskId) => tasks.get(taskId) ?? null;
 
-// Signals the task's AbortController and marks it as cancelling.
-export async function cancelTask(taskId) {
+// Signals the task's AbortController and marks the task as cancelling.
+export function cancelTask(taskId) {
   const task = tasks.get(taskId);
   if (!task || !["running", "pending"].includes(task.status)) return;
   task.abortController.abort();
   task.status = "cancelling";
 }
 
-// ── Manual-registration pause/resume (ManualRegisterModal — TVBoom) ────────────
+// ── Manual registration pause/resume ─────────────────────────────────────────
 
 const pendingManual = new Map();
 
+// Stores resolve/reject callbacks so the manual-registration route can unblock the service.
 export const setPendingManualDone = (taskId, resolve, reject) =>
   pendingManual.set(taskId, { resolve, reject });
 
-export const resolvePendingManualDone = (taskId) => {
-  const entry = pendingManual.get(taskId);
-  if (!entry) return false;
-  pendingManual.delete(taskId);
-  entry.resolve();
-  return true;
-};
+// Signals that the user completed registration. Returns false if no registration is pending.
+export const resolvePendingManualDone = (taskId) =>
+  popPending(pendingManual, taskId, (e) => e.resolve());
 
-export const rejectPendingManualDone = (taskId, name = "Registration") => {
-  const entry = pendingManual.get(taskId);
-  if (!entry) return false;
-  pendingManual.delete(taskId);
-  entry.reject(new Error(`[${name}] Registration cancelled by user.`));
-  return true;
-};
+// Signals that the user cancelled registration. Returns false if no registration is pending.
+export const rejectPendingManualDone = (taskId, name = "Registration") =>
+  popPending(pendingManual, taskId, (e) =>
+    e.reject(new Error(`[${name}] Registration cancelled by user.`)),
+  );
 
-// Backwards-compatible aliases — kept so existing service modules stay compatible.
+// ── Legacy aliases ────────────────────────────────────────────────────────────
+
+// Backwards-compatible aliases kept so existing TVBoom service modules stay compatible.
 export const setPendingTvboomDone = setPendingManualDone;
 export const resolvePendingTvboomDone = resolvePendingManualDone;
 export const rejectPendingTvboomDone = (taskId) =>

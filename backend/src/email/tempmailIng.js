@@ -5,75 +5,48 @@
  * No account, token, or hardcoded mailbox is used.
  *
  * API:
- *   POST /api/generate             -> { success, email: { address, ... } }
- *   GET  /api/emails/{email}      -> { success, emails: [{ id, content, ... }] }
+ *   POST /api/generate             → { success, email: { address, ... } }
+ *   GET  /api/emails/{email}       → { success, emails: [{ id, content, ... }] }
  */
+
 import logger from "../logger.js";
 import { makeApi } from "../http/apiClient.js";
-import { makeGetReader, createProviderMethods } from "./base.js";
+import { makeGetReader, createProviderMethods, messageIdOf, joinFields } from "./base.js";
 
-// ── Config ────────────────────────────────────────────────────────────────────
+// ── Config ───────────────────────────────────────────────────────────────────
 
 const BASE_URL = "https://api.tempmail.ing";
 const SITE_URL = "https://tempmail.ing";
 const TAG = "TempMail.ing";
 const api = makeApi(BASE_URL);
 
-// ── Message helpers ───────────────────────────────────────────────────────────
+const MESSAGE_FIELDS = "from_address sender to_address subject preview text content html";
 
-// Returns the messages from the inbox response.
-const messagesFrom = (data) => (Array.isArray(data?.emails) ? data.emails : []);
+// ── Inbox reader ──────────────────────────────────────────────────────────────
 
-// Returns a stable message identifier.
-const messageId = (message, index) =>
-  message?.id ?? message?.message_id ?? message?.received_at ?? index;
-
-// Combines message fields into searchable text.
-const text = (message) =>
-  [
-    message?.from_address,
-    message?.sender,
-    message?.to_address,
-    message?.subject,
-    message?.preview,
-    message?.text,
-    message?.content,
-    message?.html,
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-// ── Inbox reader ─────────────────────────────────────────────────────────────
-
-// Builds a reader for the generated mailbox address.
 function buildReader(address) {
   let messages = [];
-  const fetchMessages = () => api(`/api/emails/${encodeURIComponent(address)}`);
-
-  // Finds a message in the cached inbox response.
-  const findMessage = (id) =>
-    messages.find(
-      (message, index) => String(messageId(message, index)) === String(id),
-    );
+  const fetchInbox = () => api(`/api/emails/${encodeURIComponent(address)}`);
+  const toList = (data) => (Array.isArray(data?.emails) ? data.emails : []);
+  const find = (id) =>
+    messages.find((m, i) => String(messageIdOf(m, i)) === String(id));
 
   return {
-    // Fetches inbox messages and creates poller previews.
     async fetchMessages() {
-      messages = messagesFrom(await fetchMessages());
-      return messages.map((message, index) => ({
-        id: messageId(message, index),
-        preview: text(message),
+      messages = toList(await fetchInbox());
+      return messages.map((m, i) => ({
+        id: messageIdOf(m, i),
+        preview: joinFields(m, MESSAGE_FIELDS),
       }));
     },
 
-    // Returns the full content of one cached inbox message.
     async readMessage(id) {
-      let message = findMessage(id);
-      if (!message) {
-        messages = messagesFrom(await fetchMessages());
-        message = findMessage(id);
+      let msg = find(id);
+      if (!msg) {
+        messages = toList(await fetchInbox());
+        msg = find(id);
       }
-      return text(message);
+      return joinFields(msg, MESSAGE_FIELDS);
     },
   };
 }
@@ -91,7 +64,6 @@ export default {
     apiOnly: false,
   },
 
-  // Creates a mailbox through the TempMail.ing website API.
   async createEmail(store) {
     logger.info(`[${TAG}] Creating mailbox...`);
     const data = await api("/api/generate", { method: "POST", body: {} });

@@ -1,6 +1,8 @@
 /**
  * Temp-Mail.app disposable email provider (internal Next.js API).
  *
+ * Creates a temporary mailbox and reads its inbox through the Temp-Mail.app internal API.
+ *
  * API:
  *   GET /api/mail/address?refresh=false&expire=1440&part=main
  *       → { address, expire, remainingTime }
@@ -9,10 +11,11 @@
  *
  * Auth: `visitor-id` header — a UUID generated once per mailbox session.
  */
-import logger from "../logger.js";
-import { makeGetReader, createProviderMethods } from "./base.js";
 
-// ── Config ────────────────────────────────────────────────────────────────────
+import logger from "../logger.js";
+import { makeGetReader, createProviderMethods, joinFields } from "./base.js";
+
+// ── Config ───────────────────────────────────────────────────────────────────
 
 const BASE_URL = "https://temp-mail.app";
 const TAG = "Temp-Mail.app";
@@ -20,14 +23,14 @@ const TAG = "Temp-Mail.app";
 // ── HTTP helper ───────────────────────────────────────────────────────────────
 
 // GETs a JSON endpoint, injecting the per-session visitor-id header.
-const get = (path, visitorId) =>
-  fetch(`${BASE_URL}${path}`, {
+async function get(path, visitorId) {
+  const res = await fetch(`${BASE_URL}${path}`, {
     headers: { Accept: "application/json", "visitor-id": visitorId },
     signal: AbortSignal.timeout(20_000),
-  }).then((r) => {
-    if (!r.ok) throw new Error(`[${TAG}] ${path} → HTTP ${r.status}`);
-    return r.json();
   });
+  if (!res.ok) throw new Error(`[${TAG}] ${path} → HTTP ${res.status}`);
+  return res.json();
+}
 
 // ── Inbox reader ──────────────────────────────────────────────────────────────
 
@@ -35,7 +38,6 @@ function buildReader({ visitorId }) {
   let messages = [];
 
   return {
-    // Fetches the inbox and returns normalised message previews for the poller.
     async fetchMessages() {
       const data = await get("/api/mail/list?part=main", visitorId);
       messages = data?.message?.filter(Boolean) ?? [];
@@ -47,12 +49,9 @@ function buildReader({ visitorId }) {
       }));
     },
 
-    // Returns the full content of a cached message by id.
     async readMessage(id) {
       const msg = messages.find((m) => String(m.id) === id);
-      return [msg?.content, msg?.subject, msg?.preview]
-        .filter(Boolean)
-        .join("\n");
+      return joinFields(msg, "content subject preview");
     },
   };
 }
@@ -70,7 +69,6 @@ export default {
     apiOnly: true,
   },
 
-  // Generates a visitor UUID, fetches a fresh address, and stores both on the store.
   async createEmail(store) {
     logger.info(`[${TAG}] Creating mailbox...`);
     const visitorId = crypto.randomUUID();
@@ -78,7 +76,6 @@ export default {
       "/api/mail/address?refresh=false&expire=1440&part=main",
       visitorId,
     );
-
     if (!address)
       throw new Error(`[${TAG}] No address returned from /api/mail/address.`);
 

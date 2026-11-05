@@ -3,11 +3,18 @@
  *
  * Central registry of all email providers and registration services.
  *
- * To add a provider: create email/<name>.js, import it, add to emailProviders[].
- * To add a service:  create services/<name>.js, import it, add to registrationServices[].
+ * Exports:
+ *   emailProviders        — ordered list of all email provider objects
+ *   registrationServices  — ordered list of all registration service objects
+ *   getProvider(id)       — looks up a provider by meta.id, returns null if not found
+ *   getService(id)        — looks up a service by meta.id, returns null if not found
+ *
+ * To add a provider: create email/<name>.js, import it, append to emailProviders.
+ * To add a service:  create services/<name>.js, import it, append to registrationServices.
  */
 
-// ── Email Providers ───────────────────────────────────────────────────────────
+// ── Email providers ───────────────────────────────────────────────────────────
+
 import EmailnatorProvider from "../email/emailnator.js";
 import DropMailProvider from "../email/dropmail.js";
 import FiveMinMailProvider from "../email/fiveMinMail.js";
@@ -16,41 +23,44 @@ import BestMailProvider from "../email/bestTempMail.js";
 import TempMailAppProvider from "../email/tempMailApp.js";
 import TempMailFishProvider from "../email/tempMailFish.js";
 
-// ── Group: Russian ────────────────────────────────────────────────────────────
+// ── Russian services ──────────────────────────────────────────────────────────
+
 import Y666Service from "../services/russian-services/y666.js";
 import OgoTvService from "../services/russian-services/ogotv.js";
 import VeleStoreService from "../services/russian-services/velestore.js";
 import TvBoomService from "../services/russian-services/tvboom.js";
 
-// ── Group: Best ────────────────────────────────────────────────────────────
-import IptvSkyService from "../services/world-services/iptvsky.js";
+// ── World services ────────────────────────────────────────────────────────────
+
+import WebestIptvService from "../services/world-services/webestiptv.js";
 import iiptvcanada from "../services/world-services/iiptvcanada.js";
 import StrevioService from "../services/world-services/strevio.js";
 import Watch5TvService from "../services/world-services/watch5tv.js";
-import Strong8kIptvService from "../services/world-services/strong8kiptv.js";
-import TvCornService from "../services/world-services/tvcorn.js";
-import EuroViewTvPromaxService from "../services/world-services/euroviewtv/promax.js";
-
-// ── Group: Trex ───────────────────────────────────────────────────────────────
-import TrexIptvService from "../services/world-services/trex/trexiptv.js";
-import TvOnNetService from "../services/world-services/trex/tvonnet.js";
-import IptvExpertenService from "../services/world-services/trex/iptvexperten.js";
-import SacoTvService from "../services/world-services/trex/sacotv.js";
-import MapleStreamTvService from "../services/world-services/trex/maplestreamtv.js";
-import Maple4kService from "../services/world-services/trex/maple4k.js";
-import IptvMapleTvService from "../services/world-services/trex/iptvmapletv.js";
-import Mojo4kTvService from "../services/world-services/trex/mojo4ktv.js";
-import IptvMojoService from "../services/world-services/trex/iptvmojo.js";
-import Mojo4kDeService from "../services/world-services/trex/mojo4kde.js";
-import EuroViewTvTrexService from "../services/world-services/euroviewtv/trex.js";
-
-// ── Group: Other ──────────────────────────────────────────────────────────────
+import ZumIptvService from "../services/world-services/zumiptv.js";
 import AmbKonnectService from "../services/world-services/ambkonnect.js";
 import GreatestIptvService from "../services/world-services/greatestiptv.js";
-import OneIptv4kService from "../services/world-services/oneiptv4k.js";
 import PongoIptvService from "../services/world-services/pongoiptv.js";
-import NxtIptvService from "../services/world-services/nxtiptv.js";
 import SoxProviderService from "../services/world-services/soxprovider.js";
+
+// ── World 8K services ─────────────────────────────────────────────────────────
+
+import Strong8kIptvService from "../services/World 8K/strong8kiptv.js";
+import TvCornService from "../services/World 8K/tvcorn.js";
+import IptvLoadService from "../services/World 8K/iptvload.js";
+
+// ── Trex services ─────────────────────────────────────────────────────────────
+
+import TrexIptvService from "../services/trex/trexiptv.js";
+import TvOnNetService from "../services/trex/tvonnet.js";
+import IptvExpertenService from "../services/trex/iptvexperten.js";
+import MapleStreamTvService from "../services/trex/maplestreamtv.js";
+import Maple4kService from "../services/trex/maple4k.js";
+import IptvMapleTvService from "../services/trex/iptvmapletv.js";
+import Mojo4kTvService from "../services/trex/mojo4ktv.js";
+import IptvMojoService from "../services/trex/iptvmojo.js";
+import Mojo4kDeService from "../services/trex/mojo4kde.js";
+
+// ── Exports ───────────────────────────────────────────────────────────────────
 
 export const emailProviders = [
   EmailnatorProvider,
@@ -63,41 +73,35 @@ export const emailProviders = [
 ];
 
 export const registrationServices = [
-  // ── Russian ─────────────────────────────────────────────────────────────────
+  // Russian
   Y666Service,
-  OgoTvService,
   VeleStoreService,
   TvBoomService,
-
-  // ── Best ────────────────────────────────────────────────────────────────────
-  IptvSkyService,
+  OgoTvService,
+  // World
   iiptvcanada,
+  WebestIptvService,
+  SoxProviderService,
   StrevioService,
   Watch5TvService,
+  ZumIptvService,
+  AmbKonnectService,
+  GreatestIptvService,
+  PongoIptvService,
+  // World 8K
   Strong8kIptvService,
+  IptvLoadService,
   TvCornService,
-  EuroViewTvPromaxService,
-
-  // ── Trex ────────────────────────────────────────────────────────────────────
+  // Trex
   TrexIptvService,
   TvOnNetService,
   IptvExpertenService,
-  SacoTvService,
   MapleStreamTvService,
   Maple4kService,
   IptvMapleTvService,
   Mojo4kTvService,
   IptvMojoService,
   Mojo4kDeService,
-  EuroViewTvTrexService,
-
-  // ── Other ───────────────────────────────────────────────────────────────────
-  AmbKonnectService,
-  GreatestIptvService,
-  OneIptv4kService,
-  PongoIptvService,
-  NxtIptvService,
-  SoxProviderService,
 ];
 
 // Looks up a provider by its meta.id. Returns null if not found.

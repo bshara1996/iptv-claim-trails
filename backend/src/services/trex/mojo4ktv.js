@@ -2,12 +2,12 @@
  * Mojo 4K TV — free trial.
  * Site: https://mojo4ktv.com/
  */
-import { simplePost } from "../../../engine/simplePost.js";
+import { simplePost } from "../../engine/simplePost.js";
 import {
   nextDayAt,
   generateUsername,
   generatePhone,
-} from "../../../parsing/generators.js";
+} from "../../parsing/generators.js";
 
 export default simplePost({
   meta: {

@@ -301,6 +301,71 @@
   }
 }
 
+/* ── Service Tabs ─────────────────────────────────────────────────────────── */
+
+.log-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 12px 0;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  overflow-x: auto;
+  flex-shrink: 0;
+  scrollbar-width: none;
+}
+
+.log-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.log-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  position: relative;
+  bottom: -1px;
+}
+
+.log-tab:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+.log-tab.active {
+  background: #05080e;
+  border-color: var(--border-default);
+  color: var(--accent-light);
+  border-bottom-color: #05080e;
+}
+
+.log-tab-count {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+}
+
+.log-tab.active .log-tab-count {
+  background: rgba(0, 168, 255, 0.15);
+  color: var(--accent);
+}
+
 @media (max-width: 640px) {
   .log-panel-header {
     padding: 8px 12px;

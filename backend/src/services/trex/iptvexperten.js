@@ -10,8 +10,8 @@ import {
   generateUsername,
   buildResult,
   nextDayAt,
-} from "../../../parsing/generators.js";
-import { createJar, get, jsonPost } from "../../../http/cookieClient.js";
+} from "../../parsing/generators.js";
+import { createJar, get, jsonPost } from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -27,7 +27,7 @@ export default {
   meta: {
     id: "iptvexperten",
     name: TAG,
-    description: "Limited [Once Each 24 Hours]",
+    description: "ALL [Once Each 24 Hours]",
     group: "trex",
   },
 
@@ -90,7 +90,7 @@ export default {
       );
 
     return buildResult({
-      playlists,
+      playlists: { ...playlists, vodPlaylist: null },
       expiryDate: nextDayAt(1),
       serviceName: TAG,
     });
