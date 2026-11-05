@@ -12,7 +12,8 @@
 
 import logger from "../logger.js";
 import { makeGetReader, createProviderMethods, joinFields } from "./base.js";
-import { DEFAULT_UA, errSnippet } from "../http/cookieClient.js";
+import { DEFAULT_UA } from "../http/cookieClient.js";
+import { errSnippet } from "../parsing/extractors.js";
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
@@ -36,7 +37,9 @@ async function api(method, path, body) {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`[${TAG}] ${method} ${path} → ${res.status} ${errSnippet(text)}`);
+    throw new Error(
+      `[${TAG}] ${method} ${path} → ${res.status} ${errSnippet(text)}`,
+    );
   }
   return res.json();
 }

@@ -22,6 +22,8 @@ import TempMailIngProvider from "../email/tempmailIng.js";
 import BestMailProvider from "../email/bestTempMail.js";
 import TempMailAppProvider from "../email/tempMailApp.js";
 import TempMailFishProvider from "../email/tempMailFish.js";
+import TempMailHubProvider from "../email/tempMailHub.js";
+import TmailProvider from "../email/tmail.js";
 
 // ── Russian services ──────────────────────────────────────────────────────────
 
@@ -70,6 +72,8 @@ export const emailProviders = [
   BestMailProvider,
   TempMailAppProvider,
   TempMailFishProvider,
+  TempMailHubProvider,
+  TmailProvider,
 ];
 
 export const registrationServices = [

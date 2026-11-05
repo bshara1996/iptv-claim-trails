@@ -2,27 +2,31 @@
  * email/base.js
  *
  * Shared infrastructure every disposable email provider is built on.
- *
- * Exports:
- *   makeGetReader(pageKey, tag, buildReader)     — credential guard for polling
- *   createProviderMethods(tag, getReader, opts?) — generates the 3 inbox-polling methods
- *   messageIdOf(message, index)                 — stable message identifier from common id fields
- *   joinFields(message, fields)                 — joins selected message fields into one string
- *
  * Providers write credentials onto a plain store object in createEmail(),
  * then read them back here when polling starts.
+ *
+ * Exports:
+ *   makeGetReader(pageKey, tag, buildReader)      — credential guard for polling
+ *   createProviderMethods(tag, getReader, opts?)  — 3 inbox-polling methods
+ *   messageIdOf(message, index)                   — stable message id from common fields
+ *   joinFields(message, fields)                    — joins selected message fields into a string
+ *   retryWithFreshEmail(fn, opts)                  — auto-retry with a fresh address on retryable errors
  */
 
 import logger from "../logger.js";
 import { pollApi } from "../http/poller.js";
-import { plainText, errSnippet } from "../http/cookieClient.js";
 import {
   extractLinks,
   extractPlaylists,
   EMPTY_PLAYLISTS,
+  plainText,
+  errSnippet,
 } from "../parsing/extractors.js";
 
-// ── Shared message helpers ───────────────────────────────────────────────────
+// Resolves after ms milliseconds — same helper shape as poller.js.
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ── Message helpers ──────────────────────────────────────────────────────────
 
 // Stable message identifier from common id field names; falls back to index.
 export const messageIdOf = (message, index) =>
@@ -42,7 +46,7 @@ export const joinFields = (message, fields) =>
     .join("\n")
     .trim();
 
-// ── Credential helper ─────────────────────────────────────────────────────────
+// ── Credential helper ────────────────────────────────────────────────────────
 
 // Returns a getReader that reads pageKey off the store; throws if createEmail wasn't called.
 export const makeGetReader = (pageKey, tag, buildReader) => (store) => {
@@ -52,7 +56,30 @@ export const makeGetReader = (pageKey, tag, buildReader) => (store) => {
   return buildReader(credential);
 };
 
-// ── Provider method factory ───────────────────────────────────────────────────
+// ── Retry helper ─────────────────────────────────────────────────────────────
+
+// Retries fn(email, attempt) with a fresh throwaway address on retryable errors.
+export async function retryWithFreshEmail(fn, opts) {
+  let { email } = opts;
+  const { provider, credentialStore, inboxSeenIds, log, tag, shouldRetry } =
+    opts;
+
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn(email, attempt);
+    } catch (error) {
+      if (!shouldRetry(error, attempt)) throw error;
+      email = await provider.createEmail(credentialStore);
+      inboxSeenIds.clear();
+      log(
+        `[${tag}] ⚠️ Attempt ${attempt} rejected ➜ 🔄 Retrying with new email ➜ 📧 ${email}`,
+      );
+      await delay(1_500);
+    }
+  }
+}
+
+// ── Inbox polling ───────────────────────────────────────────────────────────
 
 // Extracts the four poll options every method accepts, with shared defaults.
 const pollOpts = ({

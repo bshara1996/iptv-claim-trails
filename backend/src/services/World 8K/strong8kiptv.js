@@ -8,8 +8,8 @@
  *   2. Poll result page → wait for M3U links to appear in the HTML
  */
 import { buildResult } from "../../parsing/generators.js";
-import { extractPlaylists } from "../../parsing/extractors.js";
-import { createJar, post, get, stripHtml } from "../../http/cookieClient.js";
+import { extractPlaylists, stripHtml } from "../../parsing/extractors.js";
+import { createJar, post, get } from "../../http/cookieClient.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

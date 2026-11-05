@@ -15,12 +15,8 @@
  */
 
 import { generatePhone, buildResult } from "../../parsing/generators.js";
-import {
-  createJar,
-  get,
-  post,
-  extractInputValue,
-} from "../../http/cookieClient.js";
+import { createJar, get, post } from "../../http/cookieClient.js";
+import { extractInputValue } from "../../parsing/extractors.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

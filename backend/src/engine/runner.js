@@ -110,13 +110,11 @@ export async function runTask(taskId, providerId, serviceIds) {
     const taskStart = Date.now();
     // Shared across all services so an email seen by one is never re-processed by the next.
     const inboxSeenIds = new Set();
-    const multi = services.length > 1;
-
     for (const [i, service] of services.entries()) {
       if (signal.aborted) break;
 
-      if (multi) log(emitter, `${BANNER} [${i + 1}/${services.length}]`);
-      log(emitter, `Starting registration on ${service.meta.name}...`);
+      log(emitter, `${BANNER} [${i + 1}/${services.length}]`);
+      log(emitter, `🚀 Starting registration on ${service.meta.name}...`);
       emit(emitter, "service_start", {
         serviceId: service.meta.id,
         name: service.meta.name,
@@ -134,12 +132,10 @@ export async function runTask(taskId, providerId, serviceIds) {
           log: (msg, level = "info") => log(emitter, msg, level),
         });
 
+        const elapsed = fmtSecs(Date.now() - serviceStart);
         pushResult(task, emitter, buildRecord(service, email, result));
-        if (multi)
-          log(
-            emitter,
-            `✅ Success · ${service.meta.name} ⏱️ ${fmtSecs(Date.now() - serviceStart)}`,
-          );
+        // Tagged so it appears in both the All tab and the per-service tab.
+        log(emitter, `[${service.meta.name}] Success ⏱️ ${elapsed}`);
       } catch (err) {
         // Distinguish CAPTCHA failures from generic errors for the UI.
         const status = err.type === "CAPTCHA" ? "captcha" : "failed";
@@ -155,7 +151,7 @@ export async function runTask(taskId, providerId, serviceIds) {
         );
       }
 
-      if (multi) log(emitter, FOOTER);
+      log(emitter, FOOTER);
     }
 
     log(

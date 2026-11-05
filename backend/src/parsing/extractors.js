@@ -1,20 +1,101 @@
 /**
- * extractors.js
+ * extractors.js — pure HTML / email content parsers (no side effects).
  *
- * Pure HTML/email content parsers — no side effects, no external dependencies.
- *
- * Exports:
- *   extractLinks(content)          — collects all URLs from href attributes and bare links
- *   extractDuration(content)       — parses a subscription duration and computes expiry
- *   extractPlaylists(content)      — parses M3U links and classifies TV/VOD playlists
- *   extractCredentials(html)       — extracts { user, pass } from page HTML attributes/text
- *   extractCredsFromM3u(m3uUrl)    — extracts { user, pass } from an M3U URL string
- *   EMPTY_PLAYLISTS                — shared empty result for when no playlists are found
+ * HTML:        stripHtml · plainText · errSnippet
+ * Form:        extractHiddenInputs · extractInputValue · extractCsrfToken · extractCsrfInlineJs
+ * Links:       extractLinks · extractM3uLinks
+ * Playlists:   extractDuration · extractPlaylists · EMPTY_PLAYLISTS
+ * Credentials: extractCredentials · extractCredsFromM3u
  */
 
 import { computeExpiresAt } from "./generators.js";
 
-// ── Duration units ────────────────────────────────────────────────────────────
+// ── Private helpers ───────────────────────────────────────────────────────────
+
+const stripTags = (s) => s.replace(/<[^>]+>/g, " ");
+const collapseWs = (s) => s.replace(/\s{2,}/g, " ");
+const matchAll = (s, re) => [...s.matchAll(re)];
+
+// Shared Xtream credential pattern — used by both credential extractors.
+const CREDS_RE = /username=([^&"'\s]+)&(?:amp;)?password=([^&"'\s]+)/i;
+
+// ── HTML cleaning ─────────────────────────────────────────────────────────────
+
+// Strips script/style blocks + all tags, collapses whitespace.
+export const stripHtml = (html) =>
+  collapseWs(
+    stripTags(
+      html
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/<style[\s\S]*?<\/style>/gi, ""),
+    ),
+  ).trim();
+
+// Strips tags, collapses whitespace.
+export const plainText = (html) => collapseWs(stripTags(html)).trim();
+
+// Strips tags and returns the first n chars of plain text.
+export const errSnippet = (html, n = 120) => stripTags(html).slice(0, n).trim();
+
+// ── Form / hidden input helpers ───────────────────────────────────────────────
+
+// Collects every <input type="hidden"> into { [name]: value }.
+export function extractHiddenInputs(html) {
+  const body = {};
+  for (const [tag] of matchAll(
+    html,
+    /<input[^>]+type=["']hidden["'][^>]*>/gi,
+  )) {
+    const name = /name=["']([^"']+)["']/.exec(tag)?.[1];
+    if (name) body[name] = /value=["']([^"']*)["']/.exec(tag)?.[1] ?? "";
+  }
+  return body;
+}
+
+// Hidden input value by name — tries name-before-value then value-before-name.
+export function extractInputValue(html, name) {
+  const e = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return (
+    new RegExp(`name="${e}"[^>]*value="([^"]*)"`, "i").exec(html)?.[1] ??
+    new RegExp(`value="([^"]*)"[^>]*name="${e}"`, "i").exec(html)?.[1] ??
+    null
+  );
+}
+
+// CSRF token from _token / csrf-token / csrfmiddlewaretoken inputs or <meta> tag.
+export const extractCsrfToken = (html) =>
+  extractInputValue(html, "_token") ||
+  extractInputValue(html, "csrf-token") ||
+  extractInputValue(html, "csrfmiddlewaretoken") ||
+  html.match(/content="([^"]+)"\s+name="csrf-token"/i)?.[1] ||
+  null;
+
+// CSRF token from inline JS object literal: csrfToken: 'VALUE'.
+export const extractCsrfInlineJs = (html) =>
+  html.match(/csrfToken:\s*['"]([^'"]+)['"]/)?.[1] ?? null;
+
+// ── Links ─────────────────────────────────────────────────────────────────────
+
+// Collects all URLs from href attributes and bare links (deduped).
+export function extractLinks(content) {
+  const hrefs = matchAll(content, /href=["']([^"']+)["']/gi).map((m) => m[1]);
+  const bare = matchAll(content, /https?:\/\/[^\s"'<>\]]+/gi).map((m) => m[0]);
+  return [...new Set([...hrefs, ...bare])];
+}
+
+// Recursively collects M3U-looking strings from any JSON shape.
+export function extractM3uLinks(obj) {
+  if (!obj || typeof obj !== "object") return [];
+  return Object.values(obj).flatMap((v) =>
+    typeof v === "string" && /\.m3u|get\.php|type=m3u/i.test(v)
+      ? [v]
+      : typeof v === "object"
+        ? extractM3uLinks(v)
+        : [],
+  );
+}
+
+// ── Playlists ─────────────────────────────────────────────────────────────────
 
 const DURATION_UNITS = [
   { pattern: /дней|день|дня|days?/i, label: "Days", ms: 864e5 },
@@ -22,43 +103,17 @@ const DURATION_UNITS = [
   { pattern: /часов|часа|час|hours?/i, label: "Hours", ms: 36e5 },
 ];
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+const DURATION_RE = new RegExp(
+  `(\\d+)\\s*(${DURATION_UNITS.map((u) => u.pattern.source).join("|")})`,
+  "i",
+);
 
-// Converts common HTML entities to their plaintext equivalents so URLs
-// containing &amp; survive regex matching.
-function decodeEntities(str) {
-  return str
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'");
-}
-
-// ── Exports ───────────────────────────────────────────────────────────────────
-
-// Collects all URLs from href attributes and bare links in email content.
-export function extractLinks(content) {
-  const hrefs = [...content.matchAll(/href=["']([^"']+)["']/gi)].map(
-    (m) => m[1],
-  );
-  const bare = [...content.matchAll(/https?:\/\/[^\s"'<>\]]+/gi)].map(
-    (m) => m[0],
-  );
-  return [...new Set([...hrefs, ...bare])];
-}
-
-// Parses a duration string (e.g. "24 Hours", "3 дня") and returns
-// a formatted label and an expiry timestamp.
+// Parses a duration string (e.g. "24 Hours", "3 дня") → { duration, expiresAt }.
 export function extractDuration(content) {
-  const m = content.match(
-    /(\d+)\s*(дней|день|дня|месяцев|месяца|месяц|часов|часа|час|days?|months?|hours?)/i,
-  );
+  const m = content.match(DURATION_RE);
   if (!m) return { duration: null, expiresAt: null };
-
-  const n = parseInt(m[1], 10);
+  const n = +m[1];
   const unit = DURATION_UNITS.find((u) => u.pattern.test(m[2]));
-
   return {
     duration: unit
       ? `${n} ${n === 1 ? unit.label.slice(0, -1) : unit.label}`
@@ -69,7 +124,7 @@ export function extractDuration(content) {
   };
 }
 
-// Shared empty result returned when no playlists are found.
+// Empty playlist result — returned by callers when no playlists are found.
 export const EMPTY_PLAYLISTS = {
   tvPlaylist: null,
   vodPlaylist: null,
@@ -78,60 +133,49 @@ export const EMPTY_PLAYLISTS = {
   expiresAt: null,
 };
 
-// Extracts M3U playlist URLs from email content, classifies them into
-// TV and VOD, and returns a playlist result. Returns null when none are found.
+// Parses M3U links from content, classifies TV vs VOD. Returns null if none found.
 export function extractPlaylists(content) {
-  const d = decodeEntities(content);
+  const d = content.replace(/&amp;/gi, "&"); // decode &amp; so query-string URLs survive
 
-  // Matches .m3u/.m3u8 URLs, Xtream-style type=m3u / output=m3u query strings,
-  // /playlist/ path URLs, and clipboard-text attribute values containing m3u links.
   const M3U_RE =
     /https?:\/\/[^\s"'<>]*(?:\.m3u8?|[?&](?:type|output)=m3u|\/playlist\/)[^\s"'<>]*/gi;
+  const HREF_RE =
+    /href=["']([^"']*(?:\.m3u8?|[?&](?:type|output)=m3u)[^"']*)/gi;
+  const CLIP_RE =
+    /data-clipboard-text=["']([^"']*(?:\.m3u8?|[?&](?:type|output)=m3u|\/playlist\/)[^"']*)/gi;
 
   const unique = [
     ...new Set([
-      ...[...d.matchAll(M3U_RE)].map((m) => m[0]),
-      ...[
-        ...d.matchAll(
-          /href=["']([^"']*(?:\.m3u8?|[?&](?:type|output)=m3u)[^"']*)/gi,
-        ),
-      ].map((m) => m[1]),
-      ...[
-        ...d.matchAll(
-          /data-clipboard-text=["']([^"']*(?:\.m3u8?|[?&](?:type|output)=m3u|\/playlist\/)[^"']*)/gi,
-        ),
-      ].map((m) => m[1]),
+      ...matchAll(d, M3U_RE).map((m) => m[0]),
+      ...matchAll(d, HREF_RE).map((m) => m[1]),
+      ...matchAll(d, CLIP_RE).map((m) => m[1]),
     ]),
   ].filter((u) => /^https?:\/\//i.test(u));
 
   if (!unique.length) return null;
 
-  // Prefer live/playlist URLs for TV; prefer /vod/ URLs for VOD.
   const tv =
     unique.find((u) => /type=m3u|\/tv\.|\/playlist|live/i.test(u)) ?? unique[0];
   const vod =
     unique.find((u) => /\/vod\.|type=m3u8/i.test(u) && u !== tv) ??
     unique[1] ??
     null;
-  const { duration, expiresAt } = extractDuration(content);
 
   return {
     tvPlaylist: tv,
     vodPlaylist: vod,
     allM3uLinks: unique,
-    duration,
-    expiresAt,
+    ...extractDuration(content),
   };
 }
 
-// Tries multiple regex patterns to extract Xtream or plaintext credentials
-// from page HTML (input attributes, data-* attrs, or label: value text).
-// Returns { user, pass } or null.
+// ── Credentials ───────────────────────────────────────────────────────────────
+
+// Extracts { user, pass } from HTML — get.php URL, data-* attrs, or label:value text.
 export function extractCredentials(html) {
   if (!html) return null;
-  const m =
-    /get\.php\?username=([^&"'\s]+)&(?:amp;)?password=([^&"'\s]+)/i.exec(html);
-  if (m) return { user: m[1], pass: m[2] };
+  const xtream = /get\.php\?/.test(html) && CREDS_RE.exec(html);
+  if (xtream) return { user: xtream[1], pass: xtream[2] };
   const u =
     /data-username="([^"]+)"/i.exec(html)?.[1] ??
     /(?:username|user)[^>]{0,80}value="([^"]+)"/i.exec(html)?.[1] ??
@@ -145,24 +189,9 @@ export function extractCredentials(html) {
   return u && p ? { user: u, pass: p } : null;
 }
 
-// Recursively collects every string that looks like an M3U URL from any
-// JSON response shape (objects, arrays, nested structures).
-export function extractM3uLinks(obj) {
-  if (!obj || typeof obj !== "object") return [];
-  return Object.values(obj).flatMap((v) => {
-    if (typeof v === "string" && /\.m3u|get\.php|type=m3u/i.test(v)) return [v];
-    if (typeof v === "object") return extractM3uLinks(v);
-    return [];
-  });
-}
-
-// Extracts username and password from an M3U URL string.
-// Handles both /playlist/user/pass/ path format and ?username=&password= query format.
-// Returns { user, pass } or null.
-export const extractCredsFromM3u = (m3uUrl) => {
-  if (!m3uUrl) return null;
-  const r =
-    /\/playlist\/([^/]+)\/([^/]+)\//.exec(m3uUrl) ??
-    /username=([^&"'\s]+)&(?:amp;)?password=([^&"'\s]+)/i.exec(m3uUrl);
+// Extracts { user, pass } from an M3U URL — /playlist/user/pass/ path or ?username=&password= query.
+export const extractCredsFromM3u = (url) => {
+  if (!url) return null;
+  const r = /\/playlist\/([^/]+)\/([^/]+)\//.exec(url) ?? CREDS_RE.exec(url);
   return r ? { user: r[1], pass: r[2] } : null;
 };

@@ -1,38 +1,46 @@
 /**
  * apiClient.js
  *
- * Generic JSON API fetch helper for REST-API-based email providers.
+ * Generic JSON API fetch helper for REST-based services.
  *
  * Exports:
  *   makeApi(baseUrl, defaultOpts?) — returns a fetch helper bound to baseUrl
+ *
+ * Call opts:
+ *   method      — HTTP verb (default "GET")
+ *   body        — request payload; serialised to JSON automatically
+ *   token       — Bearer token injected as Authorization header
+ *   errorDetail — fn(json) → string; extracts a human-readable error from a
+ *                 non-2xx response body (default: json.message)
  */
 
-// Fetches a JSON endpoint. Injects a Bearer token when provided,
-// throws on non-2xx, and returns null on 204 No Content.
-async function apiFetch(baseUrl, path, opts = {}) {
-  const {
-    method = "GET",
-    token = null,
-    body = null,
-    errorDetail = null,
-  } = opts;
+const DEFAULT_TIMEOUT = 25_000;
 
-  const headers = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-
+// JSON fetch — throws on non-2xx, returns null on 204.
+async function apiFetch(
+  baseUrl,
+  path,
+  { method = "GET", token = null, body = null, errorDetail = null } = {},
+) {
   const res = await fetch(`${baseUrl}${path}`, {
     method,
-    headers,
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
     body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(DEFAULT_TIMEOUT),
   });
 
   if (!res.ok) {
-    // Try to extract a human-readable error message from the response body.
     let detail = "";
     try {
       const j = await res.json();
       detail = errorDetail?.(j) ?? j.message ?? JSON.stringify(j);
-    } catch (_) {}
+    } catch {
+      /* unparseable body — detail stays empty */
+    }
     throw new Error(
       `[apiClient] ${method} ${baseUrl}${path} → ${res.status}${detail ? `: ${detail}` : ""}`,
     );
@@ -42,7 +50,6 @@ async function apiFetch(baseUrl, path, opts = {}) {
 }
 
 // Returns a fetch helper pre-bound to baseUrl.
-// defaultOpts sets call-wide defaults (e.g. a custom errorDetail for Hydra responses).
 export function makeApi(baseUrl, defaultOpts = {}) {
   return (path, callOpts) =>
     apiFetch(baseUrl, path, { ...defaultOpts, ...callOpts });

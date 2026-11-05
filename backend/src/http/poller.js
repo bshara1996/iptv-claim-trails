@@ -1,7 +1,7 @@
 /**
  * poller.js
  *
- * Generic API-based inbox poll loop for REST-API email providers.
+ * Generic inbox poll loop for REST-API email providers.
  *
  * Accepts a reader object with two methods:
  *   fetchMessages() → [{ id, preview }]
@@ -13,17 +13,12 @@
 
 import logger from "../logger.js";
 
-// Shared provider defaults are applied by createProviderMethods().
-// Providers can pass custom values when their API needs different pacing.
 const DEFAULT_POLL_DELAY = 800;
 const DEFAULT_READ_DELAY = 1_500;
 
-// Resolves after ms milliseconds.
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Polls the inbox repeatedly until onRow returns a non-null value or timeout expires.
-// Skips messages already in seenIds and those whose preview doesn't match filterText.
-// Pass signal (AbortSignal) to exit immediately when the task is cancelled.
+// Polls inbox until onRow returns non-null or timeout expires.
 export async function pollApi(
   { fetchMessages, readMessage },
   {
@@ -37,12 +32,20 @@ export async function pollApi(
   onRow,
 ) {
   const deadline = Date.now() + timeout;
+  const filters = Array.isArray(filterText)
+    ? filterText
+    : filterText
+      ? [filterText]
+      : [];
+  const matches = (preview) =>
+    !filters.length ||
+    filters.some((f) => preview.toLowerCase().includes(f.toLowerCase()));
 
   while (Date.now() < deadline) {
     if (signal?.aborted) return null;
 
-    let messages = [];
-    let hadError = false;
+    let messages = [],
+      hadError = false;
     try {
       messages = await fetchMessages();
     } catch (err) {
@@ -54,25 +57,12 @@ export async function pollApi(
 
     for (const { id, preview } of messages) {
       if (signal?.aborted) return null;
-      if (seenIds.has(id)) continue;
+      if (seenIds.has(id) || !matches(preview)) continue;
 
-      const filters = Array.isArray(filterText)
-        ? filterText
-        : filterText
-          ? [filterText]
-          : [];
-      if (
-        filters.length > 0 &&
-        !filters.some((f) => preview.toLowerCase().includes(f.toLowerCase()))
-      )
-        continue;
-
-      // Mark as seen only after it passes the filter — so a different service
-      // polling with a different filterText can still claim this email.
+      // Mark seen after filter — lets another filterText still claim it.
       seenIds.add(id);
 
-      // Brief pause before reading to stay within provider rate limits.
-      // Skip entirely when the provider sets readDelay to 0.
+      // Pause before reading to respect provider rate limits.
       if (readDelay > 0) {
         await delay(readDelay);
         if (signal?.aborted) return null;
@@ -90,9 +80,8 @@ export async function pollApi(
       if (result != null) return result;
     }
 
-    // On errors (such as 429 Too Many Requests), back off to let rate limits cool down
-    const nextDelay = hadError ? Math.max(pollDelay, 3_000) : pollDelay;
-    await delay(nextDelay);
+    // Back off on errors (e.g. 429).
+    await delay(hadError ? Math.max(pollDelay, 3_000) : pollDelay);
     if (signal?.aborted) return null;
   }
 

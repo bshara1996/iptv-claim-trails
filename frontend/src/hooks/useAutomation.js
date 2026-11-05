@@ -61,7 +61,6 @@ export function useAutomation() {
   const onCaptchaSolved = useCallback(
     (solvedTaskId) => {
       setCaptchaChallenge(null);
-      pushLog("✅ CAPTCHA solved — resuming automation…");
     },
     [pushLog],
   );
@@ -77,14 +76,9 @@ export function useAutomation() {
   // ── Registration modal handlers (TVBoom) ───────────────────────────────
 
   // Called by registration modal after the backend confirmed "done".
-  const onTvboomRegisterDone = useCallback(
-    (challenge) => {
-      const sName = challenge?.serviceName || "Service";
-      setTvboomRegisterChallenge(null);
-      pushLog(`[${sName}] ✅ Registration confirmed — resuming automation…`);
-    },
-    [pushLog],
-  );
+  const onTvboomRegisterDone = useCallback((challenge) => {
+    setTvboomRegisterChallenge(null);
+  }, []);
 
   // Called when the user clicks "Cancel Task" inside the registration modal.
   const onTvboomRegisterDismiss = useCallback(
@@ -146,7 +140,6 @@ export function useAutomation() {
       onError: (d) => pushLog(d.message, "error"),
       // captcha_challenge: pause the task and show the captcha modal
       onCaptcha: (d) => {
-        pushLog("🛡️ CAPTCHA required — solve it in the pop-up…", "warn");
         setCaptchaChallenge(d); // { taskId, sitekey, pageUrl }
       },
       // tvboom_register: open the real registration page in a popup

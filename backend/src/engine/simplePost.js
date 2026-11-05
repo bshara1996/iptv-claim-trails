@@ -45,7 +45,7 @@ export const simplePost = ({
       inboxSeenIds = new Set(),
       log = () => {},
     }) {
-      log(`[${TAG}] Submitting free trial request for ${email}...`);
+      log(`[${TAG}] 📝 Submitting free trial request...`);
 
       // null = no cookie jar needed; fall back to url if no explicit referer.
       await jsonPost(url, null, payload(email), {
@@ -53,7 +53,9 @@ export const simplePost = ({
         origin,
       });
 
-      log(`[${TAG}] Trial request submitted. Waiting for credentials email...`);
+      log(
+        `[${TAG}] ✅ Trial request submitted. ⏳ Waiting for credentials email...`,
+      );
 
       // Snapshot seenIds so the poller only watches for messages arriving after this point.
       const playlists = await provider.waitForEmailAndExtractPlaylists(
@@ -61,12 +63,12 @@ export const simplePost = ({
         { filterText, seenIds: new Set(inboxSeenIds), timeout: 120_000 },
       );
 
-      log(
-        playlists.allM3uLinks.length
-          ? `[${TAG}] ✅ M3U extracted — TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`
-          : `[${TAG}] No M3U links found in credentials email.`,
-        playlists.allM3uLinks.length ? "info" : "warn",
-      );
+      if (playlists.allM3uLinks.length) {
+        const url = playlists.tvPlaylist ?? playlists.allM3uLinks[0];
+        log(`[${TAG}] 📺 ${url}`);
+      } else {
+        log(`[${TAG}] ⚠️ No M3U links found in credentials email.`, "warn");
+      }
 
       // expiryDate() is called now so the timestamp reflects the actual activation time.
       return buildResult({

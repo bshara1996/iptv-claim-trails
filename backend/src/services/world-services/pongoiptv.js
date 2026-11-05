@@ -15,7 +15,8 @@
  *   - Credentials are delivered by email, not returned in the POST response.
  */
 import { buildResult } from "../../parsing/generators.js";
-import { createJar, post, plainText } from "../../http/cookieClient.js";
+import { createJar, post } from "../../http/cookieClient.js";
+import { plainText } from "../../parsing/extractors.js";
 import { awaitCaptcha } from "../../engine/captcha.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────

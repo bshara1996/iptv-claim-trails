@@ -2,11 +2,11 @@
  * VeleStore (velestore.su) — free IPTV trial via registration.
  *
  * Flow:
- *   1. GET /?do=register  — solve AES-128-CBC DDoS challenge (GET cookie).
- *   2. POST /?do=register (dummy) — solve POST-specific DDoS challenge cookie.
- *   3. POST /?do=register — real registration with reCAPTCHA token.
- *   4. GET /index.php?do=test — activates the 3-day trial (mirrors button click).
- *   5. GET /user/<username>/ — scrape the M3U playlist URLs.
+ *   1. GET  /?do=register      — solve AES-128-CBC DDoS challenge cookie.
+ *   2. POST /?do=register      — dummy POST to prime POST-specific DDoS cookie.
+ *   3. POST /?do=register      — real registration with reCAPTCHA token.
+ *   4. GET  /index.php?do=test — activates the 3-day trial.
+ *   5. GET  /user/<username>/  — scrape the M3U playlist URL.
  *
  * reCAPTCHA v2 sitekey: 6LdxN2ElAAAAADqK4-H-y-EB7bcoqFjxDtZy7RFa
  */
@@ -28,92 +28,76 @@ import {
 } from "../../http/cookieClient.js";
 import { awaitCaptcha } from "../../engine/captcha.js";
 
-const BASE_URL = "https://velestore.su";
-const REG_URL = `${BASE_URL}/?do=register`;
-const TEST_URL = `${BASE_URL}/index.php?do=test`;
+// ── Config ────────────────────────────────────────────────────────────────────
+
+const BASE = "https://velestore.su";
+const REG_URL = `${BASE}/?do=register`;
+const TEST_URL = `${BASE}/index.php?do=test`;
 const TAG = "VeleStore";
 const TRIAL_HOURS = 72;
 const SITEKEY = "6LdxN2ElAAAAADqK4-H-y-EB7bcoqFjxDtZy7RFa";
-const OPTS = { referer: REG_URL, origin: BASE_URL };
+const OPTS = { referer: REG_URL, origin: BASE };
 
 // ── DDoS solver ───────────────────────────────────────────────────────────────
 
-// Executes the challenge <script> in a VM sandbox instead of parsing it.
-// Immune to obfuscation rotations — works regardless of how KEY/IV are encoded.
+// Finds the slowAES challenge <script>, runs it in a VM sandbox, and injects
+// the solved cookie into jar. Returns true if a cookie was captured.
 function injectSolvedCookie(html, jar) {
-  const re = /<script[^>]*>\s*([\s\S]*?)\s*<\/script>/gi;
-  let m, challengeScript;
-  while ((m = re.exec(html))) {
-    if (/slowAES/i.test(m[1])) {
-      challengeScript = m[1];
-      break;
-    }
-  }
-  if (!challengeScript) return false;
+  const script = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)].find(
+    ([, s]) => /slowAES/i.test(s),
+  )?.[1];
+  if (!script) return false;
 
-  let solvedName, solvedValue;
-
-  // slowAES.decrypt returns a sentinel with the pre-computed hex so the
-  // patched toHex wrapper can return it directly, bypassing the cross-realm
-  // Array constructor check in the challenge's own toHex implementation.
-  const slowAES = {
-    decrypt(c3Arr, _mode, keyArr, ivArr) {
-      const dec = createDecipheriv(
-        "aes-128-cbc",
-        Buffer.from(keyArr.map(Number)),
-        Buffer.from(ivArr.map(Number)),
-      );
-      dec.setAutoPadding(false);
-      const out = Buffer.concat([
-        dec.update(Buffer.from(c3Arr.map(Number))),
-        dec.final(),
-      ]);
-      return { _hex: out.toString("hex"), _isResult: true };
-    },
-  };
-
-  // Prepend a toHex shim so our sentinel is handled before the challenge's
-  // own toHex tries to iterate the byte array.
-  const patchedScript = `
-    var __origToHex = toHex;
-    toHex = function() {
-      var a = arguments[0];
-      if (a && a._isResult) return a._hex;
-      return __origToHex.apply(this, arguments);
-    };
-    ${challengeScript}
-  `;
-
-  const sandbox = {
-    slowAES,
-    atob: (b64) => Buffer.from(b64, "base64").toString("utf8"),
-    document: {
-      set cookie(raw) {
-        const [pair] = raw.split(";");
-        const eq = pair.indexOf("=");
-        if (eq > 0) {
-          solvedName = pair.slice(0, eq).trim();
-          solvedValue = pair.slice(eq + 1).trim();
-        }
-      },
-    },
-    location: { href: "" },
-  };
-
+  let name, value;
   try {
-    runInNewContext(patchedScript, sandbox, { timeout: 2000 });
+    runInNewContext(
+      `var _o=toHex; toHex=function(a){return a&&a._isResult?a._hex:_o(a)};\n${script}`,
+      {
+        slowAES: {
+          decrypt(c3, _mode, key, iv) {
+            const d = createDecipheriv(
+              "aes-128-cbc",
+              Buffer.from(key.map(Number)),
+              Buffer.from(iv.map(Number)),
+            );
+            d.setAutoPadding(false);
+            const out = Buffer.concat([
+              d.update(Buffer.from(c3.map(Number))),
+              d.final(),
+            ]);
+            return { _hex: out.toString("hex"), _isResult: true };
+          },
+        },
+        atob: (b64) => Buffer.from(b64, "base64").toString("utf8"),
+        document: {
+          set cookie(raw) {
+            const eq = raw.indexOf("=");
+            if (eq > 0) {
+              name = raw.slice(0, eq).split(";")[0].trim();
+              value = raw
+                .slice(eq + 1)
+                .split(";")[0]
+                .trim();
+            }
+          },
+        },
+        location: { href: "" },
+      },
+      { timeout: 2000 },
+    );
   } catch {
     return false;
   }
 
-  if (!solvedName || !solvedValue) return false;
-  jar[solvedName] = solvedValue;
+  if (!name || !value) return false;
+  jar[name] = value;
   return true;
 }
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
 
-// No-redirect POST — captures the DDoS challenge cookie set on POST responses.
+// No-redirect POST — captures DDoS cookies that only appear on POST responses.
+// (cookieClient.request follows redirects, so we need this for the dummy step.)
 async function rawPost(jar, body) {
   const res = await fetch(REG_URL, {
     method: "POST",
@@ -121,7 +105,7 @@ async function rawPost(jar, body) {
       "Content-Type": "application/x-www-form-urlencoded",
       "User-Agent": DEFAULT_UA,
       Cookie: cookieStr(jar),
-      Origin: BASE_URL,
+      Origin: BASE,
       Referer: REG_URL,
     },
     body: new URLSearchParams(body).toString(),
@@ -132,13 +116,13 @@ async function rawPost(jar, body) {
   return { text: await res.text(), status: res.status };
 }
 
-// Redirect-following fetch that auto-solves any DDoS challenge and retries.
+// Redirect-following fetch that auto-solves any DDoS challenge on each hop.
 async function fetch$(method, url, jar, body) {
   for (let i = 0; i < 4; i++) {
     const { text, status } = await request(method, url, jar, { body, ...OPTS });
     if (!injectSolvedCookie(text, jar)) return { text, status };
   }
-  throw new Error(`[${TAG}] DDoS challenge not resolved after 4 attempts.`);
+  throw new Error(`[${TAG}] DDoS challenge unresolved after 4 attempts.`);
 }
 
 // ── Steps ─────────────────────────────────────────────────────────────────────
@@ -153,31 +137,24 @@ const DUMMY_BODY = {
   "g-recaptcha-response": "dummy",
 };
 
-// Primes GET and POST DDoS cookies. GET fires first; dummy POST captures any
-// POST-specific challenge and confirms it, unless the server already redirects.
+// Primes GET and POST DDoS cookies before the real registration POST.
 async function primeDDosCookies(jar, log) {
-  log(`[${TAG}] 🍪 Priming DDoS cookies...`);
+  log(`[${TAG}] 🔒 Priming DDoS cookies...`);
   await fetch$("GET", REG_URL, jar, null);
 
   const { text, status } = await rawPost(jar, DUMMY_BODY);
-  log(`[${TAG}] 🔄 Dummy POST status: ${status}`);
-
   if (status >= 300 && status < 400) {
     log(`[${TAG}] ✅ POST challenge already satisfied.`);
   } else if (injectSolvedCookie(text, jar)) {
-    log(`[${TAG}] ✅ POST DDoS solved, confirming...`);
-    const { status: s2 } = await rawPost(jar, DUMMY_BODY);
-    log(`[${TAG}] 🔄 Confirmation POST status: ${s2}`);
-  } else {
-    log(`[${TAG}] ⚠️ No POST challenge found — proceeding.`);
+    log(`[${TAG}] ✅ POST DDoS solved — confirming...`);
+    await rawPost(jar, DUMMY_BODY);
   }
 
-  log(`[${TAG}] ✅ 🍪 DDoS cookies ready: ${Object.keys(jar).join(", ")}`);
+  log(`[${TAG}] ✅ 🔑 Cookies ready: ${Object.keys(jar).join(", ")}`);
 }
 
-// Submits the registration form and throws on DLE CMS errors.
-async function register(jar, { username, password, email }, captchaToken, log) {
-  log(`[${TAG}] 📝 Registering ${username}...`);
+// Submits the registration form; throws on DLE CMS errors or duplicate account.
+async function register(jar, { username, password, email }, captchaToken) {
   const { text } = await fetch$("POST", REG_URL, jar, {
     name: username,
     password1: password,
@@ -197,23 +174,20 @@ async function register(jar, { username, password, email }, captchaToken, log) {
     throw new Error(`[${TAG}] Registration error: ${err}`);
   if (/уже (зарег|существует)|already (exist|reg)/i.test(text))
     throw new Error(`[${TAG}] Username or email already registered.`);
-
-  log(`[${TAG}] ✅ Registration submitted.`);
 }
 
-// Activates the trial then scrapes the M3U URL from the profile page.
+// Activates the trial and scrapes the M3U URL from the user profile page.
 async function activateAndGetM3u(jar, username, log) {
   log(`[${TAG}] 🎁 Activating trial...`);
   await get(TEST_URL, jar, OPTS);
 
-  log(`[${TAG}] 👤 Fetching profile page...`);
   const { text, status } = await fetch$(
     "GET",
-    `${BASE_URL}/user/${encodeURIComponent(username)}/`,
+    `${BASE}/user/${encodeURIComponent(username)}/`,
     jar,
     null,
   );
-  log(`[${TAG}] 📄 Profile page status: ${status}`);
+  log(`[${TAG}] 👤 Profile → ${status}`);
 
   if (!/Привет[,\s]/i.test(text) && !/playlist\.m3u/i.test(text)) {
     log(
@@ -223,13 +197,13 @@ async function activateAndGetM3u(jar, username, log) {
     return null;
   }
 
-  // Primary: velestore-specific play path pattern.
-  const direct =
-    /https?:\/\/[^\s"'<>]+\/(?:play(?:18)?|no)\/[^\s"'<>]+\.m3u8?/i.exec(text);
-  if (direct) return direct[0];
-
-  // Fallback: shared extractor.
-  return extractPlaylists(text)?.tvPlaylist ?? null;
+  return (
+    /https?:\/\/[^\s"'<>]+\/(?:play(?:18)?|no)\/[^\s"'<>]+\.m3u8?/i.exec(
+      text,
+    )?.[0] ??
+    extractPlaylists(text)?.tvPlaylist ??
+    null
+  );
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -257,27 +231,21 @@ export default {
       TAG,
       log,
     );
-    log(`[${TAG}] ✅ 🤖 reCAPTCHA solved — registering...`);
 
-    await register(jar, { username, password, email }, captchaToken, log);
+    await register(jar, { username, password, email }, captchaToken);
 
-    const cookieKeys = Object.keys(jar);
-    log(
-      `[${TAG}] 🍪 Cookies after registration: ${cookieKeys.join(", ") || "(none)"}`,
-    );
-
-    // DLE CMS sets PHPSESSID, dle_user_id, dle_password, or similar on successful login.
-    const session = cookieKeys.find((k) =>
+    // DLE CMS sets PHPSESSID / dle_user_id / dle_password or similar on success.
+    const session = Object.keys(jar).find((k) =>
       /phpsessid|dle_user|user_hash|sess|sid|auth/i.test(k),
     );
     if (!session)
       throw new Error(
         `[${TAG}] No session cookie — captcha may have been rejected.`,
       );
-    log(`[${TAG}] ✅ Session via ${session}.`);
+    log(`[${TAG}] ✅ Registered. Session: ${session}.`);
 
     const tvPlaylist = await activateAndGetM3u(jar, username, log);
-    if (tvPlaylist) log(`[${TAG}] ✅ 📺 M3U: ${tvPlaylist}`);
+    if (tvPlaylist) log(`[${TAG}] 📺 ${tvPlaylist}`);
 
     return buildResult({
       username,

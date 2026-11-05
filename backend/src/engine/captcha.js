@@ -25,7 +25,6 @@ export function awaitCaptcha(
   log,
   provider = "recaptcha",
 ) {
-  log(`[${serviceName}] CAPTCHA detected — waiting for user to solve…`, "warn");
   emit(emitter, "captcha_challenge", {
     taskId,
     sitekey,

@@ -1,37 +1,29 @@
 /**
  * cookieClient.js
  *
- * Cookie-aware HTTP client that manually follows redirects so Set-Cookie
- * headers from every 3xx hop are captured — fetch() with redirect:"follow"
- * silently drops cookies set on intermediate redirects.
+ * Cookie-aware HTTP client; manually follows redirects so Set-Cookie headers
+ * from every 3xx hop are captured (fetch redirect:"follow" drops them).
  *
  * Exports:
- *   createJar()                      — creates an empty cookie jar
- *   mergeCookies(jar, response)      — harvests Set-Cookie headers into jar
- *   cookieStr(jar)                   — serialises jar to Cookie header string
- *   request(method, url, jar, opts?) — core fetch with manual redirect loop
- *   get(url, jar, opts?)             — GET shorthand
- *   post(url, jar, body, referer?)   — POST shorthand (form-encoded)
- *   multipartPost(url, jar, body, referer?, opts?) — POST shorthand (multipart/form-data)
- *   jsonPost(url, jar, body, opts?)  — POST shorthand (JSON body, jar optional)
- *
- * CSRF helpers (service-agnostic):
- *   extractCsrfToken(html)           — hidden input: name="_token" / "csrf-token" / "csrfmiddlewaretoken"
- *   extractCsrfInlineJs(html)        — inline JS object literal: csrfToken: 'VALUE'
- *   extractInputValue(html, name)    — generic hidden input value by field name
+ *   createJar()                      — empty cookie jar
+ *   mergeCookies(jar, response)      — harvest Set-Cookie into jar
+ *   cookieStr(jar)                   — serialise jar → Cookie string
+ *   request(method, url, jar, opts?) — core fetch + redirect loop
+ *   get / post / multipartPost / jsonPost — request shorthands
+ *   DEFAULT_UA                       — default User-Agent string
  */
 
 export const DEFAULT_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
 const MAX_REDIRECTS = 10;
 const DEFAULT_TIMEOUT = 25_000;
 
 // ── Jar helpers ───────────────────────────────────────────────────────────────
 
-// Returns a new empty cookie jar.
 export const createJar = () => ({});
 
-// Reads Set-Cookie headers from the response and writes them into jar.
+// Reads Set-Cookie headers from res into jar.
 export function mergeCookies(jar, response) {
   for (const raw of response.headers.getSetCookie?.() ?? []) {
     const [pair] = raw.split(";");
@@ -41,73 +33,73 @@ export function mergeCookies(jar, response) {
   return jar;
 }
 
-// Joins all jar entries into a single Cookie header string.
+// Serialises jar → Cookie header string.
 export const cookieStr = (jar) =>
   Object.entries(jar)
     .map(([k, v]) => `${k}=${v}`)
     .join("; ");
 
+// ── Shared helpers ────────────────────────────────────────────────────────────
+
+// Base headers shared by every request (User-Agent + Cookie).
+const baseHeaders = (ua, jar) => ({ "User-Agent": ua, Cookie: cookieStr(jar) });
+
+// Common fetch opts with defaults.
+const commonOpts = ({
+  ua = DEFAULT_UA,
+  timeout = DEFAULT_TIMEOUT,
+  extraHeaders = {},
+} = {}) => ({ ua, timeout, extraHeaders });
+
 // ── Core request ──────────────────────────────────────────────────────────────
 
-// Fetches a URL and manually follows redirects up to MAX_REDIRECTS hops,
-// collecting Set-Cookie headers at every hop.
-// POST → 302 re-issues as GET, matching standard browser behaviour.
+// Fetches url, manually follows redirects (collecting cookies at each hop).
+// POST → 302 re-issues as GET (standard browser behaviour).
 export async function request(method, url, jar, opts = {}) {
-  const {
-    body = null,
-    referer = null,
-    origin = null,
-    ua = DEFAULT_UA,
-    timeout = DEFAULT_TIMEOUT,
-    extraHeaders = {},
-  } = opts;
-
-  const resolvedJar = jar ?? {};
-  let currentUrl = url;
-  let currentMethod = method;
-  let currentBody = body;
+  const { body = null, referer = null, origin = null, ...rest } = opts;
+  const { ua, timeout, extraHeaders } = commonOpts(rest);
+  const jar_ = jar ?? {};
+  let [curUrl, curMethod, curBody] = [url, method, body];
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const headers = {
-      "User-Agent": ua,
+      ...baseHeaders(ua, jar_),
       Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "Accept-Language": "en-US,en;q=0.9",
-      Cookie: cookieStr(resolvedJar),
       ...extraHeaders,
     };
 
-    if (currentMethod === "POST") {
+    if (curMethod === "POST") {
       Object.assign(headers, {
         "Content-Type": "application/x-www-form-urlencoded",
-        Origin: origin ?? new URL(currentUrl).origin,
-        Referer: referer ?? currentUrl,
+        Origin: origin ?? new URL(curUrl).origin,
+        Referer: referer ?? curUrl,
       });
     }
 
-    const res = await fetch(currentUrl, {
-      method: currentMethod,
+    const res = await fetch(curUrl, {
+      method: curMethod,
       headers,
       body:
-        currentMethod === "POST" && currentBody
-          ? new URLSearchParams(currentBody).toString()
+        curMethod === "POST" && curBody
+          ? new URLSearchParams(curBody).toString()
           : undefined,
       redirect: "manual",
       signal: AbortSignal.timeout(timeout),
     });
 
-    mergeCookies(resolvedJar, res);
+    mergeCookies(jar_, res);
 
     if (res.status >= 300 && res.status < 400) {
       const location = res.headers.get("location");
       if (!location) break;
-      // Resolve relative Location headers against the current URL.
-      currentUrl = new URL(location, currentUrl).href;
-      currentMethod = "GET";
-      currentBody = null;
+      curUrl = new URL(location, curUrl).href; // resolve relative Location
+      curMethod = "GET";
+      curBody = null;
       continue;
     }
 
-    return { text: await res.text(), finalUrl: currentUrl, status: res.status };
+    return { text: await res.text(), finalUrl: curUrl, status: res.status };
   }
 
   throw new Error(`[cookieClient] Too many redirects from ${url}`);
@@ -115,75 +107,53 @@ export async function request(method, url, jar, opts = {}) {
 
 // ── Shorthands ────────────────────────────────────────────────────────────────
 
-// GET shorthand.
 export const get = (url, jar, opts) => request("GET", url, jar, opts);
-
-// POST shorthand (application/x-www-form-urlencoded).
 export const post = (url, jar, body, referer, opts) =>
   request("POST", url, jar, { body, referer, ...opts });
 
-// POST shorthand that sends a multipart/form-data body via FormData.
-// body — plain object; each key/value is appended as a FormData field.
-// The browser decides the boundary; we must NOT set Content-Type ourselves.
+// Sends a multipart/form-data body via FormData.
+// Do NOT set Content-Type — fetch sets it with the correct boundary automatically.
 export async function multipartPost(url, jar, body, referer, opts = {}) {
-  const {
-    ua = DEFAULT_UA,
-    timeout = DEFAULT_TIMEOUT,
-    extraHeaders = {},
-  } = opts;
+  const { ua, timeout, extraHeaders } = commonOpts(opts);
+  const jar_ = jar ?? {};
 
-  const resolvedJar = jar ?? {};
   const fd = new FormData();
-  for (const [k, v] of Object.entries(body)) {
-    if (v !== undefined && v !== null) fd.append(k, String(v));
-  }
-
-  const headers = {
-    "User-Agent": ua,
-    Accept: "*/*",
-    "Accept-Language": "en-US,en;q=0.9",
-    Cookie: cookieStr(resolvedJar),
-    Origin: new URL(url).origin,
-    Referer: referer ?? url,
-    ...extraHeaders,
-    // NOTE: do NOT set Content-Type — fetch sets it automatically with the
-    // correct multipart boundary when the body is a FormData instance.
-  };
+  for (const [k, v] of Object.entries(body))
+    if (v != null) fd.append(k, String(v));
 
   const res = await fetch(url, {
     method: "POST",
-    headers,
+    headers: {
+      ...baseHeaders(ua, jar_),
+      Accept: "*/*",
+      "Accept-Language": "en-US,en;q=0.9",
+      Origin: new URL(url).origin,
+      Referer: referer ?? url,
+      ...extraHeaders,
+    },
     body: fd,
     redirect: "manual",
     signal: AbortSignal.timeout(timeout),
   });
 
-  mergeCookies(resolvedJar, res);
+  mergeCookies(jar_, res);
   return { text: await res.text(), finalUrl: url, status: res.status };
 }
 
-// JSON POST shorthand — posts a JSON body, harvests cookies if jar provided,
-// follows redirects manually, and returns the parsed JSON response (or {} on parse failure).
-// jar is optional — pass null/undefined for stateless calls.
+// Posts JSON, harvests cookies if jar provided, returns parsed response (or {} on failure).
+// jar optional — pass null for stateless calls.
 // opts.throwOnError (default true) — set false to suppress throws on non-2xx.
 export async function jsonPost(url, jar, body, opts = {}) {
-  const {
-    referer = null,
-    origin = null,
-    ua = DEFAULT_UA,
-    timeout = DEFAULT_TIMEOUT,
-    extraHeaders = {},
-    throwOnError = true,
-  } = opts;
+  const { ua, timeout, extraHeaders } = commonOpts(opts);
+  const { referer = null, origin = null, throwOnError = true } = opts;
+  const jar_ = jar ?? {};
 
-  const resolvedJar = jar ?? {};
   const res = await fetch(url, {
     method: "POST",
     headers: {
+      ...baseHeaders(ua, jar_),
       "Content-Type": "application/json",
       Accept: "application/json, text/html, */*;q=0.8",
-      "User-Agent": ua,
-      Cookie: cookieStr(resolvedJar),
       Origin: origin ?? new URL(url).origin,
       Referer: referer ?? url,
       ...extraHeaders,
@@ -195,10 +165,9 @@ export async function jsonPost(url, jar, body, opts = {}) {
 
   if (jar) mergeCookies(jar, res);
 
-  const text = await res.text();
   let data;
   try {
-    data = JSON.parse(text);
+    data = JSON.parse(await res.text());
   } catch {
     data = {};
   }
@@ -207,82 +176,4 @@ export async function jsonPost(url, jar, body, opts = {}) {
     throw new Error(data?.error ?? data?.message ?? `HTTP ${res.status}`);
 
   return data;
-}
-
-// ── HTML helpers ─────────────────────────────────────────────────────────────
-
-// Strips HTML tags and returns the first n characters of plain text.
-// Useful for turning an error page into a short readable message.
-export const errSnippet = (html, n = 120) =>
-  html
-    .replace(/<[^>]+>/g, " ")
-    .slice(0, n)
-    .trim();
-
-// Strips HTML tags and collapses whitespace to a single space.
-// Use when you need the full cleaned text rather than a truncated snippet.
-export const plainText = (html) =>
-  html
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-
-// Strips <script>/<style> blocks and all remaining tags, then collapses whitespace.
-// Use for turning full error pages into readable text.
-export const stripHtml = (html) =>
-  html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-// Collects all hidden <input> fields from an HTML form into a plain object.
-// Returns { [name]: value } for every <input type="hidden"> found.
-export function extractHiddenInputs(html) {
-  const body = {};
-  const tagRe = /<input[^>]+type=["']hidden["'][^>]*>/gi;
-  let m;
-  while ((m = tagRe.exec(html)) !== null) {
-    const nameM = /name=["']([^"']+)["']/.exec(m[0]);
-    const valM = /value=["']([^"']*)["']/.exec(m[0]);
-    if (nameM) body[nameM[1]] = valM?.[1] ?? "";
-  }
-  return body;
-}
-
-// ── CSRF helpers ──────────────────────────────────────────────────────────────
-
-// Extracts the CSRF / Laravel _token from various HTML hidden-input patterns
-// (name="_token", name="csrf-token", name="csrfmiddlewaretoken").
-// Handles both name-before-value and value-before-name attribute orderings.
-export const extractCsrfToken = (html) =>
-  html.match(
-    /name="(?:_token|csrf-token|csrfmiddlewaretoken)"[^>]*value="([^"]+)"/i,
-  )?.[1] ||
-  html.match(
-    /<input[^>]+name="(?:_token|csrf-token|csrfmiddlewaretoken)"[^>]+value="([^"]+)"/i,
-  )?.[1] ||
-  html.match(/content="([^"]+)"\s+name="csrf-token"/i)?.[1] ||
-  html.match(
-    /value="([^"]*)"[^>]*name="(?:_token|csrf-token|csrfmiddlewaretoken)"/i,
-  )?.[1] ||
-  null;
-
-// Extracts a CSRF token injected into a page's inline JS as an object literal,
-// e.g.  csrfToken: 'VALUE'
-export const extractCsrfInlineJs = (html) =>
-  html.match(/csrfToken:\s*['"]([^'"]+)['"]/)?.[1] ?? null;
-
-// Extracts the value of any hidden input field by its name attribute.
-// Tries both name-before-value and value-before-name attribute orderings.
-export function extractInputValue(html, name) {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const r1 = new RegExp(`name="${escaped}"[^>]*value="([^"]*)"`, "i").exec(
-    html,
-  );
-  if (r1) return r1[1];
-  const r2 = new RegExp(`value="([^"]*)"[^>]*name="${escaped}"`, "i").exec(
-    html,
-  );
-  return r2?.[1] ?? null;
 }

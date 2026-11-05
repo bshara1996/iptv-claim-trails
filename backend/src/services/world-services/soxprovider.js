@@ -10,13 +10,8 @@
  *   4. Poll inbox                    → extract M3U links from credentials email
  */
 import { buildResult } from "../../parsing/generators.js";
-import {
-  createJar,
-  get,
-  post,
-  extractInputValue,
-  plainText,
-} from "../../http/cookieClient.js";
+import { createJar, get, post } from "../../http/cookieClient.js";
+import { extractInputValue, plainText } from "../../parsing/extractors.js";
 
 const TAG = "SoxProvider";
 const BASE_URL = "https://soxprovider.com";

@@ -5,111 +5,93 @@
  * Used by services and email providers — no domain dependencies.
  *
  * Exports:
- *   generateUsername()         — random lowercase username (10 letters + 10 digits)
- *   generatePassword()         — random mixed-case alphanumeric password (10 chars)
+ *   generateUsername()         — 10 lowercase letters + 10 digits
+ *   generatePassword()         — 6 mixed-case letters + 4 digits
  *   generatePhone()            — random 10-digit phone number (non-zero leading digit)
- *   nextDayAt(hour, minute)    — Date set to HH:MM on the next calendar day
- *   computeExpiresAt(msOrDate) — formatted expiry timestamp from ms offset or Date
- *   computeTrialExpiry(hours)  — shorthand: computeExpiresAt(hours * 3_600_000)
+ *   nextDayAt(hour, minute)    — next occurrence of HH:MM as a Date
+ *   computeExpiresAt(msOrDate) — formatted expiry string from a Date or ms offset
  *   parseExpiryDate(raw)       — parses "DD.MM.YYYY HH:mm" UTC string into a Date
- *   formatDuration(expiryDate) — remaining time from a Date as "N Hours"
+ *   formatDuration(expiryDate) — remaining time from a Date as "N Hours M Min"
+ *   buildM3u(host, user, pass) — Xtream-Codes M3U+ URL or null
  *   buildResult(fields)        — builds the standardised service result object
- *   TVCORN_ALL_COUNTRIES       — all country codes selected by default in TVCorn's trial UI
  */
 
-const LOWERCASE = "abcdefghijklmnopqrstuvwxyz";
-const UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+// ── Random data ───────────────────────────────────────────────────────────────
+
+const LOWER = "abcdefghijklmnopqrstuvwxyz";
+const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const DIGITS = "23456789"; // avoids ambiguous 0/1
 
 // Picks n random characters from charset.
-function rand(charset, n) {
-  return Array.from(
+const rand = (charset, n) =>
+  Array.from(
     { length: n },
     () => charset[Math.floor(Math.random() * charset.length)],
   ).join("");
-}
 
-// Returns a random username: 10 lowercase letters followed by 10 digits.
-export function generateUsername() {
-  return rand(LOWERCASE, 10) + rand(DIGITS, 10);
-}
+export const generateUsername = () => rand(LOWER, 10) + rand(DIGITS, 10);
+export const generatePassword = () => rand(LOWER + UPPER, 6) + rand(DIGITS, 4);
 
-// Returns a random password: 6 mixed-case letters followed by 4 digits.
-export function generatePassword() {
-  return rand(LOWERCASE + UPPERCASE, 6) + rand(DIGITS, 4);
-}
+// Non-zero leading digit followed by 9 random digits.
+export const generatePhone = () =>
+  String(Math.ceil(Math.random() * 9)) +
+  String(Math.floor(Math.random() * 1e9)).padStart(9, "0");
 
-// Returns a random 10-digit phone number with a non-zero leading digit.
-export function generatePhone() {
-  const lead = String(Math.floor(1 + Math.random() * 9));
-  const rest = String(Math.floor(Math.random() * 1e9)).padStart(9, "0");
-  return lead + rest;
-}
+// ── Date helpers ──────────────────────────────────────────────────────────────
 
-// Returns the next occurrence of HH:MM — today if it hasn't passed yet, otherwise tomorrow.
-// e.g. nextOccurrenceAt(1, 0) → today at 01:00 if it's before 01:00, else tomorrow at 01:00.
+const TZ = "Asia/Jerusalem";
+
+const DATE_FMT = {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+};
+
+// Returns today at HH:MM if that time hasn't passed yet, otherwise tomorrow.
 export function nextDayAt(hour, minute = 0) {
   const d = new Date();
   d.setHours(hour, minute, 0, 0);
-  // if that time has already passed today, roll to tomorrow
   if (d <= Date.now()) d.setDate(d.getDate() + 1);
   return d;
 }
 
-// Returns a human-readable expiry timestamp for the given Date or ms offset.
-// Format: "Jan 1, 2026, 00:00" (en-US, 24-hour clock).
-export function computeExpiresAt(msOrDate, { timeZone } = {}) {
-  const date =
-    msOrDate instanceof Date ? msOrDate : new Date(Date.now() + msOrDate);
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    ...(timeZone && { timeZone }),
-  });
-}
-
-// Shorthand: converts trial hours to ms offset then formats.
-export function computeTrialExpiry(hours) {
-  return computeExpiresAt(hours * 3_600_000);
-}
+// Formats a Date or ms offset as a human-readable timestamp, e.g. "Jan 1, 2026, 00:00".
+export const computeExpiresAt = (msOrDate, { timeZone = TZ } = {}) =>
+  (msOrDate instanceof Date
+    ? msOrDate
+    : new Date(Date.now() + msOrDate)
+  ).toLocaleString("en-US", { ...DATE_FMT, timeZone });
 
 // Parses a "DD.MM.YYYY HH:mm" UTC string (as returned by some IPTV APIs) into a Date.
-export function parseExpiryDate(raw) {
+export const parseExpiryDate = (raw) => {
   if (!raw) return null;
-  const [datePart, timePart] = raw.split(" ");
-  const [day, month, year] = datePart.split(".");
-  return new Date(`${year}-${month}-${day}T${timePart}:00Z`);
-}
+  const [[d, mo, y], t] = [raw.split(" ")[0].split("."), raw.split(" ")[1]];
+  return new Date(`${y}-${mo}-${d}T${t}:00Z`);
+};
 
-// Returns the remaining time from an expiry Date as "N Hours" or "N Hours M Min".
+// Returns remaining time from an expiry Date as "N Hours M Min", "N Hours", or "N Min".
 export function formatDuration(expiryDate) {
   if (!expiryDate) return null;
-  const totalMins = Math.floor((expiryDate - Date.now()) / 60_000);
-  const hours = Math.floor(totalMins / 60);
-  const mins = totalMins % 60;
-  return hours === 0
-    ? `${mins} Min`
-    : mins > 0
-      ? `${hours} Hours ${mins} Min`
-      : `${hours} Hours`;
+  const total = Math.floor((expiryDate - Date.now()) / 60_000);
+  const h = Math.floor(total / 60),
+    m = total % 60;
+  return h === 0 ? `${m} Min` : m > 0 ? `${h} Hours ${m} Min` : `${h} Hours`;
 }
 
-// Builds an Xtream-Codes M3U+ URL from a server host and credentials.
+// ── Result builders ───────────────────────────────────────────────────────────
+
+// Builds an Xtream-Codes M3U+ URL from server host and credentials.
 // Returns null if any argument is missing.
 export const buildM3u = (host, username, password) =>
   host && username && password
     ? `${host}/get.php?username=${username}&password=${password}&type=m3u_plus&output=ts`
     : null;
 
-// Builds the standardised service result.
-// serviceName — auto-note: "<name> trial activated/registered. (duration)"
-// trialHours  — auto duration + expiresAt from fixed hours
-// expiryDate  — auto duration + expiresAt from a Date (takes priority)
-// playlists   — bag from waitForEmailAndExtractPlaylists(), merged as defaults
+// Builds the standardised service result object.
+// duration/expiresAt priority: explicit fields → expiryDate → trialHours → playlists bag.
 export function buildResult({
   username = null,
   password = null,
@@ -133,33 +115,25 @@ export function buildResult({
       ? playlists.allM3uLinks
       : [tv, vod].filter(Boolean);
 
-  // expiryDate / trialHours are caller-supplied overrides and take priority over
-  // anything parsed from the email body.  Only fall back to playlists values when
-  // neither override is present.
   let dur = duration ?? null;
   let exp = expiresAt ?? null;
+
   if (!dur || !exp) {
     if (expiryDate instanceof Date && !isNaN(expiryDate)) {
       dur ??= formatDuration(expiryDate);
-      exp ??= computeExpiresAt(expiryDate, { timeZone: "Asia/Jerusalem" });
+      exp ??= computeExpiresAt(expiryDate);
     } else if (trialHours) {
       dur ??=
-        trialHours % 24 === 0 && trialHours >= 48
+        trialHours >= 48 && trialHours % 24 === 0
           ? `${trialHours / 24} Days`
           : `${trialHours} Hours`;
-      exp ??= computeExpiresAt(trialHours * 3_600_000, {
-        timeZone: "Asia/Jerusalem",
-      });
+      exp ??= computeExpiresAt(trialHours * 3_600_000);
     } else {
       // No override — fall back to whatever the email contained.
       dur ??= playlists?.duration ?? null;
       exp ??= playlists?.expiresAt ?? null;
     }
   }
-
-  const autoNote = serviceName
-    ? `${serviceName} trial ${links.length ? "activated successfully" : "registered — M3U link not found"}. (${dur})`
-    : "";
 
   return {
     username,
@@ -170,6 +144,10 @@ export function buildResult({
     duration: dur,
     expiresAt: exp,
     status,
-    note: note ?? autoNote,
+    note:
+      note ??
+      (serviceName
+        ? `${serviceName} trial ${links.length ? "activated successfully" : "registered — M3U link not found"}. (${dur})`
+        : ""),
   };
 }
