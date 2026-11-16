@@ -14,90 +14,22 @@ import {
   generatePassword,
   generateUsername,
 } from "../../parsing/generators.js";
-import { DEFAULT_UA } from "../../http/cookieClient.js";
+import { makeApi } from "../../http/apiClient.js";
 import { retryWithFreshEmail } from "../../email/base.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const BASE_URL = "https://my.y666.tv";
-const API_BASE = `${BASE_URL}/api`;
 const TAG = "Y666";
-const FILTER_TEXT = ["Y6TV ", "noreply@y6tv.tv"];
+const TRIAL_HOURS = 72;
 const PLAYLIST_BASE = "http://pl.y6tv.me";
-const TRIAL_DAYS = 3;
-const TRIAL_HOURS = TRIAL_DAYS * 24;
+const FILTER_TEXT = ["Y6TV ", "noreply@y6tv.tv", "Y666", "my.y666.tv"];
+const EMAIL_TAKEN = ["userExists"];
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-// JSON fetch helper — throws with the server's error field on non-2xx.
-async function apiFetch(path, { method = "GET", body = null } = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: {
-      Accept: "application/json, */*",
-      "Content-Type": "application/json",
-      Origin: BASE_URL,
-      Referer: `${BASE_URL}/`,
-      "User-Agent": DEFAULT_UA,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(30_000),
-  });
-
-  const text = await response.text();
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    data = {};
-  }
-
-  if (!response.ok) {
-    const message = data?.error ?? data?.message ?? `HTTP ${response.status}`;
-    throw new Error(`[${TAG}] ${message}`);
-  }
-
-  return data;
-}
-
-// Step 1: Submit registration — throws "userExists" if the email is taken.
-async function register(email, username, password) {
-  await apiFetch("/auth/register", {
-    method: "POST",
-    body: { username, email, password, language: "en" },
-  });
-}
-
-// Steps 2-3: Poll inbox for the verification link, then confirm the email.
-async function verifyEmail(provider, store, seenIds, log) {
-  log(`[${TAG}] 📩 Polling inbox for verification link...`);
-  const link = await provider.waitForEmailAndExtractLink(store, {
-    filterText: FILTER_TEXT,
-    pattern: /my\.y666\.tv\/verify-email\?token=/i,
-    seenIds: new Set(seenIds),
-    timeout: 120_000,
-  });
-
-  if (!link) throw new Error(`[${TAG}] Verification email not received.`);
-
-  let token;
-  try {
-    token = new URL(link).searchParams.get("token");
-  } catch {
-    throw new Error(`[${TAG}] Invalid verification link received.`);
-  }
-  if (!token)
-    throw new Error(`[${TAG}] Could not extract token from verification link.`);
-
-  log(`[${TAG}] 🔗 Verification link received.`);
-  log(`[${TAG}] 🔐 Verifying email...`);
-  const result = await apiFetch(
-    `/email/verify?token=${encodeURIComponent(token)}`,
-  );
-  if (result?.success === false)
-    throw new Error(`[${TAG}] Email verification was rejected.`);
-  log(`[${TAG}] ✅ Email verified.`);
-}
+const api = makeApi(`${BASE_URL}/api`, {
+  extraHeaders: { Origin: BASE_URL, Referer: `${BASE_URL}/` },
+  errorDetail: (j) => j?.error ?? j?.message,
+});
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
@@ -105,7 +37,7 @@ export default {
   meta: {
     id: "y666",
     name: "Y666",
-    description: `${TRIAL_DAYS} Days`,
+    description: `${TRIAL_HOURS / 24} Days`,
     group: "russian",
   },
 
@@ -121,21 +53,49 @@ export default {
         const username = generateUsername();
         const password = generatePassword();
 
-        log(`[${TAG}] 📝 Registering account for ${email}...`);
-        await register(email, username, password);
+        // Step 1: Register a new account with the disposable email.
+        log(`[${TAG}] 📝 Registering account ...`);
+        await api("/auth/register", {
+          method: "POST",
+          body: { username, email, password, language: "en" },
+        });
+
+        // Step 2: Poll inbox for the verification email and extract the link.
         log(
-          `[${TAG}] ✅ Registration submitted — check inbox for verification email.`,
+          `[${TAG}] ✅ Registration confirmed ➜ 📩 Polling inbox for verification email…`,
         );
+        const link = await provider.waitForEmailAndExtractLink(
+          credentialStore,
+          {
+            filterText: FILTER_TEXT,
+            pattern: /my\.y666\.tv\/verify-email\?token=/i,
+            seenIds: new Set(inboxSeenIds),
+            timeout: 120_000,
+          },
+        );
+        if (!link) throw new Error(`[${TAG}] Verification email not received.`);
 
-        await verifyEmail(provider, credentialStore, inboxSeenIds, log);
+        // Step 3: Extract the token and confirm the email address.
+        const token = new URL(link).searchParams.get("token");
+        if (!token)
+          throw new Error(
+            `[${TAG}] Could not extract token from verification link.`,
+          );
+        log(`[${TAG}] 🔐 Verifying email: ${link}`);
+        const res = await api(
+          `/email/verify?token=${encodeURIComponent(token)}`,
+        );
+        if (res?.success === false)
+          throw new Error(`[${TAG}] Email verification was rejected.`);
 
-        const playlistPath = `${PLAYLIST_BASE}/${username}/${password}`;
-        const tvPlaylist = `${playlistPath}/tv.m3u`;
-        const vodPlaylist = `${playlistPath}/vod.m3u`;
-        const seriesPlaylist = `${playlistPath}/series.m3u`;
-        log(`[${TAG}] 📺 M3U: ${tvPlaylist}`);
-        log(`[${TAG}] 🍿 VOD M3U: ${vodPlaylist}`);
-        log(`[${TAG}] 🎬 Series M3U: ${seriesPlaylist}`);
+        // Step 4: Build and return the M3U playlist URLs.
+        const base = `${PLAYLIST_BASE}/${username}/${password}`;
+        const tvPlaylist = `${base}/tv.m3u`;
+        const vodPlaylist = `${base}/vod.m3u`;
+        const seriesPlaylist = `${base}/series.m3u`;
+        log(`[${TAG}] 📺 TV: ${tvPlaylist}`);
+        log(`[${TAG}] 🍿 VOD: ${vodPlaylist}`);
+        log(`[${TAG}] 🎬 Series: ${seriesPlaylist}`);
 
         return buildResult({
           username,
@@ -153,7 +113,7 @@ export default {
         inboxSeenIds,
         log,
         tag: TAG,
-        shouldRetry: (err) => err.message.includes("userExists"),
+        shouldRetry: (err) => EMAIL_TAKEN.some((k) => err.message.includes(k)),
       },
     );
   },

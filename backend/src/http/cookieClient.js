@@ -13,6 +13,8 @@
  *   DEFAULT_UA                       — default User-Agent string
  */
 
+import { fetch as undiciFetch } from "undici";
+
 export const DEFAULT_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
@@ -56,7 +58,13 @@ const commonOpts = ({
 // Fetches url, manually follows redirects (collecting cookies at each hop).
 // POST → 302 re-issues as GET (standard browser behaviour).
 export async function request(method, url, jar, opts = {}) {
-  const { body = null, referer = null, origin = null, ...rest } = opts;
+  const {
+    body = null,
+    referer = null,
+    origin = null,
+    dispatcher = null,
+    ...rest
+  } = opts;
   const { ua, timeout, extraHeaders } = commonOpts(rest);
   const jar_ = jar ?? {};
   let [curUrl, curMethod, curBody] = [url, method, body];
@@ -77,7 +85,8 @@ export async function request(method, url, jar, opts = {}) {
       });
     }
 
-    const res = await fetch(curUrl, {
+    const fetchFn = dispatcher ? undiciFetch : fetch;
+    const res = await fetchFn(curUrl, {
       method: curMethod,
       headers,
       body:
@@ -86,6 +95,7 @@ export async function request(method, url, jar, opts = {}) {
           : undefined,
       redirect: "manual",
       signal: AbortSignal.timeout(timeout),
+      ...(dispatcher ? { dispatcher } : {}),
     });
 
     mergeCookies(jar_, res);

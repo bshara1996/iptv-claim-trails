@@ -40,7 +40,7 @@ export default {
   }) {
     const jar = createJar();
 
-    log(`[${TAG}] Submitting free trial request for ${email}...`);
+    log(`[${TAG}] 🔐 Submitting free trial request for ${email}...`);
 
     // Step 1: Fetch /sanctum/csrf-cookie — Laravel Sanctum sets the XSRF-TOKEN cookie.
     await get(CSRF_URL, jar);
@@ -49,9 +49,10 @@ export default {
     const xsrfToken = decodeURIComponent(jar["XSRF-TOKEN"] ?? "");
     if (!xsrfToken)
       throw new Error("XSRF-TOKEN cookie not set by /sanctum/csrf-cookie.");
-    log(`[${TAG}] CSRF token acquired via Sanctum.`);
+    log(`[${TAG}] 🎫 CSRF token acquired via Sanctum.`);
 
     // Step 2: Submit the trial request as JSON with the XSRF token in the header.
+    log(`[${TAG}] 📝 Submitting trial form...`);
     const parsed = await jsonPost(
       TRIAL_URL,
       jar,
@@ -67,7 +68,7 @@ export default {
         extraHeaders: { "X-XSRF-TOKEN": xsrfToken },
       },
     );
-    log(`[${TAG}] Trial API response — success: ${parsed.success ?? true}`);
+    log(`[${TAG}] 📡 Trial API response — success: ${parsed.success ?? true}`);
 
     if (parsed.success === false)
       throw new Error(parsed.message ?? "Trial submission failed.");

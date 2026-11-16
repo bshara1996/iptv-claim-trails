@@ -5,13 +5,14 @@
  * 5minMail website endpoints. No account, token, or hardcoded mailbox is used.
  *
  * API:
- *   POST /generate          → { email, expires_in_minutes, session_id }
- *   GET  /inbox/{email}     → { value: [{ sender, subject, body, ... }] }
+ *   POST /generate          → { email, expires_in_minutes }
+ *   GET  /inbox/{email}     → [{ sender, subject, body, received_at }]
+ *                             bare array; `body` contains the full HTML/text body.
  */
 
 import logger from "../logger.js";
 import { makeApi } from "../http/apiClient.js";
-import { makeGetReader, createProviderMethods, messageIdOf, joinFields } from "./base.js";
+import { makeGetReader, createProviderMethods, joinFields } from "./base.js";
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
@@ -19,36 +20,31 @@ const BASE_URL = "https://5minmail.com";
 const TAG = "5minMail";
 const api = makeApi(BASE_URL);
 
-const PREVIEW_FIELDS = "sender from to subject preview snippet body body_html body_text html text content";
-const CONTENT_FIELDS = "body body_html body_text html text content subject";
+const PREVIEW_FIELDS = "sender subject body";
+const CONTENT_FIELDS = "body subject";
 
 // ── Inbox reader ──────────────────────────────────────────────────────────────
+
+// Normalises bare-array or { value: [...] } inbox shapes into a plain array.
+const toList = (data) =>
+  Array.isArray(data) ? data : Array.isArray(data?.value) ? data.value : [];
 
 function buildReader(address) {
   let messages = [];
   const fetchInbox = () => api(`/inbox/${encodeURIComponent(address)}`);
-  // Normalises the two inbox response shapes: bare array or { value: [...] }.
-  const toList = (data) =>
-    Array.isArray(data) ? data : Array.isArray(data?.value) ? data.value : [];
-  const find = (id) =>
-    messages.find((m, i) => String(messageIdOf(m, i)) === String(id));
 
   return {
     async fetchMessages() {
       messages = toList(await fetchInbox());
       return messages.map((m, i) => ({
-        id: messageIdOf(m, i),
+        id: i,
         preview: joinFields(m, PREVIEW_FIELDS),
       }));
     },
 
     async readMessage(id) {
-      let msg = find(id);
-      if (!msg) {
-        messages = toList(await fetchInbox());
-        msg = find(id);
-      }
-      return joinFields(msg, CONTENT_FIELDS);
+      if (!messages[id]) messages = toList(await fetchInbox());
+      return joinFields(messages[id], CONTENT_FIELDS);
     },
   };
 }

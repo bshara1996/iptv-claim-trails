@@ -48,14 +48,13 @@ export const simplePost = ({
       log(`[${TAG}] 📝 Submitting free trial request...`);
 
       // null = no cookie jar needed; fall back to url if no explicit referer.
-      await jsonPost(url, null, payload(email), {
+      const raw = await jsonPost(url, null, payload(email), {
         referer: referer ?? url,
         origin,
       });
+      log(`[${TAG}] 📡 Response: ${JSON.stringify(raw)}`);
 
-      log(
-        `[${TAG}] ✅ Trial request submitted. ⏳ Waiting for credentials email...`,
-      );
+      log(`[${TAG}] 📬 Waiting for credentials email...`);
 
       // Snapshot seenIds so the poller only watches for messages arriving after this point.
       const playlists = await provider.waitForEmailAndExtractPlaylists(

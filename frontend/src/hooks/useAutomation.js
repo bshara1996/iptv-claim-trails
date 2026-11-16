@@ -112,8 +112,6 @@ export function useAutomation() {
       unsubRef.current = null;
     }
 
-    pushLog("Connecting to backend...");
-
     let data;
     try {
       data = await startAutomation(selectedProvider, selectedServices);
@@ -130,9 +128,9 @@ export function useAutomation() {
     }
 
     setTaskId(data.taskId);
-    pushLog(`Task ${data.taskId.slice(0, 8)}… started`);
-
-    // Subscribe to SSE stream
+    pushLog(
+      `🔌 Connecting to backend | 🆔 Task ${data.taskId.slice(0, 8)}… started`,
+    );
     unsubRef.current = subscribeToTask(data.taskId, {
       onLog: (d, ts) => pushLog(d.message, d.level || "info", ts),
       onEmail: (d) => setEmail(d.email),

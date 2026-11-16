@@ -165,7 +165,7 @@ export default {
         bouquets: BOUQUETS,
       },
     });
-    log(`[${TAG}] 📦 Response: ${JSON.stringify(data)}`);
+    log(`[${TAG}] 📡 Response: ${JSON.stringify(data)}`);
 
     // Step 2: Extract credentials and M3U URL from nested response.
     const d = data?.data ?? data;

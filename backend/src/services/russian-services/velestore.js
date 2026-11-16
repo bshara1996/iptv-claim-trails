@@ -12,6 +12,7 @@
  */
 import { createDecipheriv } from "crypto";
 import { runInNewContext } from "vm";
+import { Agent as UndiciAgent, fetch as undiciFetch } from "undici";
 import {
   generateUsername,
   generatePassword,
@@ -36,7 +37,12 @@ const TEST_URL = `${BASE}/index.php?do=test`;
 const TAG = "VeleStore";
 const TRIAL_HOURS = 72;
 const SITEKEY = "6LdxN2ElAAAAADqK4-H-y-EB7bcoqFjxDtZy7RFa";
-const OPTS = { referer: REG_URL, origin: BASE };
+
+// velestore.su's Let's Encrypt cert may be expired; skip verification for this host only.
+const LENIENT_DISPATCHER = new UndiciAgent({
+  connect: { rejectUnauthorized: false },
+});
+const OPTS = { referer: REG_URL, origin: BASE, dispatcher: LENIENT_DISPATCHER };
 
 // ── DDoS solver ───────────────────────────────────────────────────────────────
 
@@ -99,7 +105,7 @@ function injectSolvedCookie(html, jar) {
 // No-redirect POST — captures DDoS cookies that only appear on POST responses.
 // (cookieClient.request follows redirects, so we need this for the dummy step.)
 async function rawPost(jar, body) {
-  const res = await fetch(REG_URL, {
+  const res = await undiciFetch(REG_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -111,6 +117,7 @@ async function rawPost(jar, body) {
     body: new URLSearchParams(body).toString(),
     redirect: "manual",
     signal: AbortSignal.timeout(25_000),
+    dispatcher: LENIENT_DISPATCHER,
   });
   mergeCookies(jar, res);
   return { text: await res.text(), status: res.status };
@@ -140,7 +147,11 @@ const DUMMY_BODY = {
 // Primes GET and POST DDoS cookies before the real registration POST.
 async function primeDDosCookies(jar, log) {
   log(`[${TAG}] 🔒 Priming DDoS cookies...`);
-  await fetch$("GET", REG_URL, jar, null);
+  await fetch$("GET", REG_URL, jar, null).catch((err) => {
+    throw new Error(
+      `[${TAG}] Network error reaching ${BASE}: ${err.cause?.message ?? err.message}`,
+    );
+  });
 
   const { text, status } = await rawPost(jar, DUMMY_BODY);
   if (status >= 300 && status < 400) {
@@ -187,7 +198,6 @@ async function activateAndGetM3u(jar, username, log) {
     jar,
     null,
   );
-  log(`[${TAG}] 👤 Profile → ${status}`);
 
   if (!/Привет[,\s]/i.test(text) && !/playlist\.m3u/i.test(text)) {
     log(
@@ -212,7 +222,7 @@ export default {
   meta: {
     id: "velestore",
     name: "VeleStore",
-    description: "3 Days",
+    description: `${TRIAL_HOURS / 24} Days`,
     group: "russian",
   },
 

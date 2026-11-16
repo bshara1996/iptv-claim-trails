@@ -20,10 +20,11 @@ import DropMailProvider from "../email/dropmail.js";
 import FiveMinMailProvider from "../email/fiveMinMail.js";
 import TempMailIngProvider from "../email/tempmailIng.js";
 import BestMailProvider from "../email/bestTempMail.js";
-import TempMailAppProvider from "../email/tempMailApp.js";
 import TempMailFishProvider from "../email/tempMailFish.js";
-import TempMailHubProvider from "../email/tempMailHub.js";
-import TmailProvider from "../email/tmail.js";
+import TempMailHubOrgProvider from "../email/tempMailHubOrg.js";
+import TempMailHubTechProvider from "../email/tempMailHubTech.js";
+import TempGmailerProvider from "../email/tempgmailer.js";
+import TrueTempMailProvider from "../email/truetempmail.js";
 
 // ── Russian services ──────────────────────────────────────────────────────────
 
@@ -31,21 +32,25 @@ import Y666Service from "../services/russian-services/y666.js";
 import OgoTvService from "../services/russian-services/ogotv.js";
 import VeleStoreService from "../services/russian-services/velestore.js";
 import TvBoomService from "../services/russian-services/tvboom.js";
+import UspehService from "../services/russian-services/jwt-verify/uspeh.js";
+import RuTvService from "../services/russian-services/jwt-verify/rutv.js";
 
 // ── World services ────────────────────────────────────────────────────────────
 
 import WebestIptvService from "../services/world-services/webestiptv.js";
-import iiptvcanada from "../services/world-services/iiptvcanada.js";
+import IiptvCanadaService from "../services/world-services/iiptvcanada.js";
 import StrevioService from "../services/world-services/strevio.js";
 import Watch5TvService from "../services/world-services/watch5tv.js";
 import ZumIptvService from "../services/world-services/zumiptv.js";
-import AmbKonnectService from "../services/world-services/ambkonnect.js";
 import GreatestIptvService from "../services/world-services/greatestiptv.js";
 import PongoIptvService from "../services/world-services/pongoiptv.js";
 import SoxProviderService from "../services/world-services/soxprovider.js";
+import SalesCornerService from "../services/world-services/salescorner.js";
+import CloudStreamService from "../services/World 8K/cloudstream.js";
 
 // ── World 8K services ─────────────────────────────────────────────────────────
 
+import VoltixTvService from "../services/World 8K/voltixtv.js";
 import Strong8kIptvService from "../services/World 8K/strong8kiptv.js";
 import TvCornService from "../services/World 8K/tvcorn.js";
 import IptvLoadService from "../services/World 8K/iptvload.js";
@@ -66,14 +71,16 @@ import Mojo4kDeService from "../services/trex/mojo4kde.js";
 
 export const emailProviders = [
   EmailnatorProvider,
+  TempGmailerProvider,
+  TrueTempMailProvider,
+  TempMailHubTechProvider,
+
   DropMailProvider,
   FiveMinMailProvider,
   TempMailIngProvider,
   BestMailProvider,
-  TempMailAppProvider,
   TempMailFishProvider,
-  TempMailHubProvider,
-  TmailProvider,
+  TempMailHubOrgProvider,
 ];
 
 export const registrationServices = [
@@ -82,17 +89,22 @@ export const registrationServices = [
   VeleStoreService,
   TvBoomService,
   OgoTvService,
+  UspehService,
+  RuTvService,
   // World
-  iiptvcanada,
+  IiptvCanadaService,
   WebestIptvService,
   SoxProviderService,
   StrevioService,
   Watch5TvService,
   ZumIptvService,
-  AmbKonnectService,
   GreatestIptvService,
   PongoIptvService,
+  SalesCornerService,
+  CloudStreamService,
+
   // World 8K
+  VoltixTvService,
   Strong8kIptvService,
   IptvLoadService,
   TvCornService,

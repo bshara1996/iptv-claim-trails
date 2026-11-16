@@ -105,7 +105,7 @@ export async function runTask(taskId, providerId, serviceIds) {
 
     const email = await provider.createEmail(credentialStore);
     emit(emitter, "email_created", { email, provider: provider.meta.name });
-    log(emitter, `Temporary email ready: ${email}`);
+    log(emitter, `📧 Temporary email ready: ${email}`);
 
     const taskStart = Date.now();
     // Shared across all services so an email seen by one is never re-processed by the next.
@@ -135,7 +135,7 @@ export async function runTask(taskId, providerId, serviceIds) {
         const elapsed = fmtSecs(Date.now() - serviceStart);
         pushResult(task, emitter, buildRecord(service, email, result));
         // Tagged so it appears in both the All tab and the per-service tab.
-        log(emitter, `[${service.meta.name}] Success ⏱️ ${elapsed}`);
+        log(emitter, `[${service.meta.name}] 🎉 Success ⏱️ ${elapsed}`);
       } catch (err) {
         // Distinguish CAPTCHA failures from generic errors for the UI.
         const status = err.type === "CAPTCHA" ? "captcha" : "failed";
@@ -146,7 +146,7 @@ export async function runTask(taskId, providerId, serviceIds) {
         );
         log(
           emitter,
-          `${status === "captcha" ? "🛡️" : "❌"} ${service.meta.name}: ${err.message}`,
+          `${status === "captcha" ? "�️" : "❌"} ${service.meta.name}: ${err.message}`,
           "warn",
         );
       }
@@ -157,17 +157,17 @@ export async function runTask(taskId, providerId, serviceIds) {
     log(
       emitter,
       signal.aborted
-        ? "Task was cancelled by user."
-        : `Automation complete. ${task.results.length} service(s) processed. ⏱️ ${fmtSecs(Date.now() - taskStart)}`,
+        ? "� Task was cancelled by user."
+        : `🤖 Automation complete. ${task.results.length} service(s) processed. ⏱️ ${fmtSecs(Date.now() - taskStart)}`,
     );
     task.status = signal.aborted ? "cancelled" : "done";
   } catch (err) {
     if (err.name === "AbortError") {
       task.status = "cancelled";
-      log(emitter, "Task was cancelled by user.");
+      log(emitter, "🛑 Task was cancelled by user.");
     } else {
       task.status = "error";
-      log(emitter, `Fatal error: ${err.message}`, "error");
+      log(emitter, `💥 Fatal error: ${err.message}`, "error");
       emit(emitter, "error", { message: err.message });
     }
   } finally {

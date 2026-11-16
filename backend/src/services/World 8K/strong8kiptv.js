@@ -34,7 +34,6 @@ const BROWSER_HEADERS = {
 /** Polls the result page until M3U links appear or timeout elapses. */
 async function pollForPlaylists(url, log) {
   const deadline = Date.now() + POLL_TIMEOUT_MS;
-  const startedAt = Date.now();
   let attempt = 0;
 
   while (Date.now() < deadline) {
@@ -44,11 +43,11 @@ async function pollForPlaylists(url, log) {
     });
     const playlists = extractPlaylists(html);
     if (playlists?.allM3uLinks?.length) {
-      log(`[${TAG}] ✅ M3U links found after ${attempt} poll(s).`);
+      log(`[${TAG}] ✅ Credentials generated after ${attempt} poll(s).`);
       return playlists;
     }
 
-    log(`[${TAG}] ⏳ Status: pending (attempt ${attempt})`);
+    log(`[${TAG}] 🔄 poll → (Status: pending) (attempt ${attempt})`);
 
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
@@ -73,6 +72,7 @@ export default {
   async execute({ email, log = () => {} }) {
     log(`[${TAG}] 📝 Submitting trial request for ${email}...`);
 
+    // Step 1: Submit the trial form.
     const { status, text, finalUrl } = await post(
       TRIAL_URL,
       createJar(),
@@ -81,23 +81,23 @@ export default {
       { extraHeaders: BROWSER_HEADERS },
     );
 
-    if (status >= 400)
-      throw new Error(
-        `[${TAG}] Trial request rejected — ${
-          stripHtml(text).slice(0, 120) || `HTTP ${status}`
-        }`,
-      );
-
     log(`[${TAG}] ✅ Trial submitted! 🔗 Result link: ${finalUrl}`);
 
-    log(`[${TAG}] ⏳ Total wait time: up to ${POLL_TIMEOUT_MS / 1000}s`);
+    if (status >= 400)
+      throw new Error(
+        `[${TAG}] Trial request rejected — ${stripHtml(text).slice(0, 120) || `HTTP ${status}`}`,
+      );
 
+    // Step 2: Poll result page for M3U links.
+    log(
+      `[${TAG}] ⏳ Waiting for credentials generation... up to ${POLL_TIMEOUT_MS / 1000}s`,
+    );
     const playlists = await pollForPlaylists(finalUrl, log);
 
     if (playlists) {
       log(`[${TAG}] 🔗 Result link: ${finalUrl}`);
       log(
-        `[${TAG}] ✅ 📺 TV: ${playlists.tvPlaylist ?? "none"} | 🎬 Total links: ${playlists.allM3uLinks.length}`,
+        `[${TAG}] 📺 ${playlists.tvPlaylist ?? "none"} | 🎬 Total links: ${playlists.allM3uLinks.length}`,
       );
     } else {
       log(`[${TAG}] ⚠️ No M3U links found after polling.`, "warn");

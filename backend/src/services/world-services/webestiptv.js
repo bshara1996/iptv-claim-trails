@@ -211,7 +211,10 @@ export default {
 
     if (!playlists.allM3uLinks.length)
       log(`[${TAG}] ⚠️ No M3U links found in confirmation email.`, "warn");
-    else log(`[${TAG}] ✅ 🎁 Trial activated. 📺 M3U: ${m3u}`);
+    else {
+      log(`[${TAG}] ✅ 🎁 Trial activated.`);
+      log(`[${TAG}] 📺 ${m3u}`);
+    }
 
     return buildResult({ playlists, trialHours: HOURS, serviceName: TAG });
   },

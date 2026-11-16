@@ -11,7 +11,12 @@
 
 import logger from "../logger.js";
 import { makeApi } from "../http/apiClient.js";
-import { makeGetReader, createProviderMethods, messageIdOf, joinFields } from "./base.js";
+import {
+  makeGetReader,
+  createProviderMethods,
+  messageIdOf,
+  joinFields,
+} from "./base.js";
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
@@ -20,7 +25,8 @@ const SITE_URL = "https://tempmail.ing";
 const TAG = "TempMail.ing";
 const api = makeApi(BASE_URL);
 
-const MESSAGE_FIELDS = "from_address sender to_address subject preview text content html";
+const MESSAGE_FIELDS =
+  "from_address sender to_address subject preview text content html";
 
 // ── Inbox reader ──────────────────────────────────────────────────────────────
 

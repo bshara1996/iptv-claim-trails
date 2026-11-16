@@ -1,20 +1,12 @@
-/**
- * ZumIPTV — free trial via form POST.
- *
- * Site: https://zumiptv.net/
+﻿/**
+ * ZumIPTV (zumiptv.net) — free trial via form POST.
  *
  * Flow:
- *   1. POST https://trial.zumiptv.net/generate.php → submit trial request.
- *   2. Poll inbox → parse Host / Username / Password from credentials email.
- *   3. Build an Xtream-Codes M3U URL from the extracted credentials.
- *
- * Notes:
- *   - The email delivers plain-text credentials (no M3U links), e.g.:
- *       Host: http://zumhd.site:80
- *       Username: 6142190056
- *       Password: 7992406360
- *   - Sender address varies; filter matches on subject / body content instead.
+ *   1. POST https://trial.zumiptv.net/generate.php — submit trial request.
+ *   2. Poll inbox — parse Host / Username / Password from credentials email.
+ *   3. Build Xtream-Codes M3U URL from extracted credentials.
  */
+
 import { buildResult, buildM3u } from "../../parsing/generators.js";
 import { post } from "../../http/cookieClient.js";
 
@@ -26,9 +18,20 @@ const ORIGIN = "https://zumiptv.net";
 const FILTER_TEXT = ["Zum IPTV", "zumiptv", "zumhd"];
 const TRIAL_HOURS = 24;
 
-// Matches Host / Username / Password across the stripped email body.
-const CRED_RE =
-  /Host[:\s]+(https?:\/\/\S+).*?Username[:\s]+(\S+).*?Password[:\s]+(\S+)/is;
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Duck-typed codeRe — parses Host / Username / Password from the credentials email.
+const credExtractor = {
+  exec: (text) => {
+    const p = text.replace(/<[^>]*>/g, " ");
+    const host = /Host[:\s]+(https?:\/\/\S+)/i.exec(p)?.[1];
+    const username = /Username[:\s]+(\S+)/i.exec(p)?.[1];
+    const password = /Password[:\s]+(\S+)/i.exec(p)?.[1];
+    return host && username && password
+      ? [null, { host, username, password }]
+      : null;
+  },
+};
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
@@ -47,46 +50,41 @@ export default {
     inboxSeenIds = new Set(),
     log = () => {},
   }) {
-    // Step 1: Submit trial form.
-    log(`[${TAG}] 📝 Submitting trial request for ${email}...`);
-    const { text, status } = await post(
+    // Step 1: Submit the trial request
+    log(`[${TAG}] 📝 Submitting free trial request...`);
+    const { text } = await post(
       TRIAL_URL,
       null,
       { action: "submit_trial", email: email.trim(), page_origin: ORIGIN },
       ORIGIN,
     );
-    log(`[${TAG}] 🔁 Response [${status}]: ${text}`);
+    log(`[${TAG}] 📡 Response: ${text}`);
 
-    // Step 2: Poll inbox — email has plain-text credentials, not M3U links.
-    // Duck-typed codeRe encodes Host / Username / Password into group 1 as "host|||user|||pass".
-    log(
-      `[${TAG}] ✅ Trial request submitted. 📬 Waiting for credentials email...`,
-    );
-    const encoded = await provider.waitForVerificationCodeEmail(
-      credentialStore,
-      {
-        filterText: FILTER_TEXT,
-        seenIds: new Set(inboxSeenIds),
-        timeout: 120_000,
-        codeRe: {
-          exec(text) {
-            const plain = text.replace(/<[^>]*>/g, " ").replace(/\s{2,}/g, " ");
-            const m = CRED_RE.exec(plain);
-            return m ? [null, `${m[1]}|||${m[2]}|||${m[3]}`] : null;
-          },
-        },
-      },
-    );
+    try {
+      if (JSON.parse(text).success === false)
+        return buildResult({
+          status: "failed",
+          note: "Trial generation failed.",
+        });
+    } catch {}
 
-    if (!encoded) {
+    // Step 2: Poll inbox — email contains plain-text Host / Username / Password
+    log(`[${TAG}] 📬 Waiting for credentials email...`);
+    const creds = await provider.waitForVerificationCodeEmail(credentialStore, {
+      filterText: FILTER_TEXT,
+      seenIds: new Set(inboxSeenIds),
+      codeRe: credExtractor,
+      timeout: 120_000,
+    });
+    if (!creds) {
       log(`[${TAG}] ⚠️ No credentials found in email.`, "warn");
       return buildResult({ trialHours: TRIAL_HOURS, serviceName: TAG });
     }
 
-    // Step 3: Build M3U URL from extracted credentials.
-    const [host, username, password] = encoded.split("|||");
-    log(`[${TAG}] ✅ Credentials extracted — user: ${username}, host: ${host}`);
+    // Step 3: Build M3U URL from extracted credentials
+    const { host, username, password } = creds;
     const tvPlaylist = buildM3u(host, username, password);
+    log(`[${TAG}] 📺 ${tvPlaylist}`);
 
     return buildResult({
       username,

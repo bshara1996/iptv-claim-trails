@@ -1,5 +1,5 @@
 /**
- * TempMailHub disposable email provider (tempmailhub.org).
+ * TempMailHubOrg disposable email provider (tempmailhub.org).
  *
  * Creates a temporary Gmail address and reads its inbox through the TempMailHub API.
  *
@@ -23,7 +23,7 @@ import {
 
 const BASE_URL = "https://api.tempmailhub.org";
 const SITE_URL = "https://tempmailhub.org";
-const TAG = "TempMailHub";
+const TAG = "TempMailHubOrg";
 const api = makeApi(BASE_URL);
 
 const PREVIEW_FIELDS = "senderName senderEmail subject body";
@@ -55,7 +55,7 @@ function buildReader({ emailId }) {
   };
 }
 
-const getReader = makeGetReader("_tempMailHubCredential", TAG, buildReader);
+const getReader = makeGetReader("_tempMailHubOrgCredential", TAG, buildReader);
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
@@ -77,11 +77,10 @@ export default {
     if (!email || !emailId)
       throw new Error(`[${TAG}] Incomplete mailbox returned from /emails.`);
 
-    store._tempMailHubCredential = { emailId };
+    store._tempMailHubOrgCredential = { emailId };
     logger.info(`[${TAG}] Email ready: ${email}`);
     return email;
   },
 
-  // readDelay 0: the body is already cached from fetchMessages, no separate read step.
   ...createProviderMethods(TAG, getReader),
 };

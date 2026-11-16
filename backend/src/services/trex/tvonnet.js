@@ -60,7 +60,7 @@ export default {
       { referer: BASE_URL, origin: BASE_URL, throwOnError: true },
     );
 
-    log(`[${TAG}] 📦 Response: ${JSON.stringify(data)}`);
+    log(`[${TAG}] 📡 Response: ${JSON.stringify(data)}`);
 
     // Extract M3U links + magicLink, then order: server2 first, magicLink last.
     const allM3uLinks = extractM3uLinks(data);

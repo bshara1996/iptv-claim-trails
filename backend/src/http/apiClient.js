@@ -20,7 +20,13 @@ const DEFAULT_TIMEOUT = 25_000;
 async function apiFetch(
   baseUrl,
   path,
-  { method = "GET", token = null, body = null, errorDetail = null } = {},
+  {
+    method = "GET",
+    token = null,
+    body = null,
+    errorDetail = null,
+    extraHeaders = {},
+  } = {},
 ) {
   const res = await fetch(`${baseUrl}${path}`, {
     method,
@@ -28,6 +34,7 @@ async function apiFetch(
       "Content-Type": "application/json",
       Accept: "application/json",
       ...(token && { Authorization: `Bearer ${token}` }),
+      ...extraHeaders,
     },
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(DEFAULT_TIMEOUT),

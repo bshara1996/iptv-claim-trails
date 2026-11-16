@@ -12,81 +12,62 @@
  *   6. Poll /wp-json/iptvload/v1/trial-status until state === "ready"
  *   7. Extract M3U from details.playlist
  *
- * Steps 1 and 5-6 share the cookie jar. Steps 2 and 4 use credentials:'omit'.
- * Retries indefinitely when the email address is already registered.
+ * Retries with a fresh email when the address has already been used.
  */
+
 import { buildResult } from "../../parsing/generators.js";
-import {
-  createJar,
-  get,
-  post,
-  jsonPost,
-  cookieStr,
-  mergeCookies,
-  DEFAULT_UA,
-} from "../../http/cookieClient.js";
+import { createJar, get, post, jsonPost } from "../../http/cookieClient.js";
 import { extractInputValue } from "../../parsing/extractors.js";
 import { retryWithFreshEmail } from "../../email/base.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
+const TAG = "IPTVLoad";
 const BASE_URL = "https://iptvload.org";
 const TRIAL_PAGE = `${BASE_URL}/free-iptv-trial-24-hours/`;
 const AJAX_URL = `${BASE_URL}/wp-admin/admin-ajax.php`;
 const SEND_URL = `${BASE_URL}/wp-json/ivl/v1/send`;
 const VERIFY_URL = `${BASE_URL}/wp-json/ivl/v1/verify`;
 const STATUS_URL = `${BASE_URL}/wp-json/iptvload/v1/trial-status`;
-
-const TAG = "IPTVLoad";
 const FILTER_TEXT = ["IPTVLOAD", "iptvload"];
 const TRIAL_HOURS = 24;
-
-const STATUS_POLL_TIMEOUT_MS = 120_000;
-const STATUS_POLL_INTERVAL_MS = 3_000;
+const POLL_TIMEOUT_MS = 120_000;
+const POLL_INTERVAL_MS = 3_000;
+const EMAIL_TAKEN_KEYWORDS = [
+  "already used",
+  "already requested",
+  "already been used",
+];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function jarGet(url, jar) {
-  const res = await fetch(url, {
-    method: "GET",
-    headers: {
-      Accept: "application/json, */*",
-      "User-Agent": DEFAULT_UA,
-      Referer: TRIAL_PAGE,
-      Cookie: cookieStr(jar),
-    },
-  });
-  mergeCookies(jar, res);
-  let json = null;
-  try {
-    json = JSON.parse(await res.text());
-  } catch {
-    /* ignore */
-  }
-  return { status: res.status, json };
-}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const brief = (obj) => obj?.message ?? JSON.stringify(obj).slice(0, 200);
 
-async function pollTrialStatus(jar, log) {
-  const deadline = Date.now() + STATUS_POLL_TIMEOUT_MS;
-  let attempt = 0;
-
-  while (Date.now() < deadline) {
-    attempt++;
-    const { json } = await jarGet(`${STATUS_URL}?_=${Date.now()}`, jar);
-
-    if (json?.state === "ready") {
-      log(`[${TAG}] ✅ Trial provisioned after ${attempt} poll(s).`);
-      return json;
-    }
-
-    log(`[${TAG}] ⏳ Status: ${json?.state ?? "unknown"} (attempt ${attempt})`);
-    await new Promise((r) =>
-      setTimeout(r, Math.min(STATUS_POLL_INTERVAL_MS, deadline - Date.now())),
-    );
-  }
-
-  throw new Error(`[${TAG}] Timed out waiting for trial to become ready.`);
-}
+// Builds the WPForms submission body from per-attempt dynamic values.
+const buildFormBody = (name, email, timeToken, formToken, ivlToken) => ({
+  "wpforms[fields][1]": name,
+  "wpforms[fields][2]": email,
+  "wpforms[fields][3]": "",
+  "wpforms[fields][4]": "",
+  "wpforms[fields][5]": "Other",
+  "wpforms[fields][8]": "",
+  "wpforms[fields][9]": "Iptv Smarters Pro",
+  "wpforms[fields][10]": "",
+  "wpforms[fields][23]": "",
+  "wpforms[fields][36]": "United States",
+  "wpforms[id]": "1019",
+  "wpforms[post_id]": "1321",
+  "wpforms[time_token]": timeToken ?? "",
+  "wpforms[token]": formToken,
+  "wpforms[submit]": "wpforms-submit",
+  page_title: "Free IPTV Trial",
+  page_url: TRIAL_PAGE,
+  url_referer: "",
+  page_id: "1321",
+  ivl_token: ivlToken,
+  action: "wpforms_submit",
+});
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
@@ -130,30 +111,25 @@ export default {
         if (!formToken)
           throw new Error(`[${TAG}] Could not extract WPForms form token.`);
 
-        log(
-          `[${TAG}] 📄 Tokens: form=${formToken.slice(0, 12)}..., time=${(timeToken ?? "").slice(0, 12)}...`,
-        );
-
         // Step 2: Request OTP email.
-        log(`[${TAG}] 📧 Sending verification code to ${submitEmail}...`);
         const sendRes = await jsonPost(
           SEND_URL,
           null,
           { email: submitEmail },
-          {
-            referer: TRIAL_PAGE,
-            origin: BASE_URL,
-            throwOnError: false,
-          },
+          { referer: TRIAL_PAGE, origin: BASE_URL, throwOnError: false },
         );
-        log(`[${TAG}] 📄 Send response: ${JSON.stringify(sendRes)}`);
 
         let ivlToken;
         if (sendRes?.bypass && sendRes.token) {
-          log(`[${TAG}] ⚡ Email service bypassed — token received directly.`);
+          // Bypass: token returned directly without OTP.
+          log(`[${TAG}] ⚡ Email bypassed — token received directly.`);
           ivlToken = sendRes.token;
         } else if (sendRes?.ok) {
-          // Step 3: Wait for OTP in inbox.
+          log(
+            `[${TAG}] 📡 Send verification code response: ${JSON.stringify(sendRes)}`,
+          );
+
+          // Step 3: Wait for OTP.
           log(`[${TAG}] 📬 Waiting for verification code email...`);
           const otp = await provider.waitForVerificationCodeEmail(
             credentialStore,
@@ -175,101 +151,87 @@ export default {
             VERIFY_URL,
             null,
             { email: submitEmail, code: otp },
-            {
-              referer: TRIAL_PAGE,
-              origin: BASE_URL,
-              throwOnError: false,
-            },
+            { referer: TRIAL_PAGE, origin: BASE_URL, throwOnError: false },
           );
-          log(`[${TAG}] 📄 Verify response: ${JSON.stringify(verifyRes)}`);
-
           if (!verifyRes?.ok || !verifyRes.token)
             throw new Error(
-              `[${TAG}] Code verification failed: ${verifyRes?.message ?? JSON.stringify(verifyRes).slice(0, 200)}`,
+              `[${TAG}] Code verification failed: ${brief(verifyRes)}`,
             );
-
           ivlToken = verifyRes.token;
+          log(
+            `[${TAG}] ✅ Email verified successfully | 📡 Verify response: ${JSON.stringify(verifyRes)}`,
+          );
         } else {
-          // Rejection at OTP stage — throw to trigger retry.
-          const msg = sendRes?.message ?? JSON.stringify(sendRes).slice(0, 200);
           throw new Error(
-            `[${TAG}] Failed to request verification code: ${msg}`,
+            `[${TAG}] Failed to request verification code: ${brief(sendRes)}`,
           );
         }
 
-        log(`[${TAG}] 🎫 ivl_token: ${ivlToken.slice(0, 8)}...`);
-
-        // Step 5: Submit WPForms (with anti-spam delay).
-        log(`[${TAG}] 📝 Submitting trial form for ${submitEmail}...`);
-        await new Promise((r) => setTimeout(r, 2_000));
-
+        // Step 5: Submit WPForms (2s anti-spam delay).
+        await sleep(2_000);
         const { text: res, status: formStatus } = await post(
           AJAX_URL,
           jar,
-          {
-            "wpforms[fields][1]": name,
-            "wpforms[fields][2]": submitEmail,
-            "wpforms[fields][3]": "",
-            "wpforms[fields][4]": "",
-            "wpforms[fields][5]": "Other",
-            "wpforms[fields][8]": "",
-            "wpforms[fields][9]": "Iptv Smarters Pro",
-            "wpforms[fields][10]": "",
-            "wpforms[fields][23]": "",
-            "wpforms[fields][36]": "United States",
-            "wpforms[id]": "1019",
-            "wpforms[post_id]": "1321",
-            "wpforms[time_token]": timeToken ?? "",
-            "wpforms[token]": formToken,
-            "wpforms[submit]": "wpforms-submit",
-            page_title: "Free IPTV Trial",
-            page_url: TRIAL_PAGE,
-            url_referer: "",
-            page_id: "1321",
-            ivl_token: ivlToken,
-            action: "wpforms_submit",
-          },
+          buildFormBody(name, submitEmail, timeToken, formToken, ivlToken),
           TRIAL_PAGE,
         );
-
         if (formStatus >= 400)
           throw new Error(
             `[${TAG}] Form submission failed — HTTP ${formStatus}.`,
           );
-
         log(
-          `[${TAG}] 📄 Form response (HTTP ${formStatus}): ${res.slice(0, 500)}`,
+          `[${TAG}] ✅ Form submitted successfully | 📡 response: ${res.slice(0, 500)}`,
         );
 
-        let formData;
-        try {
-          formData = JSON.parse(res || "{}");
-        } catch {
-          formData = {};
-        }
-
+        const formData = JSON.parse(res || "{}");
         if (formData.success === false) {
-          const errMsg = JSON.stringify(formData.data ?? formData);
-          throw new Error(`[${TAG}] Form rejected: ${errMsg.slice(0, 200)}`);
+          const fieldMsg = Object.values(formData.data?.errors?.field ?? {})
+            .join(" ")
+            .trim();
+          const msg =
+            fieldMsg || JSON.stringify(formData.data ?? formData).slice(0, 200);
+          if (msg.toLowerCase().includes("already"))
+            throw new Error(`[${TAG}] Form rejected: email already used`);
+          throw new Error(`[${TAG}] Form rejected: ${msg}`);
         }
-
-        log(`[${TAG}] ✅ Form accepted.`);
-
-        // Step 6: Poll until trial is provisioned.
         log(
-          `[${TAG}] ⏳ Waiting for trial credentials to be provisioned... Total wait time: up to ${STATUS_POLL_TIMEOUT_MS / 1000}s`,
+          `[${TAG}] ⏳ Waiting for credentials generation... up to ${POLL_TIMEOUT_MS / 1000}s`,
         );
-        const statusResponse = await pollTrialStatus(jar, log);
+
+        // Step 6: Poll until provisioned.
+        const deadline = Date.now() + POLL_TIMEOUT_MS;
+        let attempt = 0;
+        let statusResponse;
+        while (Date.now() < deadline) {
+          attempt++;
+          const { text } = await get(`${STATUS_URL}?_=${Date.now()}`, jar, {
+            referer: TRIAL_PAGE,
+          });
+          const json = JSON.parse(text || "{}");
+          if (json?.state === "ready") {
+            statusResponse = json;
+            break;
+          }
+          log(
+            `[${TAG}] 🔄 poll → (Status: ${json?.state ?? "unknown"}) (attempt ${attempt})`,
+          );
+          await sleep(Math.min(POLL_INTERVAL_MS, deadline - Date.now()));
+        }
+        if (!statusResponse)
+          throw new Error(
+            `[${TAG}] Timed out waiting for trial to become ready.`,
+          );
+        log(`[${TAG}] 🔄 Poll → ${JSON.stringify(statusResponse, null, 2)}`);
+        log(`[${TAG}] ✅ Credentials generated after ${attempt} poll(s).`);
 
         // Step 7: Extract playlist.
         const details = statusResponse?.details;
         const playlist = details?.playlist ?? null;
         if (!playlist)
           throw new Error(
-            `[${TAG}] Trial ready but no playlist link returned: ${JSON.stringify(statusResponse).slice(0, 200)}`,
+            `[${TAG}] Trial ready but no playlist returned: ${JSON.stringify(statusResponse).slice(0, 200)}`,
           );
-
-        log(`[${TAG}] 🎉 M3U extracted: ${playlist}`);
+        log(`[${TAG}] 📺 ${playlist}`);
 
         return buildResult({
           username: details.username ?? null,
@@ -289,7 +251,7 @@ export default {
         tag: TAG,
         shouldRetry: (err) => {
           const msg = err.message.toLowerCase();
-          return msg.includes("used") || msg.includes("already been used");
+          return EMAIL_TAKEN_KEYWORDS.some((k) => msg.includes(k));
         },
       },
     );

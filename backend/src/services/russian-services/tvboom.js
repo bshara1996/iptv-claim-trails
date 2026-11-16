@@ -39,7 +39,7 @@ async function confirmEmail(jar, link, log) {
   const confirmUrl = m[1].startsWith("http")
     ? m[1]
     : new URL(m[1].replace(/&amp;/gi, "&"), BASE).href;
-  log(`[${TAG}] 🔗 Following verification link: ${confirmUrl}`);
+  log(`[${TAG}] 🔐 Verifying email: ${confirmUrl}`);
   await get(confirmUrl, jar);
 }
 
@@ -84,14 +84,14 @@ export default {
     // Step 3: Enter the dashboard and activate the 24-hour trial.
     await get(`${BASE}/main`, jar);
     await get(`${BASE}/index.php?do=test`, jar, { referer: `${BASE}/main` });
-    log(`[${TAG}] 🎁 Trial activated.`);
+    log(`[${TAG}] 🎁 Activating trial...`);
 
     // Step 4: Fetch /main and extract the M3U URL.
     const { text } = await get(`${BASE}/main`, jar);
     const tvPlaylist =
       extractPlaylists(text)?.tvPlaylist?.replace(/%type/gi, "hls") ?? null;
 
-    if (tvPlaylist) log(`[${TAG}] 📺 M3U: ${tvPlaylist}`);
+    if (tvPlaylist) log(`[${TAG}] 📺 ${tvPlaylist}`);
     return buildResult({
       username,
       password,

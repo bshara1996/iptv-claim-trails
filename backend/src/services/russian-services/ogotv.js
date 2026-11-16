@@ -109,7 +109,7 @@ export default {
 
     // Steps 4+5: Verify the 6-digit code sent to the inbox (new registrations only).
     if (complete.pending_verification) {
-      log(`[${TAG}] 📩 Polling inbox for verification code…`);
+      log(`[${TAG}] 📬 Polling inbox for verification code…`);
       const code = await provider.waitForVerificationCodeEmail(
         credentialStore,
         {
@@ -119,7 +119,7 @@ export default {
         },
       );
       if (!code) throw new Error(`[${TAG}] Verification code not received.`);
-      log(`[${TAG}] ✅ 🔐 Code: ${code}`);
+      log(`[${TAG}] 🔑 Code: ${code}`);
 
       const verify = await authPost(jar, {
         action: "verify",
@@ -160,7 +160,7 @@ export default {
         null;
     }
 
-    if (m3uLink) log(`[${TAG}] ✅ 📺 M3U: ${m3uLink}`);
+    if (m3uLink) log(`[${TAG}] 📺 TV: ${m3uLink}`);
     else log(`[${TAG}] ⚠️ M3U not found.`, "warn");
 
     const creds = extractCredsFromM3u(m3uLink);
