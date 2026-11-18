@@ -28,7 +28,7 @@ export default {
     id: "strevio",
     name: TAG,
     description: `${TRIAL_HOURS} Hours`,
-    group: "best",
+    group: "golden",
   },
 
   async execute({

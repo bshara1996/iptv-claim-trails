@@ -40,7 +40,7 @@ export default {
     id: "zumiptv",
     name: TAG,
     description: `${TRIAL_HOURS} Hours`,
-    group: "best",
+    group: "other",
   },
 
   async execute({

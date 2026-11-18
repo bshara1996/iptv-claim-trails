@@ -34,30 +34,33 @@ import VeleStoreService from "../services/russian-services/velestore.js";
 import TvBoomService from "../services/russian-services/tvboom.js";
 import UspehService from "../services/russian-services/jwt-verify/uspeh.js";
 import RuTvService from "../services/russian-services/jwt-verify/rutv.js";
+import StreamingElbusService from "../services/russian-services/streamingelbus.js";
+
+// ── Golden ────────────────────────────────────────────────────────────────────
+
+import IiptvCanadaService from "../services/golden/iiptvcanada.js";
+import StrevioService from "../services/golden/strevio.js";
+import Watch5TvService from "../services/golden/watch5tv.js";
+import SoxProviderService from "../services/golden/soxprovider.js";
 
 // ── World services ────────────────────────────────────────────────────────────
 
 import WebestIptvService from "../services/world-services/webestiptv.js";
-import IiptvCanadaService from "../services/world-services/iiptvcanada.js";
-import StrevioService from "../services/world-services/strevio.js";
-import Watch5TvService from "../services/world-services/watch5tv.js";
 import ZumIptvService from "../services/world-services/zumiptv.js";
-import GreatestIptvService from "../services/world-services/greatestiptv.js";
+import GreatestIptvService from "../services/gr8iptv/greatestiptv.js";
+import SilyaTvService from "../services/gr8iptv/silyatv.js";
 import PongoIptvService from "../services/world-services/pongoiptv.js";
-import SoxProviderService from "../services/world-services/soxprovider.js";
 import SalesCornerService from "../services/world-services/salescorner.js";
-import CloudStreamService from "../services/World 8K/cloudstream.js";
+import DinoIptvService from "../services/world-services/dinoiptv.js";
 
 // ── World 8K services ─────────────────────────────────────────────────────────
 
-import VoltixTvService from "../services/World 8K/voltixtv.js";
-import Strong8kIptvService from "../services/World 8K/strong8kiptv.js";
-import TvCornService from "../services/World 8K/tvcorn.js";
-import IptvLoadService from "../services/World 8K/iptvload.js";
+import TvCornService from "../services/world-8k/tvcorn.js";
 
 // ── Trex services ─────────────────────────────────────────────────────────────
 
 import TrexIptvService from "../services/trex/trexiptv.js";
+import IptvTrexService from "../services/trex/iptvtrex.js";
 import TvOnNetService from "../services/trex/tvonnet.js";
 import IptvExpertenService from "../services/trex/iptvexperten.js";
 import MapleStreamTvService from "../services/trex/maplestreamtv.js";
@@ -91,25 +94,31 @@ export const registrationServices = [
   OgoTvService,
   UspehService,
   RuTvService,
-  // World
+  StreamingElbusService,
+
+  // Golden
   IiptvCanadaService,
-  WebestIptvService,
-  SoxProviderService,
   StrevioService,
   Watch5TvService,
+  SoxProviderService,
+
+  // World
+  WebestIptvService,
   ZumIptvService,
-  GreatestIptvService,
   PongoIptvService,
   SalesCornerService,
-  CloudStreamService,
+  DinoIptvService,
+
+  // gr8iptv
+  SilyaTvService,
+  GreatestIptvService,
 
   // World 8K
-  VoltixTvService,
-  Strong8kIptvService,
-  IptvLoadService,
   TvCornService,
+
   // Trex
   TrexIptvService,
+  IptvTrexService,
   TvOnNetService,
   IptvExpertenService,
   MapleStreamTvService,

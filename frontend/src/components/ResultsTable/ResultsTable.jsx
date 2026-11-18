@@ -230,9 +230,13 @@ export default function ResultsTable({ results }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [copiedAll, setCopiedAll] = useState(false);
 
-  // Extract all non-null playlist links
+  // Splits a stacked playlist field (newline-separated URLs) into clean individual URLs.
+  const splitUrls = (raw) =>
+    (raw ?? "").split("\n").map(cleanM3uUrl).filter(Boolean);
+
+  // Extract all non-null playlist links — including every stacked TV URL.
   const allLinks = results
-    .flatMap((r) => [cleanM3uUrl(r.tvPlaylist), cleanM3uUrl(r.vodPlaylist)])
+    .flatMap((r) => [...splitUrls(r.tvPlaylist), cleanM3uUrl(r.vodPlaylist)])
     .filter(Boolean);
 
   const handleCopyAll = async () => {
@@ -248,13 +252,20 @@ export default function ResultsTable({ results }) {
     if (!allLinks.length) return;
     let m3uContent = "#EXTM3U\n\n";
     results.forEach((r) => {
-      const tv = cleanM3uUrl(r.tvPlaylist);
+      const tvUrls = splitUrls(r.tvPlaylist); // may be [xtreamUrl, directUrl] or [directUrl]
       const vod = cleanM3uUrl(r.vodPlaylist);
-      if (tv) {
-        m3uContent += `#EXTINF:-1 tvg-id="${r.serviceId || "iptv"}" group-title="Live TV", [${r.service}] Live TV\n${tv}\n\n`;
+      const id = r.serviceId || "iptv";
+
+      // First TV URL = Xtream M3U+ (get.php), second = direct stream (.m3u8).
+      const [xtreamUrl, directUrl] = tvUrls;
+      if (xtreamUrl) {
+        m3uContent += `#EXTINF:-1 tvg-id="${id}" group-title="Live TV", [${r.service}] Live TV\n${xtreamUrl}\n\n`;
+      }
+      if (directUrl) {
+        m3uContent += `#EXTINF:-1 tvg-id="${id}" group-title="Live TV", [${r.service}] Direct Stream\n${directUrl}\n\n`;
       }
       if (vod) {
-        m3uContent += `#EXTINF:-1 tvg-id="${r.serviceId || "iptv"}" group-title="VOD Movies", [${r.service}] VOD Library\n${vod}\n\n`;
+        m3uContent += `#EXTINF:-1 tvg-id="${id}" group-title="VOD Movies", [${r.service}] VOD Library\n${vod}\n\n`;
       }
     });
 

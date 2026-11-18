@@ -18,14 +18,14 @@ const BASE_URL = "https://soxprovider.com";
 const TRIAL_PAGE = `${BASE_URL}/free-trial/`;
 const AJAX_URL = `${BASE_URL}/wp-admin/admin-ajax.php`;
 const FILTER_TEXT = ["soxprovider", "Sox Provider", "Contact@soxprovider.com"];
-const TRIAL_HOURS = 6;
+const TRIAL_HOURS = 24;
 
 export default {
   meta: {
     id: "soxprovider",
     name: TAG,
     description: `${TRIAL_HOURS} Hours`,
-    group: "other",
+    group: "golden",
   },
 
   async execute({

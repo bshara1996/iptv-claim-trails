@@ -90,7 +90,7 @@ export default {
     id: "watch5tv",
     name: TAG,
     description: `${TRIAL_HOURS} Hours [Limited]`,
-    group: "best",
+    group: "golden",
   },
 
   async execute({

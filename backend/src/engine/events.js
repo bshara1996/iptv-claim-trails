@@ -33,7 +33,7 @@ const pick = (src, key) => src[key] ?? null;
 export const buildRecord = (service, email, src) => ({
   serviceId: service.meta.id,
   service: service.meta.name,
-  email,
+  email: src.email ?? email,
   username: pick(src, "username"),
   password: pick(src, "password"),
   tvPlaylist: pick(src, "tvPlaylist"),

@@ -19,7 +19,7 @@ export default simplePost({
     id: "iiptvcanada",
     name: "iIPTV Canada",
     description: "24 Hours",
-    group: "best",
+    group: "golden",
   },
   url: "https://deepskyblue-dotterel-951962.hostingersite.com/api/portfolio/free-trials",
   referer: "https://iiptv-canada.ca/iptv-free-trial/",

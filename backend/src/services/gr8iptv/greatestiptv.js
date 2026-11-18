@@ -6,18 +6,18 @@ import { simplePost } from "../../engine/simplePost.js";
 
 export default simplePost({
   meta: {
-    id: "strimoiptv",
-    name: "Greatest/Strimo IPTV",
+    id: "greatestiptv",
+    name: "GreatestIPTV",
     description: "36 Hours",
-    group: "other",
+    group: "gr8iptv",
   },
-  url: "https://www.strimoiptv.com/api/orders", // "https://www.greatestiptv.com"
-  referer: "https://www.strimoiptv.com/free-trial/?trial=true", // "https://www.greatestiptv.com"
+  url: "https://www.strimoiptv.com/api/orders", // https://www.strimoiptv.com
+  referer: "https://www.strimoiptv.com/free-trial/?trial=true", // https://www.strimoiptv.com
   filterText: [
-    "strimoiptv",
-    "no-reply@strimoiptv.com",
     "greatestiptv",
     "noreply@greatestiptv.com",
+    "strimoiptv",
+    "no-reply@strimoiptv.com",
   ],
   trialHours: 36,
   payload: (email) => ({
