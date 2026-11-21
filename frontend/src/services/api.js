@@ -6,11 +6,11 @@ export async function fetchInfo() {
   return res.json();
 }
 
-export async function startAutomation(providerId, serviceIds) {
+export async function startAutomation(providerId, serviceIds, options = {}) {
   const res = await fetch(`${BASE}/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ providerId, serviceIds }),
+    body: JSON.stringify({ providerId, serviceIds, options }),
   });
   return res.json();
 }

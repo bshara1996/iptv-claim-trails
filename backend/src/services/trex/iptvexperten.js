@@ -24,7 +24,7 @@ export default {
   meta: {
     id: "iptvexperten",
     name: TAG,
-    description: "Once Each 24 Hours",
+    description: "24 Hours [1]",
     group: "trex",
   },
 

@@ -55,7 +55,7 @@ export default {
     id: "dinoiptv",
     name: TAG,
     description: `${TRIAL_HOURS} Hours`,
-    group: "best",
+    group: "not working",
   },
 
   async execute({

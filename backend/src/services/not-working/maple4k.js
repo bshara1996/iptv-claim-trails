@@ -1,27 +1,27 @@
 /**
- * Maple Stream TV — free trial.
- * Site: https://maplestreamtv.ca/
+ * Maple 4K IPTV — free trial.
+ * Site: https://maple4k.ca/
  */
 import { simplePost } from "../../engine/simplePost.js";
 import { nextDayAt, generateUsername } from "../../parsing/generators.js";
 
 export default simplePost({
   meta: {
-    id: "maplestreamtv",
-    name: "Maple Stream TV",
+    id: "maple4k",
+    name: "Maple 4K IPTV",
     description: "Until 01:00 AM next day",
-    group: "trex",
+    group: "not working",
   },
-  url: "https://iptv-trial-maplestreamtv.medmaar.workers.dev/",
-  referer: "https://maplestreamtv.ca/en",
-  filterText: "help@maplestreamtv.ca",
+  url: "https://iptv-trial-maple4k.medmaar.workers.dev/",
+  referer: "https://maple4k.ca/",
+  filterText: "help@maple4k.ca",
   expiryDate: () => nextDayAt(1),
   payload: (email) => ({
     name: generateUsername(),
     email: email.trim(),
-    device: "Windows PC",
+    country: "United Arab Emirates",
+    device: "PC Windows / Mac",
     whatsapp: "",
     notes: "",
-    country: "Canada",
   }),
 });

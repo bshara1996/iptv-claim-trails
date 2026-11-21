@@ -67,7 +67,7 @@ const makeCancelableProvider = (provider, signal) =>
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 // Runs the full task: validate inputs, create email, iterate services.
-export async function runTask(taskId, providerId, serviceIds) {
+export async function runTask(taskId, providerId, serviceIds, options = {}) {
   const task = tasks.get(taskId);
   if (!task) return;
 
@@ -129,6 +129,7 @@ export async function runTask(taskId, providerId, serviceIds) {
           inboxSeenIds,
           taskId,
           emitter,
+          options,
           log: (msg, level = "info") => log(emitter, msg, level),
         });
 

@@ -34,11 +34,11 @@ router.get("/info", (_req, res) => {
 });
 
 // ── Start task ───────────────────────────────────────────────────────────────
-// Body: { providerId: string, serviceIds: string[] }
+// Body: { providerId: string, serviceIds: string[], options?: object }
 // Creates a task and fires it off asynchronously — the client tracks progress via SSE.
 
 router.post("/start", async (req, res) => {
-  const { providerId, serviceIds } = req.body;
+  const { providerId, serviceIds, options = {} } = req.body;
 
   if (!providerId || !Array.isArray(serviceIds) || !serviceIds.length) {
     return res
@@ -50,7 +50,7 @@ router.post("/start", async (req, res) => {
   logger.info(`[Route] Starting task ${taskId}`);
 
   // Run without awaiting so the taskId can be returned immediately
-  runTask(taskId, providerId, serviceIds).catch((err) =>
+  runTask(taskId, providerId, serviceIds, options).catch((err) =>
     logger.error(`[Route] Unhandled task error: ${err.message}`),
   );
 

@@ -17,7 +17,7 @@ import { createJar, get, post } from "../../http/cookieClient.js";
 const BASE_URL = "https://strevio.net";
 const TRIAL_URL = `${BASE_URL}/free-trial/`;
 const AJAX_URL = `${BASE_URL}/wp-admin/admin-ajax.php`;
-const TAG = "Strevio";
+const TAG = "Strevio (Gmail)";
 const FILTER_TEXT = ["Strevio", "support@strevio.net"];
 const TRIAL_HOURS = 24;
 
@@ -27,7 +27,7 @@ export default {
   meta: {
     id: "strevio",
     name: TAG,
-    description: `${TRIAL_HOURS} Hours`,
+    description: `${TRIAL_HOURS} Hours[1]`,
     group: "golden",
   },
 
@@ -87,7 +87,7 @@ export default {
       log(`[${TAG}] ⚠️ No M3U links found in confirmation email.`, "warn");
     else
       log(
-        `[${TAG}] ✅ M3U extracted — TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
+        `[${TAG}] 📺 ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
       );
 
     return buildResult({

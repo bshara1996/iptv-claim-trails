@@ -19,7 +19,7 @@ import { makeApi } from "../../http/apiClient.js";
 // ── Config ────────────────────────────────────────────────────────────────────
 
 // Service identity
-const TAG = "Watch5 TV";
+const TAG = "Watch5 TV (Gmail)";
 const TRIAL_HOURS = 24;
 
 // Base URLs & Supabase anon key
@@ -89,7 +89,7 @@ export default {
   meta: {
     id: "watch5tv",
     name: TAG,
-    description: `${TRIAL_HOURS} Hours [Limited]`,
+    description: `${TRIAL_HOURS} Hours[2]`,
     group: "golden",
   },
 

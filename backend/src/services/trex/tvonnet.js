@@ -1,32 +1,50 @@
 /**
- * TvOnNet — API-based 12-hour free trial.
+ * TVonNet VIP — free 12-hour IPTV trial (dual server).
  *
  * Site: https://www.tvonnet.live
  *
  * Flow:
- *   POST /api/iptv/provision → response contains M3U links + magicLink directly.
- *
- * Trial duration: until 01:00 AM next day.
- *
- * Note: TvOnNet rejects Gmail dot-alias addresses (Emailnator) with a 400.
- * Gmail ignores dots in the local part, so we strip them before submitting.
+ *   1. POST /api/auth/send-otp   → send 6-digit OTP code to email
+ *   2. Poll inbox                → wait for verification code
+ *   3. POST /api/auth/verify-otp → verify code and receive grantToken
+ *   4. POST /api/iptv/provision  → provision credentials with grantToken
+ *   5. Extract server1 & server2 M3U playlists
  */
-import { buildResult, nextDayAt } from "../../parsing/generators.js";
-import { jsonPost } from "../../http/cookieClient.js";
-import { extractM3uLinks } from "../../parsing/extractors.js";
+
+import { buildResult } from "../../parsing/generators.js";
+import { createJar, jsonPost } from "../../http/cookieClient.js";
+import { retryWithFreshEmail } from "../../email/base.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
+const TAG = "TVonNet VIP";
 const BASE_URL = "https://www.tvonnet.live";
-const TAG = "TvOnNet";
+const FILTER_TEXT = ["tvonnet", "support@tvonnet.live"];
+const TRIAL_HOURS = 24;
+const OTP_TIMEOUT = 120_000;
 
-// Strips dots from the local part of Gmail addresses so dot-aliases (Emailnator)
-// aren't rejected. Gmail ignores dots, so it's the same inbox. Non-Gmail untouched.
-const stripGmailDots = (email) =>
-  email.replace(
-    /^([^@]+)@(gmail\.com|googlemail\.com)$/i,
-    (_, l, d) => `${l.replace(/\./g, "")}@${d}`,
-  );
+const EMAIL_RETRY_KEYWORDS = [
+  "temporary",
+  "disposable",
+  "strictly blocked",
+  "personal email",
+  "already",
+  "claimed",
+  "dot-alias",
+  "temp gmail",
+  "limit reached",
+  "invalid verification code",
+  "expired verification code",
+  "same browser session",
+];
+
+// Helper to post JSON with browser session context.
+const postApi = (path, jar, body) =>
+  jsonPost(`${BASE_URL}${path}`, jar, body, {
+    origin: BASE_URL,
+    referer: `${BASE_URL}/`,
+    throwOnError: true,
+  });
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
@@ -34,56 +52,122 @@ export default {
   meta: {
     id: "tvonnet",
     name: TAG,
-    description: "Until 01:00 AM next day",
+    description: `${TRIAL_HOURS} Hours (Dual M3U)`,
     group: "trex",
   },
 
-  async execute({ email, log = () => {} }) {
-    const submitEmail = stripGmailDots(email.trim());
-    if (submitEmail !== email.trim())
-      log(`[${TAG}] 🔧 Normalised email for submission: ${submitEmail}`);
+  async execute({
+    provider,
+    credentialStore,
+    email,
+    inboxSeenIds = new Set(),
+    log = () => {},
+  }) {
+    return retryWithFreshEmail(
+      async (email) => {
+        const jar = createJar();
 
-    log(`[${TAG}] 📝 Submitting trial request...`);
-    const data = await jsonPost(
-      `${BASE_URL}/api/iptv/provision`,
-      null,
-      {
-        panel: "both", // Server 1 OR Server 2
-        duration: "12h",
-        connections: 1,
-        fullName: "VIP Guest",
-        email: submitEmail,
-        device: "Windows PC / Mac",
-        paymentMethod: "Email Only Pass Delivery",
-        includeAdult: false,
+        // Step 1: Request OTP verification code
+        log(`[${TAG}] 📤 Requesting OTP for ${email}...`);
+        const send = await postApi("/api/auth/send-otp", jar, {
+          email: email.trim(),
+          intent: "trial",
+        });
+        if (send?.success === false)
+          throw new Error(send.error ?? send.message ?? "Send OTP failed.");
+        log(`[${TAG}] 📬 OTP email sent to ${email}`);
+
+        // Step 2: Poll inbox for 6-digit code
+        log(`[${TAG}] ⏳ Waiting for OTP code in inbox...`);
+        const code = await provider.waitForVerificationCodeEmail(
+          credentialStore,
+          {
+            filterText: FILTER_TEXT,
+            seenIds: inboxSeenIds,
+            timeout: OTP_TIMEOUT,
+          },
+        );
+        if (!code)
+          throw new Error(`[${TAG}] Verification code was not received.`);
+        log(`[${TAG}] 🔑 Code received: ${code}`);
+
+        // Step 3: Verify OTP code
+        log(`[${TAG}] 🔐 Verifying OTP code...`);
+        const verify = await postApi("/api/auth/verify-otp", jar, {
+          email: email.trim(),
+          code: String(code).trim(),
+          intent: "trial",
+        });
+        if (!verify?.success || !verify?.grantToken)
+          throw new Error(
+            verify?.error ?? verify?.message ?? "OTP verification failed.",
+          );
+        log(`[${TAG}] ✅ Email verified.`);
+
+        // Step 4: Provision 12H trial credentials
+        log(`[${TAG}] ⚙️ Provisioning ${TRIAL_HOURS}H trial credentials...`);
+        const res = await postApi("/api/iptv/provision", jar, {
+          panel: "both",
+          duration: "12h",
+          connections: 1,
+          fullName: "VIP Guest",
+          email: email.trim(),
+          device: "Amazon Fire TV Stick 4K",
+          paymentMethod: "Verified 12H Trial Pass",
+          includeAdult: false,
+          grantToken: verify.grantToken,
+        });
+        if (!res?.success)
+          throw new Error(res?.error ?? res?.message ?? "Provisioning failed.");
+
+        // Step 5: Extract server1 & server2 M3U URLs
+        const s1 = res.server1?.m3uUrl ?? null;
+        const s2 = res.server2?.m3uUrl ?? null;
+        const allM3uLinks = [s1, s2].filter(Boolean);
+
+        if (s1) log(`[${TAG}] 📺 Server 1: ${s1}`);
+        if (s2) log(`[${TAG}] 📺 Server 2: ${s2}`);
+
+        const usernames = [res.server1?.username, res.server2?.username].filter(
+          Boolean,
+        );
+        const passwords = [res.server1?.password, res.server2?.password].filter(
+          Boolean,
+        );
+
+        return {
+          ...buildResult({
+            username: usernames.join(" | ") || null,
+            password: passwords.join(" | ") || null,
+            tvPlaylist: allM3uLinks.join("\n"),
+            allM3uLinks,
+            trialHours: TRIAL_HOURS,
+            serviceName: TAG,
+            note:
+              res.message ??
+              `Dual-server trial activated (${allM3uLinks.length} M3U playlists).`,
+          }),
+          server1: res.server1,
+          server2: res.server2,
+          server1M3u: s1,
+          server2M3u: s2,
+          magicLink: res.magicLink ?? null,
+          orderId: res.orderId ?? null,
+          parentalPin: res.parentalPin ?? null,
+        };
       },
-      { referer: BASE_URL, origin: BASE_URL, throwOnError: true },
+      {
+        provider,
+        credentialStore,
+        email,
+        inboxSeenIds,
+        log,
+        tag: TAG,
+        shouldRetry: (err) => {
+          const msg = (err.message ?? "").toLowerCase();
+          return EMAIL_RETRY_KEYWORDS.some((k) => msg.includes(k));
+        },
+      },
     );
-
-    log(`[${TAG}] 📡 Response: ${JSON.stringify(data)}`);
-
-    // Extract M3U links + magicLink, then order: server2 first, magicLink last.
-    const allM3uLinks = extractM3uLinks(data);
-    const magicLink = data?.magicLink ?? null;
-
-    if (!allM3uLinks.length)
-      log(`[${TAG}] ⚠️ No M3U links found in response.`, "warn");
-    else
-      log(
-        `[${TAG}] ✅ ${allM3uLinks.length} M3U link(s) received:\n${[...allM3uLinks].reverse().join("\n")}`,
-      );
-
-    if (magicLink) log(`[${TAG}] 🔗 Magic Link: ${magicLink}`);
-
-    const orderedLinks = [...allM3uLinks].reverse();
-    if (magicLink) orderedLinks.push(magicLink);
-
-    return buildResult({
-      allM3uLinks,
-      tvPlaylist: orderedLinks.length ? orderedLinks.join("\n") : null,
-      vodPlaylist: null,
-      expiryDate: nextDayAt(1),
-      serviceName: TAG,
-    });
   },
 };

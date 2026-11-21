@@ -1,6 +1,6 @@
 /**
- * Mojo 4K TV — free trial.
- * Site: https://mojo4ktv.com/
+ * IPTV Mojo — free trial.
+ * Site: https://iptvmojo.com/free-trial
  */
 import { simplePost } from "../../engine/simplePost.js";
 import {
@@ -11,21 +11,21 @@ import {
 
 export default simplePost({
   meta: {
-    id: "mojo4ktv",
-    name: "Mojo 4K TV",
+    id: "iptvmojo",
+    name: "IPTV Mojo",
     description: "Until 01:00 AM next day",
-    group: "trex",
+    group: "not working",
   },
-  url: "https://mojo4ktv.com/api/trial",
-  referer: "https://mojo4ktv.com/",
-  filterText: "help@mojo4ktv.com",
+  url: "https://iptv-trial-iptvmojo.medmaar.workers.dev/",
+  referer: "https://iptvmojo.com/free-trial",
+  filterText: "support@iptvmojo.com",
   expiryDate: () => nextDayAt(1),
   payload: (email) => ({
     name: generateUsername(),
     email: email.trim(),
     country: "Canada",
-    whatsapp: `+1 ${generatePhone()}`,
     device: "Windows PC / Mac",
+    whatsapp: generatePhone(),
     notes: "",
   }),
 });

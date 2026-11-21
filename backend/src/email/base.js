@@ -71,9 +71,12 @@ export async function retryWithFreshEmail(fn, opts) {
       if (!shouldRetry(error, attempt)) throw error;
       email = await provider.createEmail(credentialStore);
       inboxSeenIds.clear();
-      log(
-        `[${tag}] ⚠️ Attempt ${attempt} rejected ➜ 🔄 Retrying with new email ➜ 📧 ${email}`,
-      );
+      const problem = error?.message
+        ?.replace(new RegExp(`^\\[${tag}\\]\\s*`, "i"), "")
+        .trim();
+      const reason = problem ? ` (${problem})` : "";
+      log(`[${tag}] ⚠️ Attempt ${attempt} rejected${reason}`);
+      log(`[${tag}] 🔄 Retrying with new email ➜ 📧 ${email}`);
       await delay(1_500);
     }
   }

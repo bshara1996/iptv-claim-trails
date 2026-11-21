@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ZumIPTV (zumiptv.net) — free trial via form POST.
  *
  * Flow:
@@ -40,7 +40,7 @@ export default {
     id: "zumiptv",
     name: TAG,
     description: `${TRIAL_HOURS} Hours`,
-    group: "other",
+    group: "golden",
   },
 
   async execute({

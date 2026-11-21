@@ -10,7 +10,7 @@ export default simplePost({
     id: "mojo4kde",
     name: "Mojo 4K DE",
     description: "Until 01:00 AM next day",
-    group: "trex",
+    group: "not working",
   },
   url: "https://iptv-trial-mojo4kde.medmaar.workers.dev/",
   referer: "https://mojo4k.de/kostenlos-testen",

@@ -347,6 +347,19 @@
   box-shadow: 0 0 10px var(--grp-color-glow, rgba(0, 168, 255, 0.12));
 }
 
+.service-item-row.has-options {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.service-item-top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
 .service-item-row.disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -391,9 +404,7 @@
   font-size: 0.88rem;
   font-weight: 600;
   color: var(--text-primary);
-  white-space: normal;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
   line-height: 1.3;
 }
 
@@ -407,7 +418,159 @@
   line-height: 1.15;
 }
 
-/* Type Badge - Color-coded per group when selected */
+/* ── Service Filter Pills (Horizontal or Vertical Stack) ─────────────────── */
+.service-filter-pill-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 2px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-left: auto;
+  margin-right: 4px;
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.service-filter-pill-group.vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 0 0;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Full-width All button */
+.service-filter-pill.filter-row-all {
+  width: 100%;
+}
+
+/* Horizontal separator */
+.filter-separator {
+  height: 1px;
+  background: rgba(245, 158, 11, 0.2);
+  margin: 1px 0;
+}
+
+/* Two-column row (Live col | VOD col) */
+.filter-columns-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+/* Each column */
+.filter-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Sub-options indented below the title */
+.filter-col-subs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 4px;
+  border-left: 2px solid rgba(245, 158, 11, 0.15);
+  margin-top: 1px;
+}
+
+/* Column title button — bold, clickable section header */
+.service-filter-pill.filter-col-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--text-secondary);
+  padding: 4px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  margin-bottom: 2px;
+}
+
+.service-filter-pill {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.service-filter-pill-group.vertical .service-filter-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 0.69rem;
+  border-radius: 4px;
+  text-align: left;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.service-filter-pill-group.vertical .service-filter-pill span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-checkbox-box {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.service-filter-pill:hover:not(:disabled) .filter-checkbox-box {
+  border-color: rgba(245, 158, 11, 0.5);
+}
+
+.service-filter-pill.active .filter-checkbox-box {
+  border-color: #f59e0b;
+  background: #f59e0b;
+  color: #0b0f17;
+}
+
+.service-filter-pill.active .filter-checkbox-box svg {
+  stroke: #0b0f17;
+}
+
+.service-filter-pill:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.service-filter-pill.active {
+  background: var(--grp-color, #f59e0b);
+  color: #0b0f17;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.service-filter-pill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .service-type-badge {
   font-size: 0.68rem;
   font-weight: 600;

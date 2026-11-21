@@ -24,7 +24,7 @@ export default {
     id: "salescorner",
     name: TAG,
     description: `${TRIAL_HOURS} Hours`,
-    group: "other",
+    group: "not working",
   },
 
   async execute({ email, log = () => {} }) {

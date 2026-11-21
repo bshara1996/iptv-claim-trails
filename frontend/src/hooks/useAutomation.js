@@ -11,6 +11,9 @@ export function useAutomation() {
   const [services, setServices] = useState([]);
   const [selectedProvider, setSelectedProvider] = useState("");
   const [selectedServices, setSelectedServices] = useState([]);
+  const [trexiptvFilter, setTrexiptvFilter] = useState(["all"]);
+  const trexiptvFilterRef = useRef(trexiptvFilter);
+  trexiptvFilterRef.current = trexiptvFilter;
   const [status, setStatus] = useState("idle");
   const [logs, setLogs] = useState([]);
   const [results, setResults] = useState([]);
@@ -50,9 +53,12 @@ export function useAutomation() {
   }, []);
 
   const toggleService = useCallback((id) => {
-    setSelectedServices((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
-    );
+    setSelectedServices((prev) => {
+      const isRemoving = prev.includes(id);
+      // Reset TrexIPTV filter when the service is deselected.
+      if (isRemoving && id === "trexiptv") setTrexiptvFilter(["all"]);
+      return isRemoving ? prev.filter((s) => s !== id) : [...prev, id];
+    });
   }, []);
 
   // ── Captcha handlers ──────────────────────────────────────────────────────
@@ -114,7 +120,9 @@ export function useAutomation() {
 
     let data;
     try {
-      data = await startAutomation(selectedProvider, selectedServices);
+      data = await startAutomation(selectedProvider, selectedServices, {
+        trexiptv: trexiptvFilterRef.current,
+      });
     } catch (err) {
       pushLog(`Failed to start: ${err.message}`, "error");
       setStatus("error");
@@ -155,7 +163,7 @@ export function useAutomation() {
       },
       onDone: () => setStatus((prev) => (prev === "running" ? "done" : prev)),
     });
-  }, [selectedProvider, selectedServices, pushLog]);
+  }, [selectedProvider, selectedServices, trexiptvFilter, pushLog]);
 
   // ── Stop automation ───────────────────────────────────────────────────────
   const stop = useCallback(async () => {
@@ -181,6 +189,8 @@ export function useAutomation() {
     setSelectedProvider,
     selectedServices,
     toggleService,
+    trexiptvFilter,
+    setTrexiptvFilter,
     // Runtime state
     status,
     logs,

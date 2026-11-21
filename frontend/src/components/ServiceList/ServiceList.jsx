@@ -120,6 +120,47 @@ const KNOWN_GROUPS = {
   other: { name: "Other Services", icon: GlobeIcon },
 };
 
+const TREX_OPTIONS = [
+  { id: "all", label: "All" },
+  { id: "live", label: "Live Channels" },
+  { id: "vod", label: "Movies & Series" },
+  { id: "ar_live", label: "Arabic (Live)" },
+  { id: "ar_vod", label: "Arabic (VOD)" },
+  { id: "il_live", label: "Israel (Live)" },
+  { id: "il_vod", label: "Israel (VOD)" },
+];
+
+// Groups sub-options by parent column.
+const TREX_COLUMNS = [
+  { title: "live", label: "ALL Live", subs: ["ar_live", "il_live"] },
+  { title: "vod", label: "All VOD", subs: ["ar_vod", "il_vod"] },
+];
+
+function toggleTrexFilter(toggledId, current = ["all"]) {
+  const cur = Array.isArray(current) ? current : [current];
+  if (toggledId === "all") return ["all"];
+  let next = cur.filter((id) => id !== "all");
+
+  if (next.includes(toggledId)) {
+    next = next.filter((id) => id !== toggledId);
+  } else {
+    if (toggledId === "live") {
+      next = next
+        .filter((id) => id !== "ar_live" && id !== "il_live")
+        .concat("live");
+    } else if (toggledId === "vod") {
+      next = next
+        .filter((id) => id !== "ar_vod" && id !== "il_vod")
+        .concat("vod");
+    } else if (toggledId === "ar_live" || toggledId === "il_live") {
+      next = next.filter((id) => id !== "live").concat(toggledId);
+    } else if (toggledId === "ar_vod" || toggledId === "il_vod") {
+      next = next.filter((id) => id !== "vod").concat(toggledId);
+    }
+  }
+  return next.length ? next : ["all"];
+}
+
 // Color palette cycled for unknown groups (CSS variable sets).
 const DYNAMIC_COLORS = [
   {
@@ -184,6 +225,8 @@ export default function ServiceList({
   selected,
   onToggle,
   disabled,
+  trexiptvFilter = ["all"],
+  onTrexiptvFilterChange,
 }) {
   const [collapsedGroups, setCollapsedGroups] = useState({});
 
@@ -365,35 +408,158 @@ export default function ServiceList({
                     <div className="service-group-items">
                       {group.items.map((svc) => {
                         const isSelected = selected.includes(svc.id);
+                        const isTrex = svc.id === "trexiptv";
                         return (
                           <label
                             key={svc.id}
-                            className={`service-item-row${isSelected ? " selected" : ""}${disabled ? " disabled" : ""}`}
+                            className={`service-item-row${isSelected ? " selected" : ""}${disabled ? " disabled" : ""}${isTrex ? " has-options" : ""}`}
                           >
-                            <input
-                              type="checkbox"
-                              id={`service-${svc.id}`}
-                              className="service-checkbox-input"
-                              checked={isSelected}
-                              disabled={disabled}
-                              onChange={() => onToggle(svc.id)}
-                            />
-                            <div className="service-checkbox-visual">
-                              {isSelected && <CheckIcon />}
-                            </div>
-                            <div className="service-meta-group">
-                              <div className="service-name-text">
-                                {svc.name}
+                            <div className="service-item-top-row">
+                              <input
+                                type="checkbox"
+                                id={`service-${svc.id}`}
+                                className="service-checkbox-input"
+                                checked={isSelected}
+                                disabled={disabled}
+                                onChange={() => onToggle(svc.id)}
+                              />
+                              <div className="service-checkbox-visual">
+                                {isSelected && <CheckIcon />}
                               </div>
-                              {svc.url && (
-                                <div className="service-url-subtext">
-                                  {svc.url.replace(/^https?:\/\//, "")}
+                              <div className="service-meta-group">
+                                <div className="service-name-text">
+                                  {svc.name}
                                 </div>
-                              )}
+                                {svc.url && (
+                                  <div className="service-url-subtext">
+                                    {svc.url.replace(/^https?:\/\//, "")}
+                                  </div>
+                                )}
+                              </div>
+                              <span className="service-type-badge">
+                                {svc.description ?? "IPTV"}
+                              </span>
                             </div>
-                            <span className="service-type-badge">
-                              {svc.description ?? "IPTV"}
-                            </span>
+
+                            {isTrex && isSelected && (
+                              <div
+                                className="service-filter-pill-group vertical"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }}
+                              >
+                                {/* ── All — full-width row ────── */}
+                                {(() => {
+                                  const curList = Array.isArray(trexiptvFilter)
+                                    ? trexiptvFilter
+                                    : [trexiptvFilter];
+                                  const active = curList.includes("all");
+                                  return (
+                                    <button
+                                      type="button"
+                                      disabled={disabled}
+                                      className={`service-filter-pill filter-row-all${active ? " active" : ""}`}
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        onTrexiptvFilterChange?.(
+                                          toggleTrexFilter("all", curList),
+                                        );
+                                        if (!isSelected) onToggle(svc.id);
+                                      }}
+                                    >
+                                      <span className="filter-checkbox-box">
+                                        {active && <CheckIcon />}
+                                      </span>
+                                      <span>All</span>
+                                    </button>
+                                  );
+                                })()}
+
+                                {/* ── Separator ──────────────── */}
+                                <div className="filter-separator" />
+
+                                {/* ── Live | VOD two-column area ── */}
+                                <div className="filter-columns-row">
+                                  {TREX_COLUMNS.map((col) => {
+                                    const curList = Array.isArray(
+                                      trexiptvFilter,
+                                    )
+                                      ? trexiptvFilter
+                                      : [trexiptvFilter];
+                                    const titleActive = curList.includes(
+                                      col.title,
+                                    );
+                                    return (
+                                      <div
+                                        key={col.title}
+                                        className="filter-col"
+                                      >
+                                        {/* Clickable section title */}
+                                        <button
+                                          type="button"
+                                          disabled={disabled}
+                                          className={`service-filter-pill filter-col-title${titleActive ? " active" : ""}`}
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            onTrexiptvFilterChange?.(
+                                              toggleTrexFilter(
+                                                col.title,
+                                                curList,
+                                              ),
+                                            );
+                                            if (!isSelected) onToggle(svc.id);
+                                          }}
+                                        >
+                                          <span className="filter-checkbox-box">
+                                            {titleActive && <CheckIcon />}
+                                          </span>
+                                          <span>{col.label}</span>
+                                        </button>
+
+                                        {/* Sub-options indented below title */}
+                                        <div className="filter-col-subs">
+                                          {col.subs.map((subId) => {
+                                            const opt = TREX_OPTIONS.find(
+                                              (o) => o.id === subId,
+                                            );
+                                            const active =
+                                              curList.includes(subId);
+                                            return (
+                                              <button
+                                                key={subId}
+                                                type="button"
+                                                disabled={disabled}
+                                                className={`service-filter-pill${active ? " active" : ""}`}
+                                                onClick={(e) => {
+                                                  e.preventDefault();
+                                                  e.stopPropagation();
+                                                  onTrexiptvFilterChange?.(
+                                                    toggleTrexFilter(
+                                                      subId,
+                                                      curList,
+                                                    ),
+                                                  );
+                                                  if (!isSelected)
+                                                    onToggle(svc.id);
+                                                }}
+                                              >
+                                                <span className="filter-checkbox-box">
+                                                  {active && <CheckIcon />}
+                                                </span>
+                                                <span>{opt?.label}</span>
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </label>
                         );
                       })}

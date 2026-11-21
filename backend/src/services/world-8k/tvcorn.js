@@ -24,10 +24,10 @@ import { retryWithFreshEmail } from "../../email/base.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const TAG = "TVCorn";
+const TAG = "TVCorn (Gmail)";
 const BASE = "https://en.tvcorn.com";
-const CDN_HOST = "http://pro.business-cloud-8.ru";
-const FILTER_TEXT = "tvcorn";
+const CDN_HOST = "http://cf.new8ktv.xyz";
+const FILTER_TEXT = ["tvcorn", "info@tvcorn.com"];
 const POLL_INTERVAL = 3_000;
 const POLL_TIMEOUT = 120_000;
 const OTP_TIMEOUT = 120_000;
@@ -86,7 +86,7 @@ export default {
     return retryWithFreshEmail(
       async (email) => {
         const jar = createJar();
-        const name = generateUsername();
+        const name = "john";
 
         // Step 1: Session cookies + CSRF token.
         const { text: html } = await get(url("/trial"), jar);
@@ -147,7 +147,6 @@ export default {
           password: data.password,
           tvPlaylist: m3uLink,
           allM3uLinks: m3uLink ? [m3uLink] : [],
-          expiryDate: parseExpiryDate(data.expiry),
           trialHours: TRIAL_HOURS,
           serviceName: TAG,
         });

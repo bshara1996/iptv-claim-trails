@@ -17,7 +17,7 @@ const BASE = "https://trexiptv.ca";
 const TRIAL_HOURS = 24;
 const api = makeApi(BASE);
 
-const BOUQUETS = [
+const LIVE_BOUQUETS = [
   // ── Live Channels ──────────────────────────────────────────────────────────
   "1015", // U8K - CANADA
   "1016", // U8K - USA
@@ -93,7 +93,9 @@ const BOUQUETS = [
   "1115", // U8K - ASIA INDIA
   "1173", // U8K - BEETV ARABIC
   "1183", // U8K - SPORTS LIVE
+];
 
+const VOD_BOUQUETS = [
   // ── Movies & Series ────────────────────────────────────────────────────────
   "1021", // U8K - INDIA MOVIES
   "1022", // U8K - PAKISTAN MOVIES
@@ -143,6 +145,27 @@ const BOUQUETS = [
   "2034", // U8K - Czech/Slovakia
 ];
 
+const ALL_BOUQUETS = [...LIVE_BOUQUETS, ...VOD_BOUQUETS];
+
+const SUBSET_BOUQUETS = {
+  live: LIVE_BOUQUETS,
+  vod: VOD_BOUQUETS,
+  ar_live: ["1041", "1042", "1043", "1044", "1173"],
+  ar_vod: ["1116"],
+  il_live: ["1080"],
+  il_vod: ["1165"],
+};
+
+function resolveBouquets(selection) {
+  const list = Array.isArray(selection) ? selection : [selection || "all"];
+  if (list.includes("all")) return ALL_BOUQUETS;
+  const ids = new Set();
+  for (const key of list) {
+    for (const id of SUBSET_BOUQUETS[key] ?? []) ids.add(id);
+  }
+  return ids.size ? [...ids] : ALL_BOUQUETS;
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export default {
@@ -153,16 +176,22 @@ export default {
     group: "trex",
   },
 
-  async execute({ email, log = () => {} }) {
+  async execute({ email, options = {}, log = () => {} }) {
+    const rawFilter = options?.trexiptv ?? options?.trexiptvFilter ?? "all";
+    const bouquets = resolveBouquets(rawFilter);
+    const label = Array.isArray(rawFilter) ? rawFilter.join(", ") : rawFilter;
+
     // Step 1: POST trial request — submit email, phone, and bouquet list.
-    log(`[${TAG}] 📝 Submitting trial for ${email}...`);
+    log(
+      `[${TAG}] 📝 Submitting trial (${label} — ${bouquets.length} bouquets) for ${email}...`,
+    );
     const data = await api("/trial-api.php", {
       method: "POST",
       body: {
         action: "generate_m3u",
         email,
         phone: `+1${generatePhone()}`,
-        bouquets: BOUQUETS,
+        bouquets,
       },
     });
     log(`[${TAG}] 📡 Response: ${JSON.stringify(data)}`);
@@ -178,7 +207,7 @@ export default {
     const password = d?.password ?? null;
 
     if (!m3uUrl) log(`[${TAG}] ⚠️ No M3U URL in response.`, "warn");
-    else log(`[${TAG}] ✅ M3U: ${m3uUrl}`);
+    else log(`[${TAG}] 📺 ${m3uUrl}`);
 
     return buildResult({
       username,

@@ -14,7 +14,7 @@ export default simplePost({
     id: "iptvmapletv",
     name: "IPTV Maple TV",
     description: "Until 01:00 AM next day",
-    group: "trex",
+    group: "not working",
   },
   url: "https://iptv-trial-iptvmapletv.medmaar.workers.dev/",
   referer: "https://iptvmapletv.com/try-iptv-canada/",

@@ -16,6 +16,8 @@ export default function Dashboard() {
     setSelectedProvider,
     selectedServices,
     toggleService,
+    trexiptvFilter,
+    setTrexiptvFilter,
     status,
     logs,
     results,
@@ -104,6 +106,8 @@ export default function Dashboard() {
               selected={selectedServices}
               onToggle={toggleService}
               disabled={isRunning}
+              trexiptvFilter={trexiptvFilter}
+              onTrexiptvFilterChange={setTrexiptvFilter}
             />
 
             <ControlBar

@@ -56,7 +56,7 @@ export default {
     id: "iptvtrex",
     name: TAG,
     description: `${TRIAL_HOURS} Hours`,
-    group: "trex",
+    group: "not working",
   },
 
   async execute({ email, log = () => {} }) {

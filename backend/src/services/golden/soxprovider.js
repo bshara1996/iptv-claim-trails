@@ -101,10 +101,7 @@ export default {
 
     if (!playlists.allM3uLinks.length)
       log(`[${TAG}] ⚠️ No M3U links found.`, "warn");
-    else
-      log(
-        `[${TAG}] ✅ TV: ${playlists.tvPlaylist ?? "none"}, total: ${playlists.allM3uLinks.length}`,
-      );
+    else log(`[${TAG}] 📺 ${playlists.tvPlaylist ?? "none"}`);
 
     return buildResult({
       playlists: { ...playlists, vodPlaylist: null },

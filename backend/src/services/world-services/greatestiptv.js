@@ -9,10 +9,10 @@ export default simplePost({
     id: "greatestiptv",
     name: "GreatestIPTV",
     description: "36 Hours",
-    group: "gr8iptv",
+    group: "other",
   },
-  url: "https://www.strimoiptv.com/api/orders", // https://www.strimoiptv.com
-  referer: "https://www.strimoiptv.com/free-trial/?trial=true", // https://www.strimoiptv.com
+  url: "https://www.strimoiptv.com/api/orders", // greatestiptv
+  referer: "https://www.strimoiptv.com/free-trial/?trial=true", // greatestiptv
   filterText: [
     "greatestiptv",
     "noreply@greatestiptv.com",
